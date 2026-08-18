@@ -333,7 +333,44 @@ table.standings tr.leader td:first-child{font-weight:700;}
   border-radius:5px; background:var(--panel-3); font-family:var(--font-mono); font-size:11px; color:var(--text-dim);
 }
 
-/* ---------- general ranking ---------- */
+/* ---------- login ---------- */
+#loginScreen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  background: radial-gradient(1200px 600px at 100% -10%, rgba(46,156,181,0.16), transparent 60%), var(--bg);
+}
+.login-card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:36px 34px; width:100%; max-width:380px;
+}
+.login-brand{font-family:var(--font-display); font-size:24px; font-weight:700; margin-bottom:4px; text-align:center;}
+.login-brand span{color:var(--accent);}
+.login-sub{font-size:12.5px; color:var(--text-faint); text-align:center; margin-bottom:24px;}
+.role-tabs{display:flex; gap:6px; margin-bottom:22px; background:var(--panel-3); border-radius:10px; padding:4px;}
+.role-tab{flex:1; background:transparent; border:none; color:var(--text-dim); padding:9px 6px; border-radius:8px; font-size:12.5px; font-weight:600;}
+.role-tab.active{background:var(--panel-2); color:var(--accent);}
+.login-field{margin-bottom:14px;}
+.login-field label{display:block; font-size:11.5px; color:var(--text-faint); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;}
+.login-field input{
+  width:100%; background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text);
+  font-family:var(--font-body); font-size:14px; padding:10px 12px; border-radius:8px;
+}
+.login-field input:focus{outline:none; border-color:var(--accent-2);}
+.login-error{color:var(--danger); font-size:12px; margin-bottom:12px; min-height:16px;}
+
+/* ---------- vista jugador ---------- */
+#jugadorScreen{min-height:100vh; padding:28px 20px 60px;}
+.jugador-header{display:flex; justify-content:space-between; align-items:center; max-width:640px; margin:0 auto 26px; flex-wrap:wrap; gap:10px;}
+.jugador-header .who{font-family:var(--font-display); font-size:18px;}
+.jugador-header .who span{color:var(--accent);}
+.jugador-section{max-width:640px; margin:0 auto 30px;}
+.jugador-section h3{font-family:var(--font-display); font-size:15px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); margin:0 0 12px;}
+.next-match-card{
+  background:var(--panel); border:1px solid var(--accent-2); border-radius:var(--radius); padding:22px 24px;
+}
+.next-match-card .stage{font-size:11.5px; color:var(--accent-2); font-family:var(--font-mono); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;}
+.next-match-card .vs-row{display:flex; align-items:center; justify-content:space-between; gap:14px;}
+.next-match-card .team{font-family:var(--font-display); font-size:17px; font-weight:600;}
+.next-match-card .vsdivider{color:var(--text-faint); font-family:var(--font-mono); font-size:12px;}
 .general-table-wrap{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; max-width:900px;}
 table.gen{width:100%; border-collapse:collapse; font-size:13px;}
 table.gen th{text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; padding:8px 10px; border-bottom:1px solid var(--line-strong);}
@@ -398,7 +435,41 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
 </head>
 <body>
 
-<div id="app">
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">CUADRO<span>PÁDEL</span></div>
+    <div class="login-sub">Iniciá sesión para continuar</div>
+    <div class="role-tabs">
+      <button class="role-tab" data-role="admin" onclick="App.setLoginRole('admin')">Administrador</button>
+      <button class="role-tab" data-role="coordinador" onclick="App.setLoginRole('coordinador')">Coordinador</button>
+      <button class="role-tab" data-role="jugador" onclick="App.setLoginRole('jugador')">Jugador</button>
+    </div>
+    <div id="loginFields"></div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="App.attemptLogin()">Ingresar</button>
+  </div>
+</div>
+
+<div id="jugadorScreen" style="display:none;">
+  <div class="jugador-header">
+    <div class="who">Hola, <span id="jugadorNombre"></span></div>
+    <button class="sb-btn" onclick="App.logout()">Cerrar sesión</button>
+  </div>
+  <div class="jugador-section">
+    <h3>Tu próximo partido</h3>
+    <div id="jugadorProximoPartido"></div>
+  </div>
+  <div class="jugador-section">
+    <h3>Tabla de puntos</h3>
+    <div id="jugadorTablaPuntos"></div>
+  </div>
+  <div class="jugador-section">
+    <h3>Próximos torneos</h3>
+    <div id="jugadorProximosTorneos"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
   <aside class="sidebar">
     <div class="brand">CUADRO<span>PÁDEL</span></div>
     <div class="brand-sub">Organizador de torneos</div>
@@ -409,13 +480,16 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       <button class="tab" data-tab="clubes"><span class="num">02</span> Clubes</button>
       <button class="tab" data-tab="torneoActual"><span class="num">03</span> Torneo Actual</button>
       <button class="tab" data-tab="proximos"><span class="num">04</span> Próximos Torneos</button>
+      <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">05</span> Coordinadores</button>
     </nav>
     <div class="sidebar-footer">
+      <div class="storage-chip ok" id="sessionChip" style="margin-bottom:2px;"></div>
       <button class="sb-btn" onclick="App.exportState()">Exportar todo (.json)</button>
       <label class="sb-btn" style="display:block;">Importar todo
         <input type="file" id="fileImport" accept="application/json" style="display:none">
       </label>
       <button class="sb-btn danger" onclick="App.resetTournament()">Reiniciar torneo activo</button>
+      <button class="sb-btn" onclick="App.logout()">Cerrar sesión</button>
     </div>
   </aside>
 
@@ -537,6 +611,17 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       </div>
       <div id="proximosContainer"></div>
     </section>
+
+    <section class="view" id="view-coordinadores">
+      <h2 class="section-title">Coordinadores</h2>
+      <p class="section-sub">Usuarios con permiso para crear torneos y cargar resultados. Solo el administrador ve y gestiona esta sección.</p>
+      <div class="add-club-row">
+        <input type="text" id="newCoordUser" placeholder="Usuario (ej. cord4)">
+        <input type="text" id="newCoordPass" placeholder="Contraseña">
+        <button class="btn btn-ghost btn-sm" onclick="App.addCoordinador()">+ Nuevo</button>
+      </div>
+      <div id="coordinadoresContainer"></div>
+    </section>
   </main>
 </div>
 
@@ -574,6 +659,12 @@ let playersDB = [];   // [{id,name,dni,categoria,createdAt,stats:{puntos,torneos
 let archive = [];     // [{id,name,date,championName,totalPairs,results:[],snapshot:{...}}]
 let clubsDB = [];     // [{id,name,courts,address,createdAt}]
 let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
+let coordinadoresDB = []; // [{id,username,password}]
+
+const ADMIN_PASSWORD = 'SUNAdm1n';
+const PLAYER_PASSWORD = 'torneo';
+let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
+let loginRole = 'admin';
 
 let state = null;
 
@@ -597,7 +688,7 @@ function uid(){
 }
 
 const OLD_SUBTABS = ['parejas','zonas','general','llave','historial'];
-const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos'];
+const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos','coordinadores'];
 function sanitizeState(s){
   if(!s) return freshTournament();
   if(!s.torneoSubTab) s.torneoSubTab = 'parejas';
@@ -616,7 +707,7 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     if(liveSyncActive && firestoreDocRef){
-      try{ await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, updatedAt: Date.now() }); }
+      try{ await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() }); }
       catch(e){ console.error('Error guardando en Firebase', e); }
       return;
     }
@@ -627,6 +718,7 @@ function scheduleSave(){
         await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
         await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
         await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
+        await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
       }catch(e){ console.error('Error guardando', e); }
     }
   }, 350);
@@ -638,6 +730,7 @@ function applyRemoteData(data){
   archive = data.archive || [];
   clubsDB = data.clubsDB || [];
   upcomingTournaments = data.upcomingTournaments || [];
+  coordinadoresDB = data.coordinadoresDB || [];
   state = sanitizeState(data.state || freshTournament());
   renderUI();
   applyingRemote = false;
@@ -659,6 +752,7 @@ document.addEventListener('focusout', ()=>{
 });
 
 async function initApp(){
+  renderLoginFields();
   state = freshTournament();
 
   if(FIREBASE_ENABLED){
@@ -673,9 +767,10 @@ async function initApp(){
         archive = data.archive || [];
         clubsDB = data.clubsDB || [];
         upcomingTournaments = data.upcomingTournaments || [];
+        coordinadoresDB = data.coordinadoresDB || [];
         state = sanitizeState(data.state || freshTournament());
       } else {
-        await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, updatedAt: Date.now() });
+        await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() });
       }
       liveSyncActive = true;
       unsubscribeSnapshot = firestoreDocRef.onSnapshot(snap=>{
@@ -696,10 +791,220 @@ async function initApp(){
     try{ const r = await window.storage.get('active-tournament', false); if(r) state = sanitizeState(JSON.parse(r.value)); }catch(e){ /* sin torneo guardado */ }
     try{ const r = await window.storage.get('tournaments-archive', false); archive = r? JSON.parse(r.value): []; }catch(e){ archive = []; }
     try{ const r = await window.storage.get('clubs-db', false); clubsDB = r? JSON.parse(r.value): []; }catch(e){ clubsDB = []; }
+    try{ const r = await window.storage.get('coordinadores-db', false); coordinadoresDB = r? JSON.parse(r.value): []; }catch(e){ coordinadoresDB = []; }
     try{ const r = await window.storage.get('upcoming-tournaments', false); upcomingTournaments = r? JSON.parse(r.value): []; }catch(e){ upcomingTournaments = []; }
   }
 
+  if(coordinadoresDB.length===0){
+    coordinadoresDB = [
+      {id:uid(), username:'cord1', password:'Torneo1842'},
+      {id:uid(), username:'cord2', password:'Torneo1842'},
+      {id:uid(), username:'cord3', password:'Torneo1842'}
+    ];
+    scheduleSave();
+  }
+
+  showLoginScreen();
+}
+
+/* =========================================================
+   LOGIN / SESIÓN
+   ========================================================= */
+function showLoginScreen(){
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('jugadorScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  renderLoginFields();
+}
+
+App.setLoginRole = function(role){
+  loginRole = role;
+  document.getElementById('loginError').textContent = '';
+  renderLoginFields();
+};
+
+function renderLoginFields(){
+  document.querySelectorAll('.role-tab').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.role===loginRole);
+  });
+  const c = document.getElementById('loginFields');
+  if(loginRole==='admin'){
+    c.innerHTML = `
+      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
+  } else if(loginRole==='coordinador'){
+    c.innerHTML = `
+      <div class="login-field"><label>Usuario</label><input type="text" id="loginUser"></div>
+      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
+  } else {
+    c.innerHTML = `
+      <div class="login-field"><label>DNI</label><input type="text" id="loginDni" inputmode="numeric"></div>
+      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
+  }
+  const first = c.querySelector('input');
+  if(first) first.focus();
+}
+
+App.attemptLogin = function(){
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  const pass = document.getElementById('loginPassword').value;
+
+  if(loginRole==='admin'){
+    if(pass !== ADMIN_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
+    currentUser = {role:'admin'};
+  } else if(loginRole==='coordinador'){
+    const user = document.getElementById('loginUser').value.trim();
+    const coord = coordinadoresDB.find(c=> c.username.toLowerCase()===user.toLowerCase() && c.password===pass);
+    if(!coord){ errEl.textContent = 'Usuario o contraseña incorrectos.'; return; }
+    currentUser = {role:'coordinador', username:coord.username};
+  } else {
+    const dni = document.getElementById('loginDni').value.trim();
+    if(pass !== PLAYER_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
+    if(!dni){ errEl.textContent = 'Ingresá tu DNI.'; return; }
+    const player = playersDB.find(p=> p.dni && p.dni.trim()===dni);
+    if(!player){ errEl.textContent = 'No hay ningún jugador cargado con ese DNI. Pedile al organizador que lo cargue.'; return; }
+    currentUser = {role:'jugador', playerId:player.id, name:player.name};
+  }
+  onLoginSuccess();
+};
+
+function onLoginSuccess(){
+  document.getElementById('loginScreen').style.display = 'none';
+  if(currentUser.role==='jugador'){
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('jugadorScreen').style.display = 'block';
+    renderJugadorView();
+  } else {
+    document.getElementById('jugadorScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    render();
+  }
+}
+
+App.logout = function(){
+  currentUser = null;
+  loginRole = 'admin';
+  document.getElementById('loginPassword') && (document.getElementById('loginPassword').value = '');
+  showLoginScreen();
+};
+
+/* ---- coordinadores (solo admin) ---- */
+App.addCoordinador = function(){
+  const userEl = document.getElementById('newCoordUser');
+  const passEl = document.getElementById('newCoordPass');
+  const username = userEl.value.trim();
+  const password = passEl.value;
+  if(!username || !password){ alert('Completá usuario y contraseña.'); return; }
+  if(coordinadoresDB.some(c=>c.username.toLowerCase()===username.toLowerCase())){
+    alert('Ya existe un coordinador con ese usuario.'); return;
+  }
+  coordinadoresDB.push({id:uid(), username, password});
+  userEl.value=''; passEl.value='';
   render();
+};
+App.removeCoordinador = function(id){
+  const ok = confirm('¿Eliminar este coordinador? Va a dejar de poder ingresar.');
+  if(!ok) return;
+  coordinadoresDB = coordinadoresDB.filter(c=>c.id!==id);
+  render();
+};
+
+/* ---- vista simplificada de jugador ---- */
+function findPairByPlayerId(playerId){
+  return state.pairs.find(p=> p.p1Id===playerId || p.p2Id===playerId) || null;
+}
+
+function findNextMatchForPair(pairId){
+  if(!pairId) return null;
+  for(const zone of state.zones){
+    const m = zone.matches.find(x=> !x.completed && (x.aId===pairId || x.bId===pairId));
+    if(m) return {stage: zone.name, opponentId: m.aId===pairId? m.bId : m.aId};
+  }
+  if(state.primera){
+    const m = state.primera.matches.find(x=> !x.bye && !x.completed && (x.aId===pairId || x.bId===pairId));
+    if(m) return {stage:'Primera Instancia (repechaje)', opponentId: m.aId===pairId? m.bId : m.aId};
+  }
+  if(state.segunda && state.segunda.rounds.length){
+    const lastRound = state.segunda.rounds[state.segunda.rounds.length-1];
+    const m = lastRound.find(x=> !x.bye && !x.completed && (x.aId===pairId || x.bId===pairId));
+    if(m) return {stage:'Llave — Segunda Instancia', opponentId: m.aId===pairId? m.bId : m.aId};
+  }
+  return null;
+}
+
+function renderJugadorView(){
+  document.getElementById('jugadorNombre').textContent = currentUser.name;
+
+  const pair = findPairByPlayerId(currentUser.playerId);
+  const nextMatchEl = document.getElementById('jugadorProximoPartido');
+  if(!pair){
+    nextMatchEl.innerHTML = `<div class="empty-state">Todavía no estás anotado en una pareja de este torneo.</div>`;
+  } else {
+    const champId = typeof getChampionPairId==='function' ? getChampionPairId() : null;
+    if(champId){
+      nextMatchEl.innerHTML = champId===pair.id
+        ? `<div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">¡Felicitaciones!</div><div class="name">Fuiste campeón de este torneo</div></div></div></div>`
+        : `<div class="empty-state">El torneo ya terminó. ¡Gracias por participar!</div>`;
+    } else {
+      const next = findNextMatchForPair(pair.id);
+      if(!next){
+        nextMatchEl.innerHTML = `<div class="empty-state">No tenés partidos pendientes en este momento. Puede que estés esperando el resultado de otro partido, o que hayas quedado eliminado.</div>`;
+      } else {
+        nextMatchEl.innerHTML = `
+          <div class="next-match-card">
+            <div class="stage">${escapeHtml(next.stage)}</div>
+            <div class="vs-row">
+              <div class="team">${escapeHtml(pairDisplayName(pair))}</div>
+              <div class="vsdivider">VS</div>
+              <div class="team">${escapeHtml(getPairName(next.opponentId))}</div>
+            </div>
+          </div>`;
+      }
+    }
+  }
+
+  const tablaEl = document.getElementById('jugadorTablaPuntos');
+  if(state.zones.length===0){
+    tablaEl.innerHTML = `<div class="empty-state">Todavía no hay zonas generadas para este torneo.</div>`;
+  } else {
+    const ranking = computeGeneralRanking();
+    const rowsHtml = ranking.map(s=>`
+      <tr class="${pair && s.pairId===pair.id ? 'leader':''}">
+        <td class="num">${state.smallMode ? s.position : s.rank}</td>
+        <td>${escapeHtml(s.name)}</td>
+        <td class="num">${s.pts===null?'—':s.pts}</td>
+        <td class="num">${s.diffGames>0?'+':''}${s.diffGames}</td>
+      </tr>`).join('');
+    tablaEl.innerHTML = `
+      <div class="general-table-wrap">
+        <table class="gen">
+          <thead><tr><th>#</th><th>Pareja</th><th class="num">Pts</th><th class="num">Dif.G</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+  }
+
+  const proxEl = document.getElementById('jugadorProximosTorneos');
+  const todayStr = new Date().toISOString().slice(0,10);
+  const upcoming = [...upcomingTournaments].filter(u=>u.date>=todayStr).sort((a,b)=> a.date.localeCompare(b.date));
+  if(upcoming.length===0){
+    proxEl.innerHTML = `<div class="empty-state">No hay torneos programados por ahora.</div>`;
+  } else {
+    proxEl.innerHTML = upcoming.map(u=>{
+      const d = new Date(u.date+'T00:00:00');
+      const club = clubsDB.find(cl=>cl.id===u.clubId);
+      const clubName = club ? club.name : 'Sin club asignado';
+      const address = club && club.address ? club.address : '';
+      return `
+        <div class="upcoming-card">
+          <div class="upcoming-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="wd">${['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'][d.getDay()]}</div></div>
+          <div class="upcoming-info">
+            <div class="club">${escapeHtml(clubName)}</div>
+            <div class="meta">${u.categoria? escapeHtml(u.categoria)+' · ':''}${escapeHtml(address)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
 }
 
 /* =========================================================
@@ -1408,7 +1713,7 @@ App.wipeEverything = function(){
 };
 
 App.exportState = function(){
-  const bundle = { playersDB, archive, state, clubsDB, upcomingTournaments };
+  const bundle = { playersDB, archive, state, clubsDB, upcomingTournaments, coordinadoresDB };
   const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1429,6 +1734,7 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
       playersDB = parsed.playersDB || [];
       archive = parsed.archive || [];
       clubsDB = parsed.clubsDB || [];
+      coordinadoresDB = parsed.coordinadoresDB || [];
       upcomingTournaments = parsed.upcomingTournaments || [];
       state = sanitizeState(parsed.state);
       render();
@@ -1463,6 +1769,17 @@ function render(){
 function renderUI(){
   document.getElementById('tournamentName').value = state.name;
 
+  const isAdmin = currentUser && currentUser.role==='admin';
+  document.getElementById('tabCoordinadores').style.display = isAdmin ? 'flex' : 'none';
+  if(state.activeTab==='coordinadores' && !isAdmin) state.activeTab = 'inicio';
+
+  const sessionChip = document.getElementById('sessionChip');
+  if(currentUser){
+    sessionChip.textContent = currentUser.role==='admin' ? '👤 Administrador'
+      : currentUser.role==='coordinador' ? `👤 Coordinador (${currentUser.username})`
+      : `👤 ${currentUser.name}`;
+  }
+
   document.querySelectorAll('.tab').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.tab===state.activeTab);
   });
@@ -1486,6 +1803,7 @@ function renderUI(){
   renderGeneral();
   renderLlave();
   renderHistorial();
+  renderCoordinadores();
 }
 
 function renderStorageChip(){
@@ -1580,11 +1898,40 @@ function renderJugadores(){
         <span class="pl-item"><b>Elim. Primera Instancia</b> +${POINTS.primera_instancia_eliminado}</span>
         <span class="pl-item"><b>Participación</b> +${POINTS.participacion}</span>
       </div>
+      ${currentUser && currentUser.role==='admin' ? `
       <div class="actions-row" style="margin-top:18px;">
         <button class="sb-btn danger" style="max-width:220px;" onclick="App.wipeEverything()">Borrar toda la base</button>
-      </div>
+      </div>` : ''}
     </div>`;
 }
+
+/* ---- Coordinadores (solo admin) ---- */
+function renderCoordinadores(){
+  const c = document.getElementById('coordinadoresContainer');
+  if(!c) return;
+  if(coordinadoresDB.length===0){
+    c.innerHTML = `<div class="empty-state">No hay coordinadores cargados.</div>`;
+    return;
+  }
+  const rows = coordinadoresDB.map(co=>`
+    <tr>
+      <td>${escapeHtml(co.username)}</td>
+      <td><input class="inline-edit" type="password" value="${escapeAttr(co.password)}" onchange="App.setCoordField('${co.id}','password',this.value)"></td>
+      <td><button class="remove-player-btn" onclick="App.removeCoordinador('${co.id}')">✕</button></td>
+    </tr>`).join('');
+  c.innerHTML = `
+    <div class="ranking-wrap">
+      <table class="clubs">
+        <thead><tr><th>Usuario</th><th>Contraseña</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+App.setCoordField = function(id, field, value){
+  const co = coordinadoresDB.find(c=>c.id===id);
+  if(co) co[field] = value;
+  scheduleSave();
+};
 
 /* ---- Clubes ---- */
 function renderClubes(){
