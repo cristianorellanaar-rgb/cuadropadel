@@ -247,6 +247,20 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .subnav-btn.active{background:var(--panel-2); color:var(--accent); border-color:var(--accent);}
 .subview{display:none;}
 .subview.active{display:block; animation:fadein .2s ease;}
+.back-link{margin-bottom:18px;}
+
+.tournament-card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px 20px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; max-width:920px;
+}
+.tournament-card .info{flex:1; min-width:200px;}
+.tournament-card .title{font-family:var(--font-display); font-size:16px; font-weight:600; margin-bottom:4px;}
+.tournament-card .meta{font-size:12px; color:var(--text-dim); display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+.tournament-card .owner-select{
+  background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text-dim);
+  font-family:var(--font-mono); font-size:11.5px; padding:4px 8px; border-radius:6px;
+}
+.tournament-card .actions{display:flex; gap:8px; align-items:center;}
 
 /* ---------- clubes ---------- */
 .add-club-row{display:flex; gap:8px; max-width:640px; margin-bottom:18px; flex-wrap:wrap;}
@@ -537,7 +551,7 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
         <button class="home-card" onclick="App.clickNuevoTorneo()">
           <div class="home-card-icon">🆕</div>
           <div class="home-card-title">Nuevo Torneo</div>
-          <div class="home-card-sub">Empezar un torneo desde cero</div>
+          <div class="home-card-sub">Crear un torneo nuevo (no afecta a los demás en curso)</div>
         </button>
         <button class="home-card" onclick="switchTab('jugadores')">
           <div class="home-card-icon">🧑‍🤝‍🧑</div>
@@ -549,10 +563,10 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
           <div class="home-card-title">Clubes</div>
           <div class="home-card-sub">Clubes de pádel, canchas y direcciones</div>
         </button>
-        <button class="home-card" onclick="switchTab('torneoActual')">
+        <button class="home-card" onclick="App.backToTournamentList(); switchTab('torneoActual');">
           <div class="home-card-icon">🎾</div>
-          <div class="home-card-title">Torneo Actual</div>
-          <div class="home-card-sub">Parejas, zonas, clasificación y llave</div>
+          <div class="home-card-title">Torneos</div>
+          <div class="home-card-sub">Ver y abrir los torneos activos</div>
         </button>
         <button class="home-card" onclick="switchTab('proximos')">
           <div class="home-card-icon">🗓️</div>
@@ -585,9 +599,10 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
     </section>
 
     <section class="view" id="view-torneoActual">
-      <h2 class="section-title">Torneo Actual</h2>
-      <p class="section-sub">Parejas, resultados de zona, clasificación general y llave del torneo en curso.</p>
+      <h2 class="section-title">Torneos</h2>
+      <p class="section-sub">Elegí un torneo activo para abrirlo, o creá uno nuevo. Cada torneo se guarda por separado — abrir o editar uno no afecta a los demás.</p>
       <div class="subnav" id="torneoSubnav">
+        <button class="subnav-btn" data-subtab="lista">Lista de torneos</button>
         <button class="subnav-btn" data-subtab="parejas">Parejas</button>
         <button class="subnav-btn" data-subtab="zonas">Zonas</button>
         <button class="subnav-btn" data-subtab="general">Clasificación</button>
@@ -595,7 +610,15 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
         <button class="subnav-btn" data-subtab="historial">Historial</button>
       </div>
 
+      <div class="subview" id="subview-lista">
+        <div class="actions-row" style="margin-bottom:20px;">
+          <button class="btn btn-primary" onclick="App.createTournament()">+ Nuevo torneo</button>
+        </div>
+        <div id="tournamentsListContainer"></div>
+      </div>
+
       <div class="subview" id="subview-parejas">
+        <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
         <div class="format-picker" id="formatPicker">
           <div class="format-option" data-format="avanzado" onclick="App.setFormat('avanzado')">
             <div class="format-title">Torneo Americano Avanzado</div>
@@ -620,16 +643,19 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       </div>
 
       <div class="subview" id="subview-zonas">
+        <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
         <p class="section-sub">Todos contra todos dentro de cada zona. Los partidos se juegan a un set — cargá el resultado en games y se calculan puntos, diferencia de sets y de games automáticamente.</p>
         <div id="zonasContainer"></div>
       </div>
 
       <div class="subview" id="subview-general">
+        <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
         <p class="section-sub">Ranking combinado de todas las parejas. Con 6+ parejas, la mitad superior clasifica directo a la <b>Segunda Instancia</b> y la mitad inferior juega la <b>Primera Instancia</b> (repechaje). Con menos de 6 parejas, este ranking define directamente al campeón.</p>
         <div id="generalContainer"></div>
       </div>
 
       <div class="subview" id="subview-llave">
+        <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
         <p class="section-sub">Primera Instancia define quién completa el cuadro. Segunda Instancia se juega por eliminación directa hasta el campeón.</p>
         <div id="llaveContainer"></div>
       </div>
@@ -687,9 +713,12 @@ const firebaseConfig = {
 const FIREBASE_ENABLED = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PEGAR_AQUI";
 let db = null;
 let firestoreDocRef = null;
-let unsubscribeSnapshot = null;
+let unsubscribeSnapshot = null;       // listener del documento principal (datos compartidos)
+let unsubscribeTournaments = null;    // listener de la colección de torneos activos
 let pendingRemoteData = null;
+let pendingRemoteTournaments = null;
 let applyingRemote = false;
+let tournamentsColRef = null;
 
 /* =========================================================
    ALMACENAMIENTO PERSISTENTE
@@ -701,6 +730,7 @@ let archive = [];     // [{id,name,date,championName,totalPairs,results:[],snaps
 let clubsDB = [];     // [{id,name,courts,address,createdAt}]
 let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
 let coordinadoresDB = []; // [{id,username,password}]
+let tournaments = [];  // [{tournamentId,name,format,ownerCoordinador,pairs,zones,smallMode,primera,segunda,createdAt}] — cada uno vive en su propio documento
 
 const ADMIN_PASSWORD = 'SUNAdm1n';
 const PLAYER_PASSWORD = 'torneo';
@@ -709,20 +739,22 @@ let loginRole = 'admin';
 
 const App = {};
 
-let state = null;
+let state = null; // referencia al torneo actualmente ABIERTO (un elemento de `tournaments`), o null si estamos en la lista
+
+let nav = { activeTab: 'inicio', torneoSubTab: 'lista' }; // navegación local del navegador — NO se sincroniza entre sesiones
 
 function freshTournament(){
   return {
     tournamentId: uid(),
     name: '',
     format: 'avanzado',
+    ownerCoordinador: null,
     pairs: [],
     zones: [],
     smallMode: false,
     primera: null,
     segunda: null,
-    activeTab: 'inicio',
-    torneoSubTab: 'parejas'
+    createdAt: new Date().toISOString()
   };
 }
 
@@ -731,35 +763,40 @@ function uid(){
   return 'id-'+Math.random().toString(36).slice(2)+Date.now();
 }
 
-const OLD_SUBTABS = ['parejas','zonas','general','llave','historial'];
 const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos','coordinadores'];
-function sanitizeState(s){
-  if(!s) return freshTournament();
-  if(!s.torneoSubTab) s.torneoSubTab = 'parejas';
-  if(!s.format) s.format = 'avanzado';
-  if(OLD_SUBTABS.includes(s.activeTab)){
-    s.torneoSubTab = s.activeTab;
-    s.activeTab = 'torneoActual';
-  }
-  if(!TOP_TABS.includes(s.activeTab)) s.activeTab = 'inicio';
-  if(!OLD_SUBTABS.includes(s.torneoSubTab)) s.torneoSubTab = 'parejas';
-  return s;
+const TORNEO_SUBTABS = ['lista','parejas','zonas','general','llave','historial'];
+
+function sanitizeTournament(t){
+  if(!t) return null;
+  if(!t.format) t.format = 'avanzado';
+  if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
+  if(!t.createdAt) t.createdAt = new Date().toISOString();
+  delete t.activeTab; delete t.torneoSubTab; // formato viejo (versión de un solo torneo activo)
+  return t;
 }
 
-let saveTimer=null;
-function scheduleSave(){
-  if(applyingRemote) return; // no reescribir lo que acabamos de recibir de otro organizador
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{
+function getOpenTournament(){ return state; }
+
+function getVisibleTournaments(){
+  if(!currentUser) return [];
+  if(currentUser.role==='admin') return tournaments;
+  if(currentUser.role==='coordinador') return tournaments.filter(t=> t.ownerCoordinador===currentUser.username);
+  return [];
+}
+
+let saveMainTimer=null;
+function scheduleSaveMain(){
+  if(applyingRemote) return;
+  clearTimeout(saveMainTimer);
+  saveMainTimer = setTimeout(async ()=>{
     if(liveSyncActive && firestoreDocRef){
-      try{ await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() }); }
+      try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() }); }
       catch(e){ console.error('Error guardando en Firebase', e); }
       return;
     }
     if(storageAvailable){
       try{
         await window.storage.set('players-db', JSON.stringify(playersDB), false);
-        await window.storage.set('active-tournament', JSON.stringify(state), false);
         await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
         await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
         await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
@@ -769,14 +806,59 @@ function scheduleSave(){
   }, 350);
 }
 
-function applyRemoteData(data){
+let saveTournamentTimers = {};
+function scheduleSaveTournament(t){
+  if(applyingRemote || !t) return;
+  clearTimeout(saveTournamentTimers[t.tournamentId]);
+  saveTournamentTimers[t.tournamentId] = setTimeout(async ()=>{
+    if(liveSyncActive && tournamentsColRef){
+      try{ await tournamentsColRef.doc(t.tournamentId).set(t); }
+      catch(e){ console.error('Error guardando el torneo', e); }
+      return;
+    }
+    if(storageAvailable){
+      try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); }
+      catch(e){ console.error('Error guardando torneos', e); }
+    }
+  }, 350);
+}
+
+function deleteTournamentDoc(tournamentId){
+  if(liveSyncActive && tournamentsColRef){
+    tournamentsColRef.doc(tournamentId).delete().catch(e=>console.error('Error eliminando torneo', e));
+  } else if(storageAvailable){
+    window.storage.set('active-tournaments', JSON.stringify(tournaments), false).catch(e=>console.error(e));
+  }
+}
+
+function applyRemoteMain(data){
   applyingRemote = true;
   playersDB = data.playersDB || [];
   archive = data.archive || [];
   clubsDB = data.clubsDB || [];
   upcomingTournaments = data.upcomingTournaments || [];
   coordinadoresDB = data.coordinadoresDB || [];
-  state = sanitizeState(data.state || freshTournament());
+  renderUI();
+  applyingRemote = false;
+}
+
+function applyRemoteTournaments(snap){
+  applyingRemote = true;
+  snap.docChanges().forEach(change=>{
+    const data = sanitizeTournament(change.doc.data());
+    const idx = tournaments.findIndex(t=>t.tournamentId===data.tournamentId);
+    if(change.type==='removed'){
+      if(idx>=0) tournaments.splice(idx,1);
+      if(state && state.tournamentId===data.tournamentId){
+        state = null;
+        nav.torneoSubTab = 'lista';
+      }
+    } else if(idx>=0){
+      Object.assign(tournaments[idx], data); // mutar en el lugar: si `state` apunta a este objeto, se actualiza solo
+    } else {
+      tournaments.push(data);
+    }
+  });
   renderUI();
   applyingRemote = false;
 }
@@ -791,39 +873,63 @@ document.addEventListener('focusout', ()=>{
     if(pendingRemoteData && !isTypingInInput()){
       const data = pendingRemoteData;
       pendingRemoteData = null;
-      applyRemoteData(data);
+      applyRemoteMain(data);
+    }
+    if(pendingRemoteTournaments && !isTypingInInput()){
+      const snap = pendingRemoteTournaments;
+      pendingRemoteTournaments = null;
+      applyRemoteTournaments(snap);
     }
   }, 50);
 });
 
 async function initApp(){
   renderLoginFields();
-  state = freshTournament();
 
   if(FIREBASE_ENABLED){
     try{
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
       firestoreDocRef = db.collection('cuadropadel').doc('main');
-      const snap = await firestoreDocRef.get();
-      if(snap.exists){
-        const data = snap.data();
-        playersDB = data.playersDB || [];
-        archive = data.archive || [];
-        clubsDB = data.clubsDB || [];
-        upcomingTournaments = data.upcomingTournaments || [];
-        coordinadoresDB = data.coordinadoresDB || [];
-        state = sanitizeState(data.state || freshTournament());
-      } else {
-        await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() });
+      tournamentsColRef = firestoreDocRef.collection('tournaments');
+
+      const mainSnap = await firestoreDocRef.get();
+      const mainData = mainSnap.exists ? mainSnap.data() : {};
+      playersDB = mainData.playersDB || [];
+      archive = mainData.archive || [];
+      clubsDB = mainData.clubsDB || [];
+      upcomingTournaments = mainData.upcomingTournaments || [];
+      coordinadoresDB = mainData.coordinadoresDB || [];
+
+      const toursSnap = await tournamentsColRef.get();
+      tournaments = toursSnap.docs.map(d=> sanitizeTournament(d.data()));
+
+      // migración: si había un torneo único de la versión anterior, pasarlo a la colección nueva
+      if(mainData.state && tournaments.length===0){
+        const migrated = sanitizeTournament(mainData.state);
+        migrated.ownerCoordinador = null;
+        tournaments.push(migrated);
+        await tournamentsColRef.doc(migrated.tournamentId).set(migrated);
       }
+
+      if(!mainSnap.exists){
+        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() });
+      }
+
       liveSyncActive = true;
+
       unsubscribeSnapshot = firestoreDocRef.onSnapshot(snap=>{
         if(!snap.exists) return;
         const data = snap.data();
         if(isTypingInInput()){ pendingRemoteData = data; return; }
-        applyRemoteData(data);
-      }, err=>{ console.error('Error de sincronización en vivo', err); liveSyncActive=false; renderUI(); });
+        applyRemoteMain(data);
+      }, err=>{ console.error('Error de sincronización en vivo', err); });
+
+      unsubscribeTournaments = tournamentsColRef.onSnapshot(snap=>{
+        if(isTypingInInput()){ pendingRemoteTournaments = snap; return; }
+        applyRemoteTournaments(snap);
+      }, err=>{ console.error('Error de sincronización de torneos', err); });
+
     }catch(e){
       console.error('No se pudo conectar a Firebase', e);
       liveSyncActive = false;
@@ -833,11 +939,17 @@ async function initApp(){
   if(!liveSyncActive && window.storage && typeof window.storage.get === 'function'){
     storageAvailable = true;
     try{ const r = await window.storage.get('players-db', false); playersDB = r? JSON.parse(r.value): []; }catch(e){ playersDB = []; }
-    try{ const r = await window.storage.get('active-tournament', false); if(r) state = sanitizeState(JSON.parse(r.value)); }catch(e){ /* sin torneo guardado */ }
     try{ const r = await window.storage.get('tournaments-archive', false); archive = r? JSON.parse(r.value): []; }catch(e){ archive = []; }
     try{ const r = await window.storage.get('clubs-db', false); clubsDB = r? JSON.parse(r.value): []; }catch(e){ clubsDB = []; }
     try{ const r = await window.storage.get('coordinadores-db', false); coordinadoresDB = r? JSON.parse(r.value): []; }catch(e){ coordinadoresDB = []; }
     try{ const r = await window.storage.get('upcoming-tournaments', false); upcomingTournaments = r? JSON.parse(r.value): []; }catch(e){ upcomingTournaments = []; }
+    try{ const r = await window.storage.get('active-tournaments', false); tournaments = r? JSON.parse(r.value).map(sanitizeTournament): []; }catch(e){ tournaments = []; }
+    if(tournaments.length===0){
+      try{
+        const r = await window.storage.get('active-tournament', false); // formato viejo (un solo torneo)
+        if(r){ const old = sanitizeTournament(JSON.parse(r.value)); old.ownerCoordinador = null; tournaments = [old]; }
+      }catch(e){ /* nada que migrar */ }
+    }
   }
 
   if(coordinadoresDB.length===0){
@@ -846,7 +958,7 @@ async function initApp(){
       {id:uid(), username:'cord2', password:'Torneo1842'},
       {id:uid(), username:'cord3', password:'Torneo1842'}
     ];
-    scheduleSave();
+    scheduleSaveMain();
   }
 
   showLoginScreen();
@@ -955,8 +1067,13 @@ App.removeCoordinador = function(id){
 };
 
 /* ---- vista simplificada de jugador ---- */
-function findPairByPlayerId(playerId){
-  return state.pairs.find(p=> p.p1Id===playerId || p.p2Id===playerId) || null;
+function findPlayerTournaments(playerId){
+  const matches = [];
+  tournaments.forEach(t=>{
+    const pair = t.pairs.find(p=> p.p1Id===playerId || p.p2Id===playerId);
+    if(pair) matches.push({tournament:t, pair});
+  });
+  return matches;
 }
 
 function findNextMatchForPair(pairId){
@@ -977,25 +1094,90 @@ function findNextMatchForPair(pairId){
   return null;
 }
 
+function renderJugadorProximos(){
+  const proxEl = document.getElementById('jugadorProximosTorneos');
+  const todayStr = new Date().toISOString().slice(0,10);
+  const upcoming = [...upcomingTournaments].filter(u=>u.date>=todayStr).sort((a,b)=> a.date.localeCompare(b.date));
+  if(upcoming.length===0){
+    proxEl.innerHTML = `<div class="empty-state">No hay torneos programados por ahora.</div>`;
+  } else {
+    proxEl.innerHTML = upcoming.map(u=>{
+      const d = new Date(u.date+'T00:00:00');
+      const club = clubsDB.find(cl=>cl.id===u.clubId);
+      const clubName = club ? club.name : 'Sin club asignado';
+      const address = club && club.address ? club.address : '';
+      return `
+        <div class="upcoming-card">
+          <div class="upcoming-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="wd">${['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'][d.getDay()]}</div></div>
+          <div class="upcoming-info">
+            <div class="club">${escapeHtml(clubName)}</div>
+            <div class="meta">${u.categoria? escapeHtml(u.categoria)+' · ':''}${escapeHtml(address)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+}
+
+App.selectJugadorTournament = function(id){
+  if(currentUser) currentUser.selectedTournamentId = id;
+  renderJugadorView();
+};
+
 function renderJugadorView(){
   document.getElementById('jugadorNombre').textContent = currentUser.name;
 
-  const pair = findPairByPlayerId(currentUser.playerId);
+  const matches = findPlayerTournaments(currentUser.playerId);
+
+  if(matches.length===0){
+    document.getElementById('jugadorProximoPartido').innerHTML = `<div class="empty-state">Todavía no estás anotado en ningún torneo activo.</div>`;
+    document.getElementById('jugadorZonas').innerHTML = '';
+    document.getElementById('jugadorLlave').innerHTML = '';
+    document.getElementById('jugadorTablaPuntos').innerHTML = '';
+    renderJugadorProximos();
+    return;
+  }
+
+  let chosen = matches.length===1 ? matches[0]
+    : matches.find(m=> m.tournament.tournamentId===currentUser.selectedTournamentId);
+
+  if(!chosen){
+    const picker = matches.map(m=>
+      `<button class="btn btn-ghost btn-sm" onclick="App.selectJugadorTournament('${m.tournament.tournamentId}')">${escapeHtml(m.tournament.name||'Torneo sin nombre')}</button>`
+    ).join(' ');
+    document.getElementById('jugadorProximoPartido').innerHTML = `<div class="empty-state">Estás anotado en varios torneos activos. Elegí cuál ver:<div class="actions-row" style="margin-top:12px; justify-content:center;">${picker}</div></div>`;
+    document.getElementById('jugadorZonas').innerHTML = '';
+    document.getElementById('jugadorLlave').innerHTML = '';
+    document.getElementById('jugadorTablaPuntos').innerHTML = '';
+    renderJugadorProximos();
+    return;
+  }
+
+  const savedState = state;
+  state = chosen.tournament;
+  const pair = chosen.pair;
+  try{
+    renderJugadorViewBody(pair, matches.length>1);
+  } finally {
+    state = savedState;
+  }
+  renderJugadorProximos();
+}
+
+function renderJugadorViewBody(pair, showSwitcher){
+  const switcherHtml = showSwitcher ? `<button class="archive-toggle" onclick="currentUser.selectedTournamentId=null; renderJugadorView();" style="margin-bottom:10px;">Ver otro torneo</button>` : '';
   const nextMatchEl = document.getElementById('jugadorProximoPartido');
-  if(!pair){
-    nextMatchEl.innerHTML = `<div class="empty-state">Todavía no estás anotado en una pareja de este torneo.</div>`;
-  } else {
+  {
     const champId = typeof getChampionPairId==='function' ? getChampionPairId() : null;
     if(champId){
-      nextMatchEl.innerHTML = champId===pair.id
+      nextMatchEl.innerHTML = switcherHtml + (champId===pair.id
         ? `<div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">¡Felicitaciones!</div><div class="name">Fuiste campeón de este torneo</div></div></div></div>`
-        : `<div class="empty-state">El torneo ya terminó. ¡Gracias por participar!</div>`;
+        : `<div class="empty-state">El torneo ya terminó. ¡Gracias por participar!</div>`);
     } else {
       const next = findNextMatchForPair(pair.id);
       if(!next){
-        nextMatchEl.innerHTML = `<div class="empty-state">No tenés partidos pendientes en este momento. Puede que estés esperando el resultado de otro partido, o que hayas quedado eliminado.</div>`;
+        nextMatchEl.innerHTML = switcherHtml + `<div class="empty-state">No tenés partidos pendientes en este momento. Puede que estés esperando el resultado de otro partido, o que hayas quedado eliminado.</div>`;
       } else {
-        nextMatchEl.innerHTML = `
+        nextMatchEl.innerHTML = switcherHtml + `
           <div class="next-match-card">
             <div class="stage">${escapeHtml(next.stage)}</div>
             ${next.cancha ? `<div class="cancha-badge">🎾 Cancha ${escapeHtml(next.cancha)}</div>` : `<div class="cancha-badge" style="opacity:0.6;">Cancha a confirmar</div>`}
@@ -1093,28 +1275,6 @@ function renderJugadorView(){
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>`;
-  }
-
-  const proxEl = document.getElementById('jugadorProximosTorneos');
-  const todayStr = new Date().toISOString().slice(0,10);
-  const upcoming = [...upcomingTournaments].filter(u=>u.date>=todayStr).sort((a,b)=> a.date.localeCompare(b.date));
-  if(upcoming.length===0){
-    proxEl.innerHTML = `<div class="empty-state">No hay torneos programados por ahora.</div>`;
-  } else {
-    proxEl.innerHTML = upcoming.map(u=>{
-      const d = new Date(u.date+'T00:00:00');
-      const club = clubsDB.find(cl=>cl.id===u.clubId);
-      const clubName = club ? club.name : 'Sin club asignado';
-      const address = club && club.address ? club.address : '';
-      return `
-        <div class="upcoming-card">
-          <div class="upcoming-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="wd">${['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'][d.getDay()]}</div></div>
-          <div class="upcoming-info">
-            <div class="club">${escapeHtml(clubName)}</div>
-            <div class="meta">${u.categoria? escapeHtml(u.categoria)+' · ':''}${escapeHtml(address)}</div>
-          </div>
-        </div>`;
-    }).join('');
   }
 }
 
@@ -1375,7 +1535,7 @@ function computeStageForPair(pairId){
    ACCIONES
    ========================================================= */
 
-App.setName = function(v){ state.name = v; scheduleSave(); };
+App.setName = function(v){ if(state){ state.name = v; scheduleSaveTournament(state); } };
 
 App.setFormat = function(fmt){
   if(state.format===fmt) return;
@@ -1414,7 +1574,7 @@ App.addPlayerFromInput = function(){
 App.setPlayerField = function(id, field, value){
   const player = playersDB.find(p=>p.id===id);
   if(player) player[field] = value;
-  scheduleSave();
+  scheduleSaveMain();
 };
 
 App.removePlayer = function(id){
@@ -1455,7 +1615,7 @@ App.setClubField = function(id, field, value){
   const club = clubsDB.find(c=>c.id===id);
   if(!club) return;
   club[field] = (field==='courts') ? (value? Number(value): null) : value;
-  scheduleSave();
+  scheduleSaveMain();
 };
 App.removeClub = function(id){
   const inUse = upcomingTournaments.some(u=>u.clubId===id);
@@ -1494,24 +1654,57 @@ App.removeUpcoming = function(id){
 };
 
 /* ---- navegación desde Inicio ---- */
+App.createTournament = function(){
+  const t = freshTournament();
+  if(currentUser && currentUser.role==='coordinador') t.ownerCoordinador = currentUser.username;
+  tournaments.push(t);
+  state = t;
+  nav.activeTab = 'torneoActual';
+  nav.torneoSubTab = 'parejas';
+  scheduleSaveTournament(t);
+  render();
+};
+
 App.clickNuevoTorneo = function(){
-  const hasContent = state.pairs.length>0 || state.zones.length>0;
-  if(hasContent){
-    const ok = confirm('¿Deseás borrar el torneo actual y empezar uno nuevo?');
-    if(ok){
-      state = freshTournament();
-      state.activeTab = 'torneoActual';
-      state.torneoSubTab = 'parejas';
-      render();
-    } else {
-      state.activeTab = 'torneoActual';
-      render();
-    }
-  } else {
-    state.activeTab = 'torneoActual';
-    state.torneoSubTab = 'parejas';
-    render();
+  App.createTournament();
+};
+
+App.openTournament = function(id){
+  const t = tournaments.find(x=>x.tournamentId===id);
+  if(!t) return;
+  if(currentUser.role==='coordinador' && t.ownerCoordinador!==currentUser.username){
+    alert('Este torneo no te pertenece.');
+    return;
   }
+  state = t;
+  nav.activeTab = 'torneoActual';
+  nav.torneoSubTab = 'parejas';
+  render();
+};
+
+App.backToTournamentList = function(){
+  state = null;
+  nav.torneoSubTab = 'lista';
+  render();
+};
+
+App.reassignTournament = function(id, newOwner){
+  const t = tournaments.find(x=>x.tournamentId===id);
+  if(!t) return;
+  t.ownerCoordinador = newOwner || null;
+  scheduleSaveTournament(t);
+  render();
+};
+
+App.deleteTournamentActive = function(id){
+  const t = tournaments.find(x=>x.tournamentId===id);
+  if(!t) return;
+  const ok = confirm(`¿Eliminar el torneo "${t.name || 'sin nombre'}" sin archivarlo? Se pierden todos sus datos, esto no se puede deshacer.`);
+  if(!ok) return;
+  tournaments = tournaments.filter(x=>x.tournamentId!==id);
+  deleteTournamentDoc(id);
+  if(state && state.tournamentId===id){ state = null; nav.torneoSubTab = 'lista'; }
+  render();
 };
 
 
@@ -1591,8 +1784,8 @@ App.generateZones = function(){
   }
   state.primera = null;
   state.segunda = null;
-  state.activeTab='torneoActual';
-  state.torneoSubTab='zonas';
+  nav.activeTab='torneoActual';
+  nav.torneoSubTab='zonas';
   render();
 };
 
@@ -1689,7 +1882,7 @@ App.setMatchCancha = function(matchId, value){
   const loc = locateMatch(matchId);
   if(!loc) return;
   loc.match.cancha = value;
-  scheduleSave();
+  if(state) scheduleSaveTournament(state);
 };
 
 /* ---- llave ---- */
@@ -1758,8 +1951,8 @@ App.generateBracket = function(){
     buildBracketAvanzado();
   }
   state.segunda = null;
-  state.activeTab = 'torneoActual';
-  state.torneoSubTab = 'llave';
+  nav.activeTab = 'torneoActual';
+  nav.torneoSubTab = 'llave';
   tryGenerateSegunda();
   render();
 };
@@ -1818,7 +2011,7 @@ App.closeTournament = function(){
       : 'Todavía no hay un campeón definido. Terminá la llave antes de cerrar el torneo.');
     return;
   }
-  const ok = confirm('Esto archiva el torneo actual en el Historial, suma el puntaje a cada jugador según la instancia que alcanzó, y arranca un torneo nuevo en blanco (la base de jugadores se mantiene). ¿Continuar?');
+  const ok = confirm('Esto archiva el torneo en el Historial, suma el puntaje a cada jugador según la instancia que alcanzó, y lo saca de la lista de torneos activos. ¿Continuar?');
   if(!ok) return;
 
   const dateStr = new Date().toISOString();
@@ -1852,41 +2045,49 @@ App.closeTournament = function(){
     name: state.name || 'Torneo sin nombre',
     date: dateStr,
     championName: getPairName(championId),
+    ownerCoordinador: state.ownerCoordinador || null,
     totalPairs: perPairResults.length,
     results: perPairResults.sort((a,b)=> b.points-a.points),
     snapshot: JSON.parse(JSON.stringify(state))
   });
 
-  state = freshTournament();
-  state.activeTab = 'torneoActual';
-  state.torneoSubTab = 'historial';
+  const closedId = state.tournamentId;
+  tournaments = tournaments.filter(t=>t.tournamentId!==closedId);
+  deleteTournamentDoc(closedId);
+  state = null;
+  nav.torneoSubTab = 'historial';
   render();
 };
 
 /* ---- reset / import / export ---- */
 App.resetTournament = function(){
-  const ok = confirm('Esto borra el torneo activo (parejas, zonas, resultados y llave actuales) sin tocar la base de jugadores ni el historial. ¿Continuar?');
+  if(!state){ alert('No hay ningún torneo abierto para reiniciar.'); return; }
+  const ok = confirm('Esto borra las parejas, zonas, resultados y llave de este torneo (mantiene su nombre y formato). ¿Continuar?');
   if(!ok) return;
-  const prevTab = state.activeTab, prevSub = state.torneoSubTab;
-  state = freshTournament();
-  state.activeTab = prevTab;
-  state.torneoSubTab = prevSub;
+  state.pairs = [];
+  state.zones = [];
+  state.smallMode = false;
+  state.primera = null;
+  state.segunda = null;
   render();
 };
 
 App.wipeEverything = function(){
-  const ok = confirm('⚠️ Esto borra TODO: la base de jugadores, clubes, agenda, su historial de puntos, el torneo activo y el historial de torneos archivados. Esta acción no se puede deshacer. ¿Continuar?');
+  const ok = confirm('⚠️ Esto borra TODO: la base de jugadores, clubes, agenda, su historial de puntos, todos los torneos activos y el historial de torneos archivados. Esta acción no se puede deshacer. ¿Continuar?');
   if(!ok) return;
+  tournaments.forEach(t=> deleteTournamentDoc(t.tournamentId));
   playersDB = [];
   archive = [];
   clubsDB = [];
   upcomingTournaments = [];
-  state = freshTournament();
+  tournaments = [];
+  state = null;
+  nav.torneoSubTab = 'lista';
   render();
 };
 
 App.exportState = function(){
-  const bundle = { playersDB, archive, state, clubsDB, upcomingTournaments, coordinadoresDB };
+  const bundle = { playersDB, archive, tournaments, clubsDB, upcomingTournaments, coordinadoresDB };
   const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1903,13 +2104,23 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
   reader.onload = () => {
     try{
       const parsed = JSON.parse(reader.result);
-      if(!parsed.state) throw new Error('formato inválido');
+      if(!parsed.tournaments && !parsed.state) throw new Error('formato inválido');
       playersDB = parsed.playersDB || [];
       archive = parsed.archive || [];
       clubsDB = parsed.clubsDB || [];
       coordinadoresDB = parsed.coordinadoresDB || [];
       upcomingTournaments = parsed.upcomingTournaments || [];
-      state = sanitizeState(parsed.state);
+      if(parsed.tournaments){
+        tournaments = parsed.tournaments.map(sanitizeTournament);
+      } else if(parsed.state){
+        // backup viejo, de un solo torneo
+        const old = sanitizeTournament(parsed.state);
+        old.ownerCoordinador = null;
+        tournaments = [old];
+      }
+      state = null;
+      nav.torneoSubTab = 'lista';
+      tournaments.forEach(t=> scheduleSaveTournament(t));
       render();
     }catch(err){
       alert('No se pudo importar el archivo: '+err.message);
@@ -1922,11 +2133,11 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
 /* =========================================================
    NAVEGACIÓN
    ========================================================= */
-function switchTab(tab){ state.activeTab = tab; render(); }
+function switchTab(tab){ nav.activeTab = tab; render(); }
 document.querySelectorAll('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
 });
-function switchSubTab(sub){ state.torneoSubTab = sub; render(); }
+function switchSubTab(sub){ nav.torneoSubTab = sub; render(); }
 document.querySelectorAll('.subnav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> switchSubTab(btn.dataset.subtab));
 });
@@ -1936,15 +2147,25 @@ document.querySelectorAll('.subnav-btn').forEach(btn=>{
    ========================================================= */
 function render(){
   renderUI();
-  scheduleSave();
+  scheduleSaveMain();
+  if(state) scheduleSaveTournament(state);
 }
 
 function renderUI(){
-  document.getElementById('tournamentName').value = state.name;
+  const nameInput = document.getElementById('tournamentName');
+  if(state){
+    nameInput.disabled = false;
+    nameInput.value = state.name;
+    nameInput.placeholder = 'Nombre del torneo';
+  } else {
+    nameInput.disabled = true;
+    nameInput.value = '';
+    nameInput.placeholder = 'Ningún torneo abierto';
+  }
 
   const isAdmin = currentUser && currentUser.role==='admin';
   document.getElementById('tabCoordinadores').style.display = isAdmin ? 'flex' : 'none';
-  if(state.activeTab==='coordinadores' && !isAdmin) state.activeTab = 'inicio';
+  if(nav.activeTab==='coordinadores' && !isAdmin) nav.activeTab = 'inicio';
 
   const sessionChip = document.getElementById('sessionChip');
   if(currentUser){
@@ -1954,16 +2175,16 @@ function renderUI(){
   }
 
   document.querySelectorAll('.tab').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.tab===state.activeTab);
+    btn.classList.toggle('active', btn.dataset.tab===nav.activeTab);
   });
   document.querySelectorAll('.view').forEach(v=> v.classList.remove('active'));
-  document.getElementById('view-'+state.activeTab).classList.add('active');
+  document.getElementById('view-'+nav.activeTab).classList.add('active');
 
   document.querySelectorAll('.subnav-btn').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.subtab===state.torneoSubTab);
+    btn.classList.toggle('active', btn.dataset.subtab===nav.torneoSubTab);
   });
   document.querySelectorAll('.subview').forEach(v=> v.classList.remove('active'));
-  const activeSub = document.getElementById('subview-'+state.torneoSubTab);
+  const activeSub = document.getElementById('subview-'+nav.torneoSubTab);
   if(activeSub) activeSub.classList.add('active');
 
   renderStorageChip();
@@ -1971,6 +2192,7 @@ function renderUI(){
   renderJugadores();
   renderClubes();
   renderProximos();
+  renderTournamentsList();
   renderParejas();
   renderZonas();
   renderGeneral();
@@ -1998,6 +2220,13 @@ function renderStorageChip(){
 
 function renderStatusStrip(){
   const el = document.getElementById('statusStrip');
+  if(!state){
+    el.innerHTML = `
+      <div class="chip ${playersDB.length>0?'on':''}"><b>${playersDB.length}</b> jugadores en base</div>
+      <div class="chip ${getVisibleTournaments().length>0?'on':''}"><b>${getVisibleTournaments().length}</b> torneo(s) activo(s)</div>
+    `;
+    return;
+  }
   const zonesOn = state.zones.length>0;
   const zonesDone = allZoneMatchesComplete();
   const bracketOn = !!state.primera;
@@ -2103,7 +2332,7 @@ function renderCoordinadores(){
 App.setCoordField = function(id, field, value){
   const co = coordinadoresDB.find(c=>c.id===id);
   if(co) co[field] = value;
-  scheduleSave();
+  scheduleSaveMain();
 };
 
 /* ---- Clubes ---- */
@@ -2169,7 +2398,60 @@ function renderProximos(){
 }
 
 /* ---- Parejas del torneo activo ---- */
+function tournamentStatusLabel(t){
+  const savedState = state;
+  state = t;
+  let label;
+  try{
+    const champ = getChampionPairId();
+    if(champ){ label = '🏆 Campeón definido'; }
+    else if(t.primera){ label = 'Llave en curso'; }
+    else if(t.zones.length>0){ label = allZoneMatchesComplete() ? 'Zonas completas' : 'Zonas en curso'; }
+    else if(t.pairs.length>0){ label = 'Armando parejas'; }
+    else { label = 'Recién creado'; }
+  } finally {
+    state = savedState;
+  }
+  return label;
+}
+
+function renderTournamentsList(){
+  const c = document.getElementById('tournamentsListContainer');
+  if(!c) return;
+  const visible = getVisibleTournaments();
+  const isAdmin = currentUser && currentUser.role==='admin';
+  if(visible.length===0){
+    c.innerHTML = `<div class="empty-state">${isAdmin ? 'No hay torneos activos todavía.' : 'No tenés torneos activos asignados. Creá uno nuevo o pedile al administrador que te asigne uno.'}</div>`;
+    return;
+  }
+  c.innerHTML = visible.map(t=>{
+    const status = tournamentStatusLabel(t);
+    const ownerLabel = t.ownerCoordinador ? t.ownerCoordinador : 'Sin asignar';
+    const ownerControl = isAdmin ? `
+      <select class="owner-select" onchange="App.reassignTournament('${t.tournamentId}', this.value)">
+        <option value="" ${!t.ownerCoordinador?'selected':''}>Sin asignar</option>
+        ${coordinadoresDB.map(co=>`<option value="${escapeAttr(co.username)}" ${t.ownerCoordinador===co.username?'selected':''}>${escapeHtml(co.username)}</option>`).join('')}
+      </select>` : `<span class="pill">${escapeHtml(ownerLabel)}</span>`;
+    return `
+      <div class="tournament-card">
+        <div class="info">
+          <div class="title">${escapeHtml(t.name || 'Torneo sin nombre')}</div>
+          <div class="meta">
+            <span>${t.format==='principiantes' ? 'Principiantes' : 'Avanzado'}</span>
+            <span>${escapeHtml(status)}</span>
+            ${ownerControl}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" onclick="App.openTournament('${t.tournamentId}')">Abrir</button>
+          ${isAdmin ? `<button class="icon-btn" title="Eliminar sin archivar" onclick="App.deleteTournamentActive('${t.tournamentId}')">✕</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
 function renderParejas(){
+  if(!state) return; // sin torneo abierto: esta subvista no está visible (nav.torneoSubTab sería 'lista')
   document.querySelectorAll('.format-option').forEach(el=>{
     el.classList.toggle('selected', el.dataset.format===state.format);
   });
@@ -2230,6 +2512,7 @@ function renderParejas(){
 
 /* ---- Zonas ---- */
 function renderZonas(){
+  if(!state) return;
   const c = document.getElementById('zonasContainer');
   if(state.zones.length===0){
     c.innerHTML = `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Parejas y hacé clic en <b>Sortear zonas</b>.</div>`;
@@ -2350,6 +2633,7 @@ function matchCardReadOnly(m, myPairId){
 
 /* ---- Clasificación general ---- */
 function renderGeneral(){
+  if(!state) return;
   const c = document.getElementById('generalContainer');
   if(state.zones.length===0){
     c.innerHTML = `<div class="empty-state">Todavía no hay zonas generadas.</div>`;
@@ -2463,6 +2747,7 @@ function renderGeneral(){
 
 /* ---- Llave ---- */
 function renderLlave(){
+  if(!state) return;
   const c = document.getElementById('llaveContainer');
 
   if(state.smallMode){
