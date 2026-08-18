@@ -153,6 +153,9 @@ table.ranking th{text-align:left; color:var(--text-faint); font-size:10.5px; tex
 table.ranking td{padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:middle;}
 table.ranking td.num{text-align:center; font-family:var(--font-mono);}
 table.ranking tr.leader td{color:var(--gold); font-weight:700;}
+.inline-edit{background:transparent; border:1px dashed transparent; color:var(--text); font-family:var(--font-body); font-size:12.5px; padding:5px 7px; border-radius:5px; width:100%; min-width:70px;}
+.inline-edit:hover{border-color:var(--line-strong);}
+.inline-edit:focus{outline:none; border-color:var(--accent-2); background:var(--panel-3);}
 .player-row-name{display:flex; align-items:center; gap:10px;}
 .player-row-name button{background:transparent; border:none; color:var(--text-faint); font-size:11px; text-decoration:underline;}
 .player-row-name button:hover{color:var(--accent-2);}
@@ -210,6 +213,71 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .actions-row{display:flex; gap:12px; align-items:center; margin-top:6px; flex-wrap:wrap;}
 .hint{font-size:12.5px; color:var(--text-faint); margin-top:10px;}
 .hint b{color:var(--text-dim);}
+
+/* ---------- inicio (menú principal) ---------- */
+.home-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; max-width:1000px; margin-top:8px;}
+.home-card{
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:24px 20px; text-align:left; display:flex; flex-direction:column; gap:6px; color:var(--text);
+  transition:border-color .15s, transform .15s;
+}
+.home-card:hover{border-color:var(--accent-2); transform:translateY(-2px);}
+.home-card-icon{font-size:28px; margin-bottom:6px;}
+.home-card-title{font-family:var(--font-display); font-size:17px; font-weight:600;}
+.home-card-sub{font-size:12.5px; color:var(--text-dim); line-height:1.4;}
+
+/* ---------- sub-nav dentro de Torneo Actual ---------- */
+.subnav{display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 22px; border-bottom:1px solid var(--line); padding-bottom:14px;}
+.subnav-btn{
+  background:var(--panel); border:1px solid var(--line-strong); color:var(--text-dim);
+  padding:8px 16px; border-radius:20px; font-size:13px; font-weight:500;
+}
+.subnav-btn:hover{color:var(--text); border-color:var(--accent-2);}
+.subnav-btn.active{background:var(--panel-2); color:var(--accent); border-color:var(--accent);}
+.subview{display:none;}
+.subview.active{display:block; animation:fadein .2s ease;}
+
+/* ---------- clubes ---------- */
+.add-club-row{display:flex; gap:8px; max-width:640px; margin-bottom:18px; flex-wrap:wrap;}
+.add-club-row input{
+  background:var(--panel); border:1px solid var(--line-strong); color:var(--text);
+  font-family:var(--font-body); font-size:14px; padding:9px 12px; border-radius:8px;
+}
+.add-club-row input:focus{outline:none; border-color:var(--accent-2);}
+.add-club-row input#newClubName{flex:1.4; min-width:160px;}
+.add-club-row input#newClubAddress{flex:2; min-width:200px;}
+table.clubs{width:100%; border-collapse:collapse; font-size:13px; max-width:820px;}
+table.clubs th{text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; padding:8px 10px; border-bottom:1px solid var(--line-strong);}
+table.clubs td{padding:9px 10px; border-bottom:1px solid var(--line);}
+table.clubs td.num{text-align:center; font-family:var(--font-mono);}
+table.clubs input{background:transparent; border:1px dashed transparent; color:var(--text); font-family:var(--font-body); font-size:13px; padding:4px 6px; border-radius:5px; width:100%;}
+table.clubs input:hover{border-color:var(--line-strong);}
+table.clubs input:focus{outline:none; border-color:var(--accent-2); background:var(--panel-3);}
+
+/* ---------- próximos torneos ---------- */
+.add-upcoming-row{display:flex; gap:8px; max-width:720px; margin-bottom:20px; flex-wrap:wrap;}
+.add-upcoming-row input{
+  background:var(--panel); border:1px solid var(--line-strong); color:var(--text);
+  font-family:var(--font-body); font-size:13.5px; padding:9px 12px; border-radius:8px;
+}
+.add-upcoming-row input:focus{outline:none; border-color:var(--accent-2);}
+.add-upcoming-row input[type=date]{flex:0 0 150px;}
+.add-upcoming-row input#newUpcomingClub{flex:1.2; min-width:140px;}
+.add-upcoming-row input#newUpcomingCategoria{flex:1; min-width:120px;}
+.month-heading{font-family:var(--font-display); font-size:14px; color:var(--accent-2); text-transform:uppercase; letter-spacing:1px; margin:22px 0 10px;}
+.month-heading:first-child{margin-top:0;}
+.upcoming-card{
+  background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:14px 18px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:14px; max-width:720px; flex-wrap:wrap;
+}
+.upcoming-date{
+  font-family:var(--font-mono); background:var(--panel-3); border-radius:8px; padding:8px 12px; text-align:center; min-width:56px;
+}
+.upcoming-date .day{font-size:18px; font-weight:700; color:var(--accent); line-height:1;}
+.upcoming-date .wd{font-size:10px; color:var(--text-faint); text-transform:uppercase;}
+.upcoming-info{flex:1; min-width:160px;}
+.upcoming-info .club{font-weight:600; font-size:14px;}
+.upcoming-info .meta{font-size:12px; color:var(--text-dim); margin-top:2px;}
 
 /* ---------- zones / cards ---------- */
 .zones-wrap{display:flex; flex-direction:column; gap:22px;}
@@ -336,12 +404,11 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
     <div class="brand-sub">Organizador de torneos</div>
     <div class="storage-chip" id="storageChip">Verificando almacenamiento…</div>
     <nav>
+      <button class="tab" data-tab="inicio"><span class="num">•</span> Inicio</button>
       <button class="tab" data-tab="jugadores"><span class="num">01</span> Jugadores</button>
-      <button class="tab" data-tab="parejas"><span class="num">02</span> Parejas</button>
-      <button class="tab" data-tab="zonas"><span class="num">03</span> Zonas</button>
-      <button class="tab" data-tab="general"><span class="num">04</span> Clasificación</button>
-      <button class="tab" data-tab="llave"><span class="num">05</span> Llave</button>
-      <button class="tab" data-tab="historial"><span class="num">06</span> Historial</button>
+      <button class="tab" data-tab="clubes"><span class="num">02</span> Clubes</button>
+      <button class="tab" data-tab="torneoActual"><span class="num">03</span> Torneo Actual</button>
+      <button class="tab" data-tab="proximos"><span class="num">04</span> Próximos Torneos</button>
     </nav>
     <div class="sidebar-footer">
       <button class="sb-btn" onclick="App.exportState()">Exportar todo (.json)</button>
@@ -358,6 +425,38 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       <div class="status-strip" id="statusStrip"></div>
     </div>
 
+    <section class="view" id="view-inicio">
+      <h2 class="section-title">CuadroPádel</h2>
+      <p class="section-sub">Elegí qué querés hacer.</p>
+      <div class="home-grid">
+        <button class="home-card" onclick="App.clickNuevoTorneo()">
+          <div class="home-card-icon">🆕</div>
+          <div class="home-card-title">Nuevo Torneo</div>
+          <div class="home-card-sub">Empezar un torneo desde cero</div>
+        </button>
+        <button class="home-card" onclick="switchTab('jugadores')">
+          <div class="home-card-icon">🧑‍🤝‍🧑</div>
+          <div class="home-card-title">Jugadores</div>
+          <div class="home-card-sub">Base de jugadores, DNI, categoría y ranking</div>
+        </button>
+        <button class="home-card" onclick="switchTab('clubes')">
+          <div class="home-card-icon">🏟️</div>
+          <div class="home-card-title">Clubes</div>
+          <div class="home-card-sub">Clubes de pádel, canchas y direcciones</div>
+        </button>
+        <button class="home-card" onclick="switchTab('torneoActual')">
+          <div class="home-card-icon">🎾</div>
+          <div class="home-card-title">Torneo Actual</div>
+          <div class="home-card-sub">Parejas, zonas, clasificación y llave</div>
+        </button>
+        <button class="home-card" onclick="switchTab('proximos')">
+          <div class="home-card-icon">🗓️</div>
+          <div class="home-card-title">Próximos Torneos</div>
+          <div class="home-card-sub">Agenda de torneos programados</div>
+        </button>
+      </div>
+    </section>
+
     <section class="view" id="view-jugadores">
       <h2 class="section-title">Base de jugadores</h2>
       <p class="section-sub">Se guardan solos entre torneos: cargalos una vez y quedan disponibles siempre, con su historial y puntaje acumulado según cómo avanzaron en cada torneo.</p>
@@ -368,43 +467,75 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       <div id="rankingContainer"></div>
     </section>
 
-    <section class="view" id="view-parejas">
-      <h2 class="section-title">Parejas de este torneo</h2>
-      <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder sortear. Con 3 a 5 parejas se juega todos contra todos sin zonas ni llave; con 6 o más se arman zonas.</p>
-      <datalist id="playersDatalist"></datalist>
-      <div class="pairs-grid2" id="pairsGrid"></div>
-      <div class="actions-row">
-        <button class="btn btn-ghost btn-sm" onclick="App.addPairRow()">+ Agregar pareja</button>
+    <section class="view" id="view-clubes">
+      <h2 class="section-title">Clubes</h2>
+      <p class="section-sub">Clubes de pádel donde se juegan los torneos. Se guardan junto con la base de jugadores.</p>
+      <div class="add-club-row">
+        <input type="text" id="newClubName" placeholder="Nombre del club">
+        <input type="number" id="newClubCourts" placeholder="Canchas" min="1" style="width:90px;">
+        <input type="text" id="newClubAddress" placeholder="Dirección">
+        <button class="btn btn-ghost btn-sm" onclick="App.addClub()">+ Nuevo</button>
       </div>
-      <p class="hint" id="unassignedHint"></p>
-      <div class="actions-row" style="margin-top:22px;">
-        <button class="btn btn-primary" id="btnGenZones" onclick="App.generateZones()">Sortear zonas</button>
+      <div id="clubesContainer"></div>
+    </section>
+
+    <section class="view" id="view-torneoActual">
+      <h2 class="section-title">Torneo Actual</h2>
+      <p class="section-sub">Parejas, resultados de zona, clasificación general y llave del torneo en curso.</p>
+      <div class="subnav" id="torneoSubnav">
+        <button class="subnav-btn" data-subtab="parejas">Parejas</button>
+        <button class="subnav-btn" data-subtab="zonas">Zonas</button>
+        <button class="subnav-btn" data-subtab="general">Clasificación</button>
+        <button class="subnav-btn" data-subtab="llave">Llave</button>
+        <button class="subnav-btn" data-subtab="historial">Historial</button>
       </div>
-      <p class="hint" id="setupHint"></p>
+
+      <div class="subview" id="subview-parejas">
+        <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder sortear. Con 3 a 5 parejas se juega todos contra todos sin zonas ni llave; con 6 o más se arman zonas.</p>
+        <datalist id="playersDatalist"></datalist>
+        <div class="pairs-grid2" id="pairsGrid"></div>
+        <div class="actions-row">
+          <button class="btn btn-ghost btn-sm" onclick="App.addPairRow()">+ Agregar pareja</button>
+        </div>
+        <p class="hint" id="unassignedHint"></p>
+        <div class="actions-row" style="margin-top:22px;">
+          <button class="btn btn-primary" id="btnGenZones" onclick="App.generateZones()">Sortear zonas</button>
+        </div>
+        <p class="hint" id="setupHint"></p>
+      </div>
+
+      <div class="subview" id="subview-zonas">
+        <p class="section-sub">Todos contra todos dentro de cada zona. Los partidos se juegan a un set — cargá el resultado en games y se calculan puntos, diferencia de sets y de games automáticamente.</p>
+        <div id="zonasContainer"></div>
+      </div>
+
+      <div class="subview" id="subview-general">
+        <p class="section-sub">Ranking combinado de todas las parejas. Con 6+ parejas, la mitad superior clasifica directo a la <b>Segunda Instancia</b> y la mitad inferior juega la <b>Primera Instancia</b> (repechaje). Con menos de 6 parejas, este ranking define directamente al campeón.</p>
+        <div id="generalContainer"></div>
+      </div>
+
+      <div class="subview" id="subview-llave">
+        <p class="section-sub">Primera Instancia define quién completa el cuadro. Segunda Instancia se juega por eliminación directa hasta el campeón.</p>
+        <div id="llaveContainer"></div>
+      </div>
+
+      <div class="subview" id="subview-historial">
+        <p class="section-sub">Torneos cerrados y archivados. Al cerrar un torneo desde Llave, se guarda acá y el puntaje se suma al ranking de jugadores.</p>
+        <div id="historialContainer"></div>
+      </div>
     </section>
 
-    <section class="view" id="view-zonas">
-      <h2 class="section-title">Fase de zonas</h2>
-      <p class="section-sub">Todos contra todos dentro de cada zona. Los partidos se juegan a un set — cargá el resultado en games y se calculan puntos, diferencia de sets y de games automáticamente.</p>
-      <div id="zonasContainer"></div>
-    </section>
-
-    <section class="view" id="view-general">
-      <h2 class="section-title">Clasificación general</h2>
-      <p class="section-sub">Ranking combinado de todas las parejas. Con 6+ parejas, la mitad superior clasifica directo a la <b>Segunda Instancia</b> y la mitad inferior juega la <b>Primera Instancia</b> (repechaje). Con menos de 6 parejas, este ranking define directamente al campeón.</p>
-      <div id="generalContainer"></div>
-    </section>
-
-    <section class="view" id="view-llave">
-      <h2 class="section-title">Llave del torneo</h2>
-      <p class="section-sub">Primera Instancia define quién completa el cuadro. Segunda Instancia se juega por eliminación directa hasta el campeón.</p>
-      <div id="llaveContainer"></div>
-    </section>
-
-    <section class="view" id="view-historial">
-      <h2 class="section-title">Historial de torneos</h2>
-      <p class="section-sub">Torneos cerrados y archivados. Al cerrar un torneo desde la pestaña Llave, se guarda acá y el puntaje se suma al ranking de jugadores.</p>
-      <div id="historialContainer"></div>
+    <section class="view" id="view-proximos">
+      <h2 class="section-title">Próximos torneos</h2>
+      <p class="section-sub">Agenda de torneos programados. Se muestran ordenados por fecha, del más próximo al más lejano.</p>
+      <div class="add-upcoming-row">
+        <input type="date" id="newUpcomingDate">
+        <input type="text" id="newUpcomingClub" list="clubsDatalist" placeholder="Club">
+        <datalist id="clubsDatalist"></datalist>
+        <input type="text" id="newUpcomingCategoria" placeholder="Categoría (ej. 5ta)">
+        <button class="btn btn-ghost btn-sm" onclick="App.addUpcoming()">+ Agregar</button>
+      </div>
+      <div id="proximosContainer"></div>
     </section>
   </main>
 </div>
@@ -439,8 +570,10 @@ let applyingRemote = false;
    ========================================================= */
 let storageAvailable = false;   // storage personal de Claude (window.storage)
 let liveSyncActive = false;     // sincronización en vivo vía Firebase
-let playersDB = [];   // [{id,name,createdAt,stats:{puntos,torneos,titulos,finalista,semifinal,historial:[]}}]
+let playersDB = [];   // [{id,name,dni,categoria,createdAt,stats:{puntos,torneos,titulos,finalista,semifinal,historial:[]}}]
 let archive = [];     // [{id,name,date,championName,totalPairs,results:[],snapshot:{...}}]
+let clubsDB = [];     // [{id,name,courts,address,createdAt}]
+let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
 
 let state = null;
 
@@ -453,7 +586,8 @@ function freshTournament(){
     smallMode: false,
     primera: null,
     segunda: null,
-    activeTab: 'jugadores'
+    activeTab: 'inicio',
+    torneoSubTab: 'parejas'
   };
 }
 
@@ -462,13 +596,27 @@ function uid(){
   return 'id-'+Math.random().toString(36).slice(2)+Date.now();
 }
 
+const OLD_SUBTABS = ['parejas','zonas','general','llave','historial'];
+const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos'];
+function sanitizeState(s){
+  if(!s) return freshTournament();
+  if(!s.torneoSubTab) s.torneoSubTab = 'parejas';
+  if(OLD_SUBTABS.includes(s.activeTab)){
+    s.torneoSubTab = s.activeTab;
+    s.activeTab = 'torneoActual';
+  }
+  if(!TOP_TABS.includes(s.activeTab)) s.activeTab = 'inicio';
+  if(!OLD_SUBTABS.includes(s.torneoSubTab)) s.torneoSubTab = 'parejas';
+  return s;
+}
+
 let saveTimer=null;
 function scheduleSave(){
   if(applyingRemote) return; // no reescribir lo que acabamos de recibir de otro organizador
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     if(liveSyncActive && firestoreDocRef){
-      try{ await firestoreDocRef.set({ playersDB, state, archive, updatedAt: Date.now() }); }
+      try{ await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, updatedAt: Date.now() }); }
       catch(e){ console.error('Error guardando en Firebase', e); }
       return;
     }
@@ -477,6 +625,8 @@ function scheduleSave(){
         await window.storage.set('players-db', JSON.stringify(playersDB), false);
         await window.storage.set('active-tournament', JSON.stringify(state), false);
         await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
+        await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
+        await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
       }catch(e){ console.error('Error guardando', e); }
     }
   }, 350);
@@ -486,7 +636,9 @@ function applyRemoteData(data){
   applyingRemote = true;
   playersDB = data.playersDB || [];
   archive = data.archive || [];
-  state = data.state || freshTournament();
+  clubsDB = data.clubsDB || [];
+  upcomingTournaments = data.upcomingTournaments || [];
+  state = sanitizeState(data.state || freshTournament());
   renderUI();
   applyingRemote = false;
 }
@@ -519,9 +671,11 @@ async function initApp(){
         const data = snap.data();
         playersDB = data.playersDB || [];
         archive = data.archive || [];
-        state = data.state || freshTournament();
+        clubsDB = data.clubsDB || [];
+        upcomingTournaments = data.upcomingTournaments || [];
+        state = sanitizeState(data.state || freshTournament());
       } else {
-        await firestoreDocRef.set({ playersDB, state, archive, updatedAt: Date.now() });
+        await firestoreDocRef.set({ playersDB, state, archive, clubsDB, upcomingTournaments, updatedAt: Date.now() });
       }
       liveSyncActive = true;
       unsubscribeSnapshot = firestoreDocRef.onSnapshot(snap=>{
@@ -539,8 +693,10 @@ async function initApp(){
   if(!liveSyncActive && window.storage && typeof window.storage.get === 'function'){
     storageAvailable = true;
     try{ const r = await window.storage.get('players-db', false); playersDB = r? JSON.parse(r.value): []; }catch(e){ playersDB = []; }
-    try{ const r = await window.storage.get('active-tournament', false); if(r) state = JSON.parse(r.value); }catch(e){ /* sin torneo guardado */ }
+    try{ const r = await window.storage.get('active-tournament', false); if(r) state = sanitizeState(JSON.parse(r.value)); }catch(e){ /* sin torneo guardado */ }
     try{ const r = await window.storage.get('tournaments-archive', false); archive = r? JSON.parse(r.value): []; }catch(e){ archive = []; }
+    try{ const r = await window.storage.get('clubs-db', false); clubsDB = r? JSON.parse(r.value): []; }catch(e){ clubsDB = []; }
+    try{ const r = await window.storage.get('upcoming-tournaments', false); upcomingTournaments = r? JSON.parse(r.value): []; }catch(e){ upcomingTournaments = []; }
   }
 
   render();
@@ -816,7 +972,7 @@ App.addPlayerFromInput = function(){
   names.forEach(n=>{
     if(playersDB.some(p=>p.name.toLowerCase()===n.toLowerCase())){ skipped.push(n); return; }
     playersDB.push({
-      id:uid(), name:n, createdAt:new Date().toISOString(),
+      id:uid(), name:n, dni:'', categoria:'', createdAt:new Date().toISOString(),
       stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
     });
   });
@@ -824,6 +980,12 @@ App.addPlayerFromInput = function(){
   render();
   document.getElementById('newPlayerInput').focus();
   if(skipped.length){ alert(`Ya existía en la base: ${skipped.join(', ')}`); }
+};
+
+App.setPlayerField = function(id, field, value){
+  const player = playersDB.find(p=>p.id===id);
+  if(player) player[field] = value;
+  scheduleSave();
 };
 
 App.removePlayer = function(id){
@@ -845,6 +1007,84 @@ App.togglePlayerHistory = function(id){
   if(expandedPlayers.has(id)) expandedPlayers.delete(id); else expandedPlayers.add(id);
   render();
 };
+
+/* ---- clubes ---- */
+App.addClub = function(){
+  const nameEl = document.getElementById('newClubName');
+  const courtsEl = document.getElementById('newClubCourts');
+  const addressEl = document.getElementById('newClubAddress');
+  const name = nameEl.value.trim();
+  if(!name){ alert('Ponele un nombre al club.'); return; }
+  clubsDB.push({
+    id:uid(), name, courts: courtsEl.value ? Number(courtsEl.value) : null,
+    address: addressEl.value.trim(), createdAt:new Date().toISOString()
+  });
+  nameEl.value=''; courtsEl.value=''; addressEl.value='';
+  render();
+};
+App.setClubField = function(id, field, value){
+  const club = clubsDB.find(c=>c.id===id);
+  if(!club) return;
+  club[field] = (field==='courts') ? (value? Number(value): null) : value;
+  scheduleSave();
+};
+App.removeClub = function(id){
+  const inUse = upcomingTournaments.some(u=>u.clubId===id);
+  let msg = '¿Eliminar este club?';
+  if(inUse) msg = 'Este club tiene torneos programados en la agenda. ' + msg;
+  const ok = confirm(msg);
+  if(!ok) return;
+  clubsDB = clubsDB.filter(c=>c.id!==id);
+  render();
+};
+
+/* ---- próximos torneos ---- */
+App.addUpcoming = function(){
+  const dateEl = document.getElementById('newUpcomingDate');
+  const clubEl = document.getElementById('newUpcomingClub');
+  const catEl = document.getElementById('newUpcomingCategoria');
+  if(!dateEl.value){ alert('Elegí una fecha.'); return; }
+  const clubName = clubEl.value.trim();
+  let clubId = null;
+  if(clubName){
+    const club = clubsDB.find(c=>c.name.toLowerCase()===clubName.toLowerCase());
+    if(!club){ alert(`"${clubName}" no está cargado en Clubes. Agregalo primero ahí.`); return; }
+    clubId = club.id;
+  }
+  upcomingTournaments.push({
+    id:uid(), date:dateEl.value, clubId, categoria:catEl.value.trim(), createdAt:new Date().toISOString()
+  });
+  dateEl.value=''; clubEl.value=''; catEl.value='';
+  render();
+};
+App.removeUpcoming = function(id){
+  const ok = confirm('¿Quitar este torneo de la agenda?');
+  if(!ok) return;
+  upcomingTournaments = upcomingTournaments.filter(u=>u.id!==id);
+  render();
+};
+
+/* ---- navegación desde Inicio ---- */
+App.clickNuevoTorneo = function(){
+  const hasContent = state.pairs.length>0 || state.zones.length>0;
+  if(hasContent){
+    const ok = confirm('¿Deseás borrar el torneo actual y empezar uno nuevo?');
+    if(ok){
+      state = freshTournament();
+      state.activeTab = 'torneoActual';
+      state.torneoSubTab = 'parejas';
+      render();
+    } else {
+      state.activeTab = 'torneoActual';
+      render();
+    }
+  } else {
+    state.activeTab = 'torneoActual';
+    state.torneoSubTab = 'parejas';
+    render();
+  }
+};
+
 
 /* ---- parejas del torneo activo ---- */
 App.addPairRow = function(){
@@ -918,7 +1158,8 @@ App.generateZones = function(){
   }
   state.primera = null;
   state.segunda = null;
-  state.activeTab='zonas';
+  state.activeTab='torneoActual';
+  state.torneoSubTab='zonas';
   render();
 };
 
@@ -1039,7 +1280,8 @@ App.generateBracket = function(){
 
   state.primera = { matches, directRanked: direct, repechajeRanked: repechaje };
   state.segunda = null;
-  state.activeTab = 'llave';
+  state.activeTab = 'torneoActual';
+  state.torneoSubTab = 'llave';
   tryGenerateSegunda();
   render();
 };
@@ -1138,7 +1380,8 @@ App.closeTournament = function(){
   });
 
   state = freshTournament();
-  state.activeTab = 'historial';
+  state.activeTab = 'torneoActual';
+  state.torneoSubTab = 'historial';
   render();
 };
 
@@ -1146,21 +1389,26 @@ App.closeTournament = function(){
 App.resetTournament = function(){
   const ok = confirm('Esto borra el torneo activo (parejas, zonas, resultados y llave actuales) sin tocar la base de jugadores ni el historial. ¿Continuar?');
   if(!ok) return;
+  const prevTab = state.activeTab, prevSub = state.torneoSubTab;
   state = freshTournament();
+  state.activeTab = prevTab;
+  state.torneoSubTab = prevSub;
   render();
 };
 
 App.wipeEverything = function(){
-  const ok = confirm('⚠️ Esto borra TODO: la base de jugadores, su historial de puntos, el torneo activo y el historial de torneos archivados. Esta acción no se puede deshacer. ¿Continuar?');
+  const ok = confirm('⚠️ Esto borra TODO: la base de jugadores, clubes, agenda, su historial de puntos, el torneo activo y el historial de torneos archivados. Esta acción no se puede deshacer. ¿Continuar?');
   if(!ok) return;
   playersDB = [];
   archive = [];
+  clubsDB = [];
+  upcomingTournaments = [];
   state = freshTournament();
   render();
 };
 
 App.exportState = function(){
-  const bundle = { playersDB, archive, state };
+  const bundle = { playersDB, archive, state, clubsDB, upcomingTournaments };
   const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1180,7 +1428,9 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
       if(!parsed.state) throw new Error('formato inválido');
       playersDB = parsed.playersDB || [];
       archive = parsed.archive || [];
-      state = parsed.state;
+      clubsDB = parsed.clubsDB || [];
+      upcomingTournaments = parsed.upcomingTournaments || [];
+      state = sanitizeState(parsed.state);
       render();
     }catch(err){
       alert('No se pudo importar el archivo: '+err.message);
@@ -1196,6 +1446,10 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
 function switchTab(tab){ state.activeTab = tab; render(); }
 document.querySelectorAll('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+function switchSubTab(sub){ state.torneoSubTab = sub; render(); }
+document.querySelectorAll('.subnav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchSubTab(btn.dataset.subtab));
 });
 
 /* =========================================================
@@ -1215,9 +1469,18 @@ function renderUI(){
   document.querySelectorAll('.view').forEach(v=> v.classList.remove('active'));
   document.getElementById('view-'+state.activeTab).classList.add('active');
 
+  document.querySelectorAll('.subnav-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.subtab===state.torneoSubTab);
+  });
+  document.querySelectorAll('.subview').forEach(v=> v.classList.remove('active'));
+  const activeSub = document.getElementById('subview-'+state.torneoSubTab);
+  if(activeSub) activeSub.classList.add('active');
+
   renderStorageChip();
   renderStatusStrip();
   renderJugadores();
+  renderClubes();
+  renderProximos();
   renderParejas();
   renderZonas();
   renderGeneral();
@@ -1278,7 +1541,7 @@ function renderJugadores(){
           <span class="h-instancia">${escapeHtml(h.instancia)}</span>
           <span class="h-puntos">+${h.puntos} pts</span>
         </div>`).join('') : `<div class="hint">Todavía no jugó ningún torneo cerrado.</div>`;
-      historyRow = `<tr class="player-history-row"><td colspan="7"><div class="player-history">${entries}</div></td></tr>`;
+      historyRow = `<tr class="player-history-row"><td colspan="9"><div class="player-history">${entries}</div></td></tr>`;
     }
     return `
       <tr class="${i===0 && p.stats.puntos>0 ?'leader':''}">
@@ -1287,6 +1550,8 @@ function renderJugadores(){
           ${escapeHtml(p.name)}
           <button onclick="App.togglePlayerHistory('${p.id}')">${expanded?'ocultar':'ver historial'}</button>
         </td>
+        <td><input class="inline-edit" placeholder="DNI" value="${escapeAttr(p.dni||'')}" onchange="App.setPlayerField('${p.id}','dni',this.value)"></td>
+        <td><input class="inline-edit" placeholder="Categoría" value="${escapeAttr(p.categoria||'')}" onchange="App.setPlayerField('${p.id}','categoria',this.value)"></td>
         <td class="num">${p.stats.torneos}</td>
         <td class="num">${p.stats.titulos}</td>
         <td class="num">${p.stats.finalista}</td>
@@ -1301,7 +1566,7 @@ function renderJugadores(){
     <div class="ranking-wrap">
       <table class="ranking">
         <thead><tr>
-          <th>#</th><th>Jugador</th><th class="num">Torneos</th><th class="num">Títulos</th>
+          <th>#</th><th>Jugador</th><th>DNI</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
           <th class="num">Finales</th><th class="num">Semis</th><th class="num">Puntos</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -1319,6 +1584,68 @@ function renderJugadores(){
         <button class="sb-btn danger" style="max-width:220px;" onclick="App.wipeEverything()">Borrar toda la base</button>
       </div>
     </div>`;
+}
+
+/* ---- Clubes ---- */
+function renderClubes(){
+  const c = document.getElementById('clubesContainer');
+  if(clubsDB.length===0){
+    c.innerHTML = `<div class="empty-state">Todavía no cargaste clubes. Completá el formulario de arriba y hacé clic en "+ Nuevo".</div>`;
+    return;
+  }
+  const rows = [...clubsDB].sort((a,b)=>a.name.localeCompare(b.name)).map(club=>`
+    <tr>
+      <td><input class="inline-edit" value="${escapeAttr(club.name)}" onchange="App.setClubField('${club.id}','name',this.value)"></td>
+      <td class="num"><input class="inline-edit" type="number" min="1" style="text-align:center;" value="${club.courts!=null?club.courts:''}" onchange="App.setClubField('${club.id}','courts',this.value)"></td>
+      <td><input class="inline-edit" value="${escapeAttr(club.address||'')}" onchange="App.setClubField('${club.id}','address',this.value)"></td>
+      <td><button class="remove-player-btn" onclick="App.removeClub('${club.id}')">✕</button></td>
+    </tr>`).join('');
+  c.innerHTML = `
+    <div class="ranking-wrap">
+      <table class="clubs">
+        <thead><tr><th>Club</th><th class="num">Canchas</th><th>Dirección</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* ---- Próximos torneos ---- */
+function renderProximos(){
+  const datalist = document.getElementById('clubsDatalist');
+  datalist.innerHTML = clubsDB.map(c=>`<option value="${escapeAttr(c.name)}">`).join('');
+
+  const c = document.getElementById('proximosContainer');
+  const todayStr = new Date().toISOString().slice(0,10);
+  const upcoming = [...upcomingTournaments].filter(u=>u.date>=todayStr).sort((a,b)=> a.date.localeCompare(b.date));
+  if(upcoming.length===0){
+    c.innerHTML = `<div class="empty-state">No hay torneos programados. Agregá uno arriba con fecha, club y categoría.</div>`;
+    return;
+  }
+  const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const weekdayNames = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+  let lastMonthKey = null;
+  let html = '';
+  upcoming.forEach(u=>{
+    const d = new Date(u.date+'T00:00:00');
+    const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+    if(monthKey!==lastMonthKey){
+      html += `<div class="month-heading">${monthNames[d.getMonth()]} ${d.getFullYear()}</div>`;
+      lastMonthKey = monthKey;
+    }
+    const club = clubsDB.find(cl=>cl.id===u.clubId);
+    const clubName = club ? club.name : (u.clubId ? 'Club eliminado' : 'Sin club asignado');
+    const address = club && club.address ? club.address : '';
+    html += `
+      <div class="upcoming-card">
+        <div class="upcoming-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="wd">${weekdayNames[d.getDay()]}</div></div>
+        <div class="upcoming-info">
+          <div class="club">${escapeHtml(clubName)}</div>
+          <div class="meta">${u.categoria? escapeHtml(u.categoria)+' · ':''}${escapeHtml(address)}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="App.removeUpcoming('${u.id}')">Quitar</button>
+      </div>`;
+  });
+  c.innerHTML = html;
 }
 
 /* ---- Parejas del torneo activo ---- */
