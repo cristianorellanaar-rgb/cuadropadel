@@ -176,6 +176,17 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .points-legend .pl-item b{color:var(--text-dim);}
 
 .pairs-grid2{display:flex; flex-direction:column; gap:8px; max-width:680px; margin-bottom:14px;}
+
+.format-picker{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:14px; max-width:900px; margin-bottom:24px;}
+.format-option{
+  background:var(--panel); border:2px solid var(--line); border-radius:var(--radius); padding:18px 20px; cursor:pointer;
+  transition:border-color .15s;
+}
+.format-option:hover{border-color:var(--accent-2);}
+.format-option.selected{border-color:var(--accent); background:var(--panel-2);}
+.format-title{font-family:var(--font-display); font-size:15px; font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
+.format-option.selected .format-title::before{content:'✓'; color:var(--accent);}
+.format-desc{font-size:12px; color:var(--text-dim); line-height:1.5;}
 .pair-row2{
   display:flex; align-items:center; gap:8px; background:var(--panel);
   border:1px solid var(--line); border-radius:8px; padding:8px 8px 8px 12px;
@@ -585,7 +596,17 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       </div>
 
       <div class="subview" id="subview-parejas">
-        <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder sortear. Con 3 a 5 parejas se juega todos contra todos sin zonas ni llave; con 6 o más se arman zonas.</p>
+        <div class="format-picker" id="formatPicker">
+          <div class="format-option" data-format="avanzado" onclick="App.setFormat('avanzado')">
+            <div class="format-title">Torneo Americano Avanzado</div>
+            <div class="format-desc">Zonas de 4 juegan solo 2 partidos por pareja (definición interna 1°-2° y 3°-4°). Zonas de 3 juegan todos contra todos. La mitad superior del ranking general clasifica directo a la llave; la mitad inferior juega repechaje.</div>
+          </div>
+          <div class="format-option" data-format="principiantes" onclick="App.setFormat('principiantes')">
+            <div class="format-title">Torneo Americano Principiantes</div>
+            <div class="format-desc">Todas las zonas (de 4 o de 3) juegan todos contra todos. Las 2 mejores de cada zona pasan directo a la llave junto con las 2 peores de las zonas de 4; el 3° de una zona de 3 juega un repechaje previo.</div>
+          </div>
+        </div>
+        <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder sortear.</p>
         <datalist id="playersDatalist"></datalist>
         <div class="pairs-grid2" id="pairsGrid"></div>
         <div class="actions-row">
@@ -694,6 +715,7 @@ function freshTournament(){
   return {
     tournamentId: uid(),
     name: '',
+    format: 'avanzado',
     pairs: [],
     zones: [],
     smallMode: false,
@@ -714,6 +736,7 @@ const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos','coord
 function sanitizeState(s){
   if(!s) return freshTournament();
   if(!s.torneoSubTab) s.torneoSubTab = 'parejas';
+  if(!s.format) s.format = 'avanzado';
   if(OLD_SUBTABS.includes(s.activeTab)){
     s.torneoSubTab = s.activeTab;
     s.activeTab = 'torneoActual';
@@ -1144,12 +1167,12 @@ function nextPow2(n){ let p=1; while(p<n) p*=2; return p; }
 
 /* ---- construcción de zonas con formato reducido ---- */
 function makeZone(name, pairIds){
-  if(pairIds.length===4){
+  if(pairIds.length===4 && state.format!=='principiantes'){
     const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     return { id:uid(), name, pairIds, format:'playoff4', matches:[m1,m2] };
   }
-  // 3 (o, en modo reducido, cualquier tamaño): todos contra todos
+  // 3, o 4 en modo Principiantes, o modo reducido de cualquier tamaño: todos contra todos
   const matches = combinations(pairIds).map(([a,b])=>({
     id:uid(), aId:a, bId:b, sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''
   }));
@@ -1354,6 +1377,20 @@ function computeStageForPair(pairId){
 
 App.setName = function(v){ state.name = v; scheduleSave(); };
 
+App.setFormat = function(fmt){
+  if(state.format===fmt) return;
+  if(state.zones.length>0){
+    const ok = confirm('Ya hay zonas generadas para este torneo. Cambiar el formato borra las zonas, resultados y llave cargados hasta ahora. ¿Continuar?');
+    if(!ok) return;
+    state.zones = [];
+    state.primera = null;
+    state.segunda = null;
+    state.smallMode = false;
+  }
+  state.format = fmt;
+  render();
+};
+
 /* ---- jugadores (persistente) ---- */
 App.addPlayerFromInput = function(){
   const input = document.getElementById('newPlayerInput');
@@ -1526,6 +1563,10 @@ App.setPairAlias = function(pairId, value){
 App.generateZones = function(){
   const ready = getReadyPairs();
   if(ready.length<3){ alert('Necesitás al menos 3 parejas completas (con sus dos jugadores asignados).'); return; }
+  if(state.format==='principiantes' && ready.length===5){
+    alert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas no hay forma de repartirlas así. Sumá o quitá una pareja (a 4 o a 6) para poder sortear.');
+    return;
+  }
   if(state.zones.length>0){
     const ok = confirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
@@ -1533,8 +1574,8 @@ App.generateZones = function(){
   const pairsForDraw = ready.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
 
-  if(shuffled.length<6){
-    // modo grupo único: todos contra todos, gana quien más puntos suma
+  if(state.format!=='principiantes' && shuffled.length<6){
+    // modo grupo único (solo Avanzado): todos contra todos, gana quien más puntos suma
     state.smallMode = true;
     state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
   } else {
@@ -1652,22 +1693,10 @@ App.setMatchCancha = function(matchId, value){
 };
 
 /* ---- llave ---- */
-App.generateBracket = function(){
-  if(!allZoneMatchesComplete()){ alert('Todavía faltan resultados en la fase de zonas.'); return; }
-  if(state.primera){
-    const ok = confirm('Ya se generó la Primera Instancia. Esto reiniciará toda la llave. ¿Continuar?');
-    if(!ok) return;
-  }
-  const ranking = computeGeneralRanking();
-  const n = ranking.length;
-  const directCount = Math.ceil(n/2);
-  const direct = ranking.slice(0, directCount);
-  const repechaje = ranking.slice(directCount);
-
-  let list = [...repechaje];
+function buildRepechajeMatches(repechajeRanked){
+  let list = [...repechajeRanked];
   let byePair = null;
   if(list.length % 2 === 1){ byePair = list[0]; list = list.slice(1); }
-
   const matches=[];
   for(let i=0;i<list.length/2;i++){
     const a = list[i], b = list[list.length-1-i];
@@ -1676,8 +1705,58 @@ App.generateBracket = function(){
   if(byePair){
     matches.unshift({id:uid(), aId:byePair.pairId, bId:null, sets:[], completed:true, winnerId:byePair.pairId, bye:true, cancha:''});
   }
+  return matches;
+}
 
-  state.primera = { matches, directRanked: direct, repechajeRanked: repechaje };
+function buildBracketAvanzado(){
+  const ranking = computeGeneralRanking();
+  const n = ranking.length;
+  const directCount = Math.ceil(n/2);
+  const direct = ranking.slice(0, directCount);
+  const repechaje = ranking.slice(directCount);
+  state.primera = { matches: buildRepechajeMatches(repechaje), directRanked: direct, repechajeRanked: repechaje };
+}
+
+function sortByZonePosition(arr){
+  return arr.sort((x,y)=> x.position-y.position || y.diffSets-x.diffSets || y.diffGames-x.diffGames);
+}
+
+function computePrincipiantesGroups(){
+  let mejores=[], peores=[], repechaje=[];
+  state.zones.forEach(zone=>{
+    const results = computeZoneResults(zone);
+    if(!results) return;
+    if(zone.pairIds.length===4){
+      mejores.push({...results[0], zoneName:zone.name}, {...results[1], zoneName:zone.name});
+      peores.push({...results[2], zoneName:zone.name}, {...results[3], zoneName:zone.name});
+    } else {
+      mejores.push({...results[0], zoneName:zone.name}, {...results[1], zoneName:zone.name});
+      repechaje.push({...results[2], zoneName:zone.name});
+    }
+  });
+  sortByZonePosition(mejores);
+  sortByZonePosition(peores);
+  sortByZonePosition(repechaje);
+  return {mejores, peores, repechaje};
+}
+
+function buildBracketPrincipiantes(){
+  const {mejores, peores, repechaje} = computePrincipiantesGroups();
+  const direct = [...mejores, ...peores];
+  state.primera = { matches: buildRepechajeMatches(repechaje), directRanked: direct, repechajeRanked: repechaje };
+}
+
+App.generateBracket = function(){
+  if(!allZoneMatchesComplete()){ alert('Todavía faltan resultados en la fase de zonas.'); return; }
+  if(state.primera){
+    const ok = confirm('Ya se generó la Primera Instancia. Esto reiniciará toda la llave. ¿Continuar?');
+    if(!ok) return;
+  }
+  if(state.format==='principiantes'){
+    buildBracketPrincipiantes();
+  } else {
+    buildBracketAvanzado();
+  }
   state.segunda = null;
   state.activeTab = 'torneoActual';
   state.torneoSubTab = 'llave';
@@ -2091,6 +2170,10 @@ function renderProximos(){
 
 /* ---- Parejas del torneo activo ---- */
 function renderParejas(){
+  document.querySelectorAll('.format-option').forEach(el=>{
+    el.classList.toggle('selected', el.dataset.format===state.format);
+  });
+
   const datalist = document.getElementById('playersDatalist');
   datalist.innerHTML = playersDB.map(p=>`<option value="${escapeAttr(p.name)}">`).join('');
 
@@ -2121,13 +2204,25 @@ function renderParejas(){
 
   const ready = getReadyPairs();
   const btn = document.getElementById('btnGenZones');
-  btn.disabled = ready.length<3;
   const hint = document.getElementById('setupHint');
+
   if(ready.length<3){
+    btn.disabled = true;
     hint.textContent = `Tenés ${ready.length} pareja(s) completa(s). Faltan ${3-ready.length} más para poder sortear.`;
+  } else if(state.format==='principiantes'){
+    if(ready.length===5){
+      btn.disabled = true;
+      hint.innerHTML = `Con 5 parejas no se pueden armar zonas de solo 3 o 4. Sumá o quitá una pareja.`;
+    } else {
+      btn.disabled = false;
+      const sizes = computeZoneSizes(ready.length);
+      hint.innerHTML = `Con <b>${ready.length}</b> parejas se armarán <b>${sizes.length}</b> zona(s) de ${sizes.join(', ')} parejas, todas jugando todos contra todos.`;
+    }
   } else if(ready.length<6){
+    btn.disabled = false;
     hint.innerHTML = `Con <b>${ready.length}</b> parejas se juega todos contra todos en un solo grupo, sin zonas ni llave — gana quien más puntos suma.`;
   } else {
+    btn.disabled = false;
     const sizes = computeZoneSizes(ready.length);
     hint.innerHTML = `Con <b>${ready.length}</b> parejas completas se armarán <b>${sizes.length}</b> zona(s) de ${sizes.join(', ')} parejas respectivamente (las zonas de 4 juegan máximo 2 partidos por pareja).`;
   }
@@ -2287,6 +2382,49 @@ function renderGeneral(){
   }
 
   const n = ranking.length;
+
+  if(state.format==='principiantes'){
+    const {mejores, peores, repechaje} = computePrincipiantesGroups();
+    const tagByPair = {};
+    mejores.forEach(p=> tagByPair[p.pairId] = {label:'Mejores → llave directo', cls:'direct'});
+    peores.forEach(p=> tagByPair[p.pairId] = {label:'Peores de zona de 4 → llave directo', cls:'direct'});
+    repechaje.forEach(p=> tagByPair[p.pairId] = {label:'3° de zona de 3 → repechaje', cls:'rep'});
+
+    const rowsHtml = ranking.map(s=>{
+      const tag = tagByPair[s.pairId] || {label:'—', cls:'rep'};
+      return `
+        <tr class="${tag.cls==='direct'?'zone-direct':'zone-repechaje'}">
+          <td class="num">${s.rank}</td>
+          <td>${escapeHtml(s.name)}</td>
+          <td>${escapeHtml(s.zoneName)}</td>
+          <td class="num">${s.pts===null? '—' : s.pts}</td>
+          <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
+          <td class="num">${s.diffGames>0?'+':''}${s.diffGames}</td>
+          <td><span class="tag ${tag.cls}">${tag.label}</span></td>
+        </tr>`;
+    }).join('');
+
+    c.innerHTML = `
+      <div class="general-table-wrap">
+        ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⚠️ Todavía faltan resultados en la fase de zonas — este ranking es parcial.</div>` : ''}
+        <table class="gen">
+          <thead><tr>
+            <th>#</th><th>Pareja</th><th>Zona</th><th class="num">Pts</th><th class="num">Dif.S</th><th class="num">Dif.G</th><th>Clasificación</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot" style="background:var(--accent);"></span> 1° y 2° de cada zona, y 3°/4° de zonas de 4 — entran directo a la llave</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--accent-2);"></span> 3° de zonas de 3 — juega repechaje antes de entrar a la llave</div>
+        </div>
+        <div class="actions-row" style="margin-top:20px;">
+          <button class="btn btn-primary" ${!zonesDone?'disabled':''} onclick="App.generateBracket()">Generar llave</button>
+          ${!zonesDone ? '<span class="hint">Completá todos los partidos de zona para generar la llave.</span>' : ''}
+        </div>
+      </div>`;
+    return;
+  }
+
   const directCount = Math.ceil(n/2);
 
   const rowsHtml = ranking.map((s,i)=>{
