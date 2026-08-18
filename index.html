@@ -317,6 +317,17 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   display:flex; justify-content:space-between; align-items:center; gap:10px;
 }
 .bye-banner{font-size:12.5px; color:var(--accent-2); font-family:var(--font-mono); padding:6px 0;}
+.cancha-row{display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12px; color:var(--text-dim); font-family:var(--font-mono);}
+.cancha-input{
+  background:var(--panel-3); border:1px solid var(--line-strong); color:var(--accent);
+  font-family:var(--font-mono); font-size:12.5px; padding:4px 8px; border-radius:6px; width:70px; text-align:center;
+}
+.cancha-input:focus{outline:none; border-color:var(--accent-2);}
+.cancha-badge{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-family:var(--font-mono);
+  color:var(--accent); background:rgba(199,244,100,0.1); border:1px solid rgba(199,244,100,0.3);
+  padding:3px 10px; border-radius:20px; margin-bottom:8px;
+}
 
 table.standings{width:100%; border-collapse:collapse; font-size:12.5px;}
 table.standings th{
@@ -363,6 +374,7 @@ table.standings tr.leader td:first-child{font-weight:700;}
 .jugador-header .who{font-family:var(--font-display); font-size:18px;}
 .jugador-header .who span{color:var(--accent);}
 .jugador-section{max-width:640px; margin:0 auto 30px;}
+.jugador-section.wide{max-width:1100px;}
 .jugador-section h3{font-family:var(--font-display); font-size:15px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); margin:0 0 12px;}
 .next-match-card{
   background:var(--panel); border:1px solid var(--accent-2); border-radius:var(--radius); padding:22px 24px;
@@ -458,6 +470,14 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
   <div class="jugador-section">
     <h3>Tu próximo partido</h3>
     <div id="jugadorProximoPartido"></div>
+  </div>
+  <div class="jugador-section wide">
+    <h3>Cómo van las zonas</h3>
+    <div id="jugadorZonas"></div>
+  </div>
+  <div class="jugador-section wide">
+    <h3>Llave del torneo</h3>
+    <div id="jugadorLlave"></div>
   </div>
   <div class="jugador-section">
     <h3>Tabla de puntos</h3>
@@ -920,16 +940,16 @@ function findNextMatchForPair(pairId){
   if(!pairId) return null;
   for(const zone of state.zones){
     const m = zone.matches.find(x=> !x.completed && (x.aId===pairId || x.bId===pairId));
-    if(m) return {stage: zone.name, opponentId: m.aId===pairId? m.bId : m.aId};
+    if(m) return {stage: zone.name, opponentId: m.aId===pairId? m.bId : m.aId, cancha:m.cancha};
   }
   if(state.primera){
     const m = state.primera.matches.find(x=> !x.bye && !x.completed && (x.aId===pairId || x.bId===pairId));
-    if(m) return {stage:'Primera Instancia (repechaje)', opponentId: m.aId===pairId? m.bId : m.aId};
+    if(m) return {stage:'Primera Instancia (repechaje)', opponentId: m.aId===pairId? m.bId : m.aId, cancha:m.cancha};
   }
   if(state.segunda && state.segunda.rounds.length){
     const lastRound = state.segunda.rounds[state.segunda.rounds.length-1];
     const m = lastRound.find(x=> !x.bye && !x.completed && (x.aId===pairId || x.bId===pairId));
-    if(m) return {stage:'Llave — Segunda Instancia', opponentId: m.aId===pairId? m.bId : m.aId};
+    if(m) return {stage:'Llave — Segunda Instancia', opponentId: m.aId===pairId? m.bId : m.aId, cancha:m.cancha};
   }
   return null;
 }
@@ -955,6 +975,7 @@ function renderJugadorView(){
         nextMatchEl.innerHTML = `
           <div class="next-match-card">
             <div class="stage">${escapeHtml(next.stage)}</div>
+            ${next.cancha ? `<div class="cancha-badge">🎾 Cancha ${escapeHtml(next.cancha)}</div>` : `<div class="cancha-badge" style="opacity:0.6;">Cancha a confirmar</div>`}
             <div class="vs-row">
               <div class="team">${escapeHtml(pairDisplayName(pair))}</div>
               <div class="vsdivider">VS</div>
@@ -963,6 +984,71 @@ function renderJugadorView(){
           </div>`;
       }
     }
+  }
+
+  const zonasEl = document.getElementById('jugadorZonas');
+  if(state.zones.length===0){
+    zonasEl.innerHTML = `<div class="empty-state">Todavía no hay zonas generadas para este torneo.</div>`;
+  } else {
+    zonasEl.innerHTML = `<div class="zones-wrap">` + state.zones.map(zone=>{
+      const matchesHtml = zone.matches.map(m=> matchCardReadOnly(m, pair? pair.id: null)).join('');
+      const results = computeZoneResults(zone);
+      let standingsHtml;
+      if(!results){
+        standingsHtml = `<div class="empty-state" style="padding:24px 18px;">Posiciones pendientes.</div>`;
+      } else {
+        standingsHtml = `
+          <table class="standings">
+            <thead><tr><th>#</th><th>Pareja</th><th class="num">Sets</th><th class="num">Dif.S</th><th class="num">Games</th><th class="num">Dif.G</th>${zone.format==='roundrobin'?'<th class="num">Pts</th>':''}</tr></thead>
+            <tbody>
+            ${results.map((s,i)=>`
+              <tr class="${i===0?'leader':''} ${pair && s.pairId===pair.id?'leader':''}">
+                <td><span class="rank-badge">${s.position}</span></td>
+                <td>${escapeHtml(s.name)}</td>
+                <td class="num">${s.sf}-${s.sc}</td>
+                <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
+                <td class="num">${s.gf}-${s.gc}</td>
+                <td class="num">${s.diffGames>0?'+':''}${s.diffGames}</td>
+                ${zone.format==='roundrobin'?`<td class="num">${s.pts}</td>`:''}
+              </tr>`).join('')}
+            </tbody>
+          </table>`;
+      }
+      return `
+        <div class="zone-card">
+          <div class="zone-head"><h3>${escapeHtml(zone.name)}</h3><span class="pill">${zone.pairIds.length} parejas</span></div>
+          <div class="zone-body"><div>${matchesHtml}</div><div>${standingsHtml}</div></div>
+        </div>`;
+    }).join('') + `</div>`;
+  }
+
+  const llaveEl = document.getElementById('jugadorLlave');
+  if(state.smallMode || !state.primera){
+    llaveEl.innerHTML = `<div class="empty-state">${state.smallMode ? 'Este torneo no tiene llave: se juega todo en un solo grupo.' : 'La llave todavía no se generó.'}</div>`;
+  } else {
+    let html = `
+      <div class="bracket-section">
+        <h3 class="round-label" style="text-align:left;">Primera instancia (repechaje)</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px;">
+          ${state.primera.matches.map(m=> matchCardReadOnly(m, pair? pair.id: null)).join('')}
+        </div>
+      </div>`;
+    if(state.segunda){
+      const cols = state.segunda.rounds.map((round, idx)=>{
+        const label = roundLabel(state.segunda.totalRounds, idx, round.length);
+        return `<div class="bracket-col"><div class="round-label">${label}</div>${round.map(m=>bracketMatchReadOnly(m, pair? pair.id: null)).join('')}</div>`;
+      }).join('');
+      html += `
+        <div class="bracket-section">
+          <h3 class="round-label" style="text-align:left;">Segunda instancia</h3>
+          <div class="bracket-cols">${cols}</div>
+          ${state.segunda.champion ? `
+            <div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">Campeón del torneo</div><div class="name">${escapeHtml(getPairName(state.segunda.champion))}</div></div></div></div>` : ''}
+        </div>`;
+    } else {
+      html += `<div class="empty-state">La Segunda Instancia se habilita cuando termine la Primera Instancia.</div>`;
+    }
+    llaveEl.innerHTML = html;
   }
 
   const tablaEl = document.getElementById('jugadorTablaPuntos');
@@ -1059,13 +1145,13 @@ function nextPow2(n){ let p=1; while(p<n) p*=2; return p; }
 /* ---- construcción de zonas con formato reducido ---- */
 function makeZone(name, pairIds){
   if(pairIds.length===4){
-    const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null};
-    const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null};
+    const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
+    const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     return { id:uid(), name, pairIds, format:'playoff4', matches:[m1,m2] };
   }
   // 3 (o, en modo reducido, cualquier tamaño): todos contra todos
   const matches = combinations(pairIds).map(([a,b])=>({
-    id:uid(), aId:a, bId:b, sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null
+    id:uid(), aId:a, bId:b, sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''
   }));
   return { id:uid(), name, pairIds, format:'roundrobin', matches };
 }
@@ -1079,11 +1165,11 @@ function advanceZonePlayoff(zone){
   const losers = round1.map(m=> m.aId===m.winnerId ? m.bId : m.aId);
   zone.matches.push({
     id:uid(), aId:winners[0], bId:winners[1], sets:emptySets(), completed:false, winnerId:null,
-    round:2, matchType:'llave', label:'Definición 1°-2° de la zona'
+    round:2, matchType:'llave', label:'Definición 1°-2° de la zona', cancha:''
   });
   zone.matches.push({
     id:uid(), aId:losers[0], bId:losers[1], sets:emptySets(), completed:false, winnerId:null,
-    round:2, matchType:'llave', label:'Definición 3°-4° de la zona'
+    round:2, matchType:'llave', label:'Definición 3°-4° de la zona', cancha:''
   });
 }
 
@@ -1558,6 +1644,13 @@ App.editMatch = function(matchId){
   render();
 };
 
+App.setMatchCancha = function(matchId, value){
+  const loc = locateMatch(matchId);
+  if(!loc) return;
+  loc.match.cancha = value;
+  scheduleSave();
+};
+
 /* ---- llave ---- */
 App.generateBracket = function(){
   if(!allZoneMatchesComplete()){ alert('Todavía faltan resultados en la fase de zonas.'); return; }
@@ -1578,10 +1671,10 @@ App.generateBracket = function(){
   const matches=[];
   for(let i=0;i<list.length/2;i++){
     const a = list[i], b = list[list.length-1-i];
-    matches.push({id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false});
+    matches.push({id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, cancha:''});
   }
   if(byePair){
-    matches.unshift({id:uid(), aId:byePair.pairId, bId:null, sets:[], completed:true, winnerId:byePair.pairId, bye:true});
+    matches.unshift({id:uid(), aId:byePair.pairId, bId:null, sets:[], completed:true, winnerId:byePair.pairId, bye:true, cancha:''});
   }
 
   state.primera = { matches, directRanked: direct, repechajeRanked: repechaje };
@@ -1615,7 +1708,7 @@ function tryGenerateSegunda(){
     if(bye){ winnerId = a ? a.pairId : (b ? b.pairId : null); completed = true; }
     round1.push({
       id:uid(), aId: a?a.pairId:null, bId: b?b.pairId:null,
-      sets: bye? [] : emptySets(), completed, winnerId, bye
+      sets: bye? [] : emptySets(), completed, winnerId, bye, cancha:''
     });
   }
   state.segunda = { rounds:[round1], totalRounds: Math.log2(pow2), champion:null };
@@ -1631,7 +1724,7 @@ function advanceSegunda(){
   for(let i=0;i<last.length;i+=2){
     next.push({
       id:uid(), aId:last[i].winnerId, bId:last[i+1].winnerId,
-      sets:emptySets(), completed:false, winnerId:null, bye:false
+      sets:emptySets(), completed:false, winnerId:null, bye:false, cancha:''
     });
   }
   rounds.push(next);
@@ -2114,10 +2207,12 @@ function matchCardHtml(m){
     resultBanner = `<div class="match-result-banner"><span>${scoreStr}</span><button class="btn btn-ghost btn-sm" onclick="App.editMatch('${m.id}')">Editar</button></div>`;
   }
   const labelHtml = m.label ? `<div class="hint" style="margin:0 0 6px; color:var(--accent-2);">${escapeHtml(m.label)}</div>` : '';
+  const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span><input class="cancha-input" type="text" placeholder="—" value="${escapeAttr(m.cancha||'')}" onchange="App.setMatchCancha('${m.id}', this.value)"></div>`;
 
   return `
     <div class="match-card">
       ${labelHtml}
+      ${canchaHtml}
       <div class="match-teams">
         <span class="team-name ${m.completed && m.winnerId===m.aId?'win':''}">${escapeHtml(nameA)}</span>
         <span class="vs">VS</span>
@@ -2125,6 +2220,36 @@ function matchCardHtml(m){
       </div>
       ${resultBanner}
       ${!m.completed ? `<div class="sets-row">${setsInputs}</div><button class="btn btn-primary btn-sm" onclick="App.saveMatch('${m.id}')">Guardar resultado</button>` : ''}
+    </div>`;
+}
+
+function matchCardReadOnly(m, myPairId){
+  const nameA = getPairName(m.aId);
+  const nameB = getPairName(m.bId);
+  const mine = myPairId && (m.aId===myPairId || m.bId===myPairId);
+  const labelHtml = m.label ? `<div class="hint" style="margin:0 0 6px; color:var(--accent-2);">${escapeHtml(m.label)}</div>` : '';
+  const canchaHtml = m.cancha ? `<div class="cancha-badge">🎾 Cancha ${escapeHtml(m.cancha)}</div>` : '';
+  if(m.bye){
+    return `
+    <div class="match-card" style="${mine?'border-color:var(--accent-2);':''}">
+      ${labelHtml}
+      <div class="match-teams"><span class="team-name win">${escapeHtml(nameA)}</span><span class="vs">BYE</span><span class="team-name" style="color:var(--text-faint)">—</span></div>
+      <div class="bye-banner">Pasa directo sin jugar</div>
+    </div>`;
+  }
+  const resultHtml = m.completed
+    ? `<div class="match-result-banner"><span>${m.sets.map(s=>`${s.a}-${s.b}`).join(', ')}</span></div>`
+    : `<div class="hint">Sin jugar todavía</div>`;
+  return `
+    <div class="match-card" style="${mine?'border-color:var(--accent-2);':''}">
+      ${labelHtml}
+      ${canchaHtml}
+      <div class="match-teams">
+        <span class="team-name ${m.completed && m.winnerId===m.aId?'win':''}">${escapeHtml(nameA)}</span>
+        <span class="vs">VS</span>
+        <span class="team-name ${m.completed && m.winnerId===m.bId?'win':''}">${escapeHtml(nameB)}</span>
+      </div>
+      ${resultHtml}
     </div>`;
 }
 
@@ -2282,10 +2407,12 @@ function bracketMatchHtml(m){
       </div>`;
   }
   const nameA = getPairName(m.aId), nameB = getPairName(m.bId);
+  const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span><input class="cancha-input" type="text" placeholder="—" value="${escapeAttr(m.cancha||'')}" onchange="App.setMatchCancha('${m.id}', this.value)"></div>`;
   if(m.completed){
     const scoreStr = m.sets.map(s=>`${s.a}-${s.b}`).join(', ');
     return `
       <div class="bmatch">
+        ${canchaHtml}
         <div class="side ${m.winnerId===m.aId?'winner':'loser'}">${escapeHtml(nameA)}</div>
         <div class="mid-line"></div>
         <div class="side ${m.winnerId===m.bId?'winner':'loser'}">${escapeHtml(nameB)}</div>
@@ -2301,11 +2428,46 @@ function bracketMatchHtml(m){
       </div>`;
   return `
     <div class="bmatch">
+      ${canchaHtml}
       <div class="side">${escapeHtml(nameA)}</div>
       <div class="mid-line"></div>
       <div class="side">${escapeHtml(nameB)}</div>
       <div class="sets-row">${setsInputs}</div>
       <button class="btn btn-primary btn-sm" onclick="App.saveMatch('${m.id}')">Guardar resultado</button>
+    </div>`;
+}
+
+function bracketMatchReadOnly(m, myPairId){
+  const mine = myPairId && (m.aId===myPairId || m.bId===myPairId);
+  const borderStyle = mine ? 'border-color:var(--accent-2);' : '';
+  if(m.bye){
+    return `
+      <div class="bmatch" style="${borderStyle}">
+        <div class="side winner">${escapeHtml(getPairName(m.aId || m.bId))}</div>
+        <div class="mid-line"></div>
+        <div class="side loser">BYE</div>
+      </div>`;
+  }
+  const nameA = getPairName(m.aId), nameB = getPairName(m.bId);
+  const canchaHtml = m.cancha ? `<div class="cancha-badge">🎾 Cancha ${escapeHtml(m.cancha)}</div>` : '';
+  if(m.completed){
+    const scoreStr = m.sets.map(s=>`${s.a}-${s.b}`).join(', ');
+    return `
+      <div class="bmatch" style="${borderStyle}">
+        ${canchaHtml}
+        <div class="side ${m.winnerId===m.aId?'winner':'loser'}">${escapeHtml(nameA)}</div>
+        <div class="mid-line"></div>
+        <div class="side ${m.winnerId===m.bId?'winner':'loser'}">${escapeHtml(nameB)}</div>
+        <div class="match-result-banner" style="margin-top:8px;"><span>${scoreStr}</span></div>
+      </div>`;
+  }
+  return `
+    <div class="bmatch" style="${borderStyle}">
+      ${canchaHtml}
+      <div class="side">${escapeHtml(nameA)}</div>
+      <div class="mid-line"></div>
+      <div class="side">${escapeHtml(nameB)}</div>
+      <div class="hint" style="margin-top:8px;">Sin jugar todavía</div>
     </div>`;
 }
 
