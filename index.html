@@ -666,6 +666,8 @@ const PLAYER_PASSWORD = 'torneo';
 let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
 let loginRole = 'admin';
 
+const App = {};
+
 let state = null;
 
 function freshTournament(){
@@ -1263,7 +1265,6 @@ function computeStageForPair(pairId){
 /* =========================================================
    ACCIONES
    ========================================================= */
-const App = {};
 
 App.setName = function(v){ state.name = v; scheduleSave(); };
 
