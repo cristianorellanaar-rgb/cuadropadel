@@ -306,6 +306,23 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
 
 /* ---------- zones / cards ---------- */
 .zones-wrap{display:flex; flex-direction:column; gap:22px;}
+.zone-manage-panel{
+  background:var(--panel); border:1px dashed var(--accent-2); border-radius:var(--radius);
+  padding:16px 18px; margin-bottom:18px; max-width:820px;
+}
+.unassigned-row{
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  padding:7px 0; border-bottom:1px dashed var(--line);
+}
+.unassigned-row:last-of-type{border-bottom:none;}
+.zone-pairs-manage{display:flex; flex-direction:column; gap:6px; margin-bottom:4px;}
+.zone-pair-row{
+  display:flex; align-items:center; gap:8px; background:var(--panel-3); border-radius:7px; padding:6px 10px;
+  font-size:13px;
+}
+.zone-pair-row span{flex:1;}
+.zone-pair-row select{font-size:11.5px;}
+
 .zone-card{
   background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
 }
@@ -1429,6 +1446,81 @@ function getReadyPairs(){
   return state.pairs.filter(p=> p.p1Id && p.p2Id);
 }
 
+function zoneHasAnyResult(zone){
+  return zone.matches.some(m=>m.completed);
+}
+
+function getUnassignedPairs(){
+  const assignedIds = new Set();
+  state.zones.forEach(z=> z.pairIds.forEach(id=> assignedIds.add(id)));
+  return getReadyPairs().filter(p=> !assignedIds.has(p.id));
+}
+
+function rebuildZoneMatches(zone){
+  const built = makeZone(zone.name, zone.pairIds);
+  zone.format = built.format;
+  zone.matches = built.matches;
+}
+
+App.autoAddPairToZone = function(pairId){
+  const eligible = state.zones.filter(z=> !zoneHasAnyResult(z) && z.pairIds.length<4);
+  if(eligible.length===0){
+    alert('No hay ninguna zona disponible para agregar (todas están completas con 4 parejas, o ya tienen resultados cargados). Si tenés al menos 3 parejas sin asignar, podés crear una zona nueva.');
+    return;
+  }
+  eligible.sort((a,b)=> a.pairIds.length - b.pairIds.length);
+  const zone = eligible[0];
+  zone.pairIds.push(pairId);
+  rebuildZoneMatches(zone);
+  render();
+};
+
+App.removePairFromZone = function(pairId, zoneId){
+  const zone = state.zones.find(z=>z.id===zoneId);
+  if(!zone) return;
+  if(zoneHasAnyResult(zone)){ alert('Esta zona ya tiene resultados cargados — no se puede modificar su composición.'); return; }
+  const ok = confirm(`¿Sacar a ${getPairName(pairId)} de ${zone.name}? Va a quedar sin asignar a ninguna zona.`);
+  if(!ok) return;
+  zone.pairIds = zone.pairIds.filter(id=>id!==pairId);
+  if(zone.pairIds.length===0){
+    state.zones = state.zones.filter(z=>z.id!==zoneId);
+  } else {
+    rebuildZoneMatches(zone);
+  }
+  render();
+};
+
+App.movePairToZone = function(pairId, fromZoneId, toZoneId){
+  if(!toZoneId || fromZoneId===toZoneId) return;
+  const fromZone = state.zones.find(z=>z.id===fromZoneId);
+  const toZone = state.zones.find(z=>z.id===toZoneId);
+  if(!fromZone || !toZone) return;
+  if(zoneHasAnyResult(fromZone) || zoneHasAnyResult(toZone)){
+    alert('Alguna de las dos zonas ya tiene resultados cargados — no se puede mover.');
+    render();
+    return;
+  }
+  if(toZone.pairIds.length>=4){ alert('Esa zona ya tiene 4 parejas (el máximo).'); render(); return; }
+  fromZone.pairIds = fromZone.pairIds.filter(id=>id!==pairId);
+  toZone.pairIds.push(pairId);
+  rebuildZoneMatches(toZone);
+  if(fromZone.pairIds.length===0){
+    state.zones = state.zones.filter(z=>z.id!==fromZoneId);
+  } else {
+    rebuildZoneMatches(fromZone);
+  }
+  render();
+};
+
+App.createZoneFromUnassigned = function(){
+  const unassigned = getUnassignedPairs();
+  if(unassigned.length<3){ alert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
+  const chosen = unassigned.slice(0,4);
+  const newZone = makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, chosen.map(p=>p.id));
+  state.zones.push(newZone);
+  render();
+};
+
 function emptySets(){ return [{a:'',b:''}]; }
 
 function computeZoneStandings(zone){
@@ -2518,7 +2610,20 @@ function renderZonas(){
     c.innerHTML = `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Parejas y hacé clic en <b>Sortear zonas</b>.</div>`;
     return;
   }
-  c.innerHTML = `<div class="zones-wrap">` + state.zones.map(zone=>{
+
+  const unassigned = getUnassignedPairs();
+  const unassignedHtml = unassigned.length===0 ? '' : `
+    <div class="zone-manage-panel">
+      <div class="hint" style="margin:0 0 10px;"><b>Parejas sin asignar a una zona</b> (recién agregadas, o sacadas de otra zona):</div>
+      ${unassigned.map(p=>`
+        <div class="unassigned-row">
+          <span>${escapeHtml(pairDisplayName(p))}</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.autoAddPairToZone('${p.id}')">+ Agregar a zonas</button>
+        </div>`).join('')}
+      ${unassigned.length>=3 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="App.createZoneFromUnassigned()">+ Crear zona nueva con estas parejas</button>` : ''}
+    </div>`;
+
+  c.innerHTML = unassignedHtml + `<div class="zones-wrap">` + state.zones.map(zone=>{
     const matchesHtml = zone.matches.map(m=> matchCardHtml(m)).join('');
     const pendingNote = (zone.format==='playoff4' && !zone.matches.some(m=>m.round===2))
       ? `<div class="hint" style="margin-top:8px;">Los partidos de definición (3° y 4° puesto de la zona) se generan solos cuando termine lo de arriba.</div>` : '';
@@ -2546,11 +2651,31 @@ function renderZonas(){
         </tbody>
       </table>`;
     }
+
+    const hasResults = zoneHasAnyResult(zone);
+    const otherZones = state.zones.filter(z=>z.id!==zone.id);
+    const manageHtml = hasResults
+      ? `<div class="hint" style="margin-bottom:12px;">Esta zona ya tiene resultados cargados — no se puede agregar, sacar ni mover parejas.</div>`
+      : `<div class="zone-pairs-manage">
+          ${zone.pairIds.map(pid=>`
+            <div class="zone-pair-row">
+              <span>${escapeHtml(getPairName(pid))}</span>
+              <select class="owner-select" onchange="App.movePairToZone('${pid}','${zone.id}', this.value)">
+                <option value="">Mover a...</option>
+                ${otherZones.map(oz=>`<option value="${oz.id}" ${zoneHasAnyResult(oz)||oz.pairIds.length>=4?'disabled':''}>${escapeHtml(oz.name)} (${oz.pairIds.length})</option>`).join('')}
+              </select>
+              <button class="icon-btn" title="Quitar de la zona" onclick="App.removePairFromZone('${pid}','${zone.id}')">✕</button>
+            </div>`).join('')}
+        </div>`;
+
     return `
       <div class="zone-card">
         <div class="zone-head">
           <h3>${zone.name}</h3>
           <span class="pill">${zone.pairIds.length} parejas · ${zone.format==='playoff4' ? 'máx. 2 partidos por pareja' : 'todos contra todos'}</span>
+        </div>
+        <div class="zone-body" style="grid-template-columns:1fr;">
+          ${manageHtml}
         </div>
         <div class="zone-body">
           <div>${matchesHtml}${pendingNote}</div>
