@@ -1462,24 +1462,40 @@ function rebuildZoneMatches(zone){
   zone.matches = built.matches;
 }
 
+function warnIfBracketExists(extra){
+  let msg = extra;
+  if(state.primera){
+    msg += ' Además, la llave de este torneo ya se generó a partir de las zonas — se va a reiniciar por completo.';
+  }
+  return msg;
+}
+
 App.autoAddPairToZone = function(pairId){
-  const eligible = state.zones.filter(z=> !zoneHasAnyResult(z) && z.pairIds.length<4);
+  const eligible = state.zones.filter(z=> z.pairIds.length<4);
   if(eligible.length===0){
-    alert('No hay ninguna zona disponible para agregar (todas están completas con 4 parejas, o ya tienen resultados cargados). Si tenés al menos 3 parejas sin asignar, podés crear una zona nueva.');
+    alert('No hay ninguna zona con lugar (todas están completas con 4 parejas). Si tenés al menos 3 parejas sin asignar, podés crear una zona nueva.');
     return;
   }
   eligible.sort((a,b)=> a.pairIds.length - b.pairIds.length);
   const zone = eligible[0];
+  if(zoneHasAnyResult(zone) || state.primera){
+    const ok = confirm(warnIfBracketExists(`${zone.name} ya tiene resultados cargados. Agregar una pareja reinicia todos los partidos de esa zona (se pierden los resultados ya cargados ahí).`));
+    if(!ok) return;
+  }
   zone.pairIds.push(pairId);
   rebuildZoneMatches(zone);
+  state.primera = null;
+  state.segunda = null;
   render();
 };
 
 App.removePairFromZone = function(pairId, zoneId){
   const zone = state.zones.find(z=>z.id===zoneId);
   if(!zone) return;
-  if(zoneHasAnyResult(zone)){ alert('Esta zona ya tiene resultados cargados — no se puede modificar su composición.'); return; }
-  const ok = confirm(`¿Sacar a ${getPairName(pairId)} de ${zone.name}? Va a quedar sin asignar a ninguna zona.`);
+  let msg = `¿Sacar a ${getPairName(pairId)} de ${zone.name}? Va a quedar sin asignar a ninguna zona.`;
+  if(zoneHasAnyResult(zone)) msg += ' Esta zona ya tiene resultados cargados — se van a reiniciar todos los partidos de esa zona.';
+  msg = warnIfBracketExists(msg);
+  const ok = confirm(msg);
   if(!ok) return;
   zone.pairIds = zone.pairIds.filter(id=>id!==pairId);
   if(zone.pairIds.length===0){
@@ -1487,6 +1503,8 @@ App.removePairFromZone = function(pairId, zoneId){
   } else {
     rebuildZoneMatches(zone);
   }
+  state.primera = null;
+  state.segunda = null;
   render();
 };
 
@@ -1495,12 +1513,12 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
   const fromZone = state.zones.find(z=>z.id===fromZoneId);
   const toZone = state.zones.find(z=>z.id===toZoneId);
   if(!fromZone || !toZone) return;
-  if(zoneHasAnyResult(fromZone) || zoneHasAnyResult(toZone)){
-    alert('Alguna de las dos zonas ya tiene resultados cargados — no se puede mover.');
-    render();
-    return;
-  }
   if(toZone.pairIds.length>=4){ alert('Esa zona ya tiene 4 parejas (el máximo).'); render(); return; }
+  const anyResults = zoneHasAnyResult(fromZone) || zoneHasAnyResult(toZone);
+  if(anyResults || state.primera){
+    const ok = confirm(warnIfBracketExists('Alguna de las dos zonas ya tiene resultados cargados — se van a reiniciar todos los partidos de ambas zonas al mover esta pareja.'));
+    if(!ok){ render(); return; }
+  }
   fromZone.pairIds = fromZone.pairIds.filter(id=>id!==pairId);
   toZone.pairIds.push(pairId);
   rebuildZoneMatches(toZone);
@@ -1509,15 +1527,23 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
   } else {
     rebuildZoneMatches(fromZone);
   }
+  state.primera = null;
+  state.segunda = null;
   render();
 };
 
 App.createZoneFromUnassigned = function(){
   const unassigned = getUnassignedPairs();
   if(unassigned.length<3){ alert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
+  if(state.primera){
+    const ok = confirm('La llave de este torneo ya se generó — crear una zona nueva la reinicia por completo. ¿Continuar?');
+    if(!ok) return;
+  }
   const chosen = unassigned.slice(0,4);
   const newZone = makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, chosen.map(p=>p.id));
   state.zones.push(newZone);
+  state.primera = null;
+  state.segunda = null;
   render();
 };
 
@@ -2654,15 +2680,16 @@ function renderZonas(){
 
     const hasResults = zoneHasAnyResult(zone);
     const otherZones = state.zones.filter(z=>z.id!==zone.id);
-    const manageHtml = hasResults
-      ? `<div class="hint" style="margin-bottom:12px;">Esta zona ya tiene resultados cargados — no se puede agregar, sacar ni mover parejas.</div>`
-      : `<div class="zone-pairs-manage">
+    const resultsWarning = hasResults
+      ? `<div class="hint" style="margin-bottom:10px; color:var(--danger);">⚠️ Esta zona ya tiene resultados cargados — agregar, sacar o mover una pareja reinicia todos sus partidos.</div>` : '';
+    const manageHtml = resultsWarning + `
+        <div class="zone-pairs-manage">
           ${zone.pairIds.map(pid=>`
             <div class="zone-pair-row">
               <span>${escapeHtml(getPairName(pid))}</span>
               <select class="owner-select" onchange="App.movePairToZone('${pid}','${zone.id}', this.value)">
                 <option value="">Mover a...</option>
-                ${otherZones.map(oz=>`<option value="${oz.id}" ${zoneHasAnyResult(oz)||oz.pairIds.length>=4?'disabled':''}>${escapeHtml(oz.name)} (${oz.pairIds.length})</option>`).join('')}
+                ${otherZones.map(oz=>`<option value="${oz.id}" ${oz.pairIds.length>=4?'disabled':''}>${escapeHtml(oz.name)} (${oz.pairIds.length})${zoneHasAnyResult(oz)?' ⚠️':''}</option>`).join('')}
               </select>
               <button class="icon-btn" title="Quitar de la zona" onclick="App.removePairFromZone('${pid}','${zone.id}')">✕</button>
             </div>`).join('')}
