@@ -123,6 +123,25 @@ main{flex:1; min-width:0; padding:28px 36px 60px;}
 .chip b{color:var(--text); font-weight:700;}
 .chip.on{border-color:var(--accent); color:var(--accent);}
 
+.open-tabs-bar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+.open-tabs-bar:empty{margin-bottom:0;}
+.open-tab-chip{
+  display:flex; align-items:center; gap:8px;
+  background:var(--panel); border:1px solid var(--line-strong); border-radius:10px;
+  padding:8px 8px 8px 14px; font-size:13px; font-weight:500; color:var(--text-dim);
+  max-width:220px;
+}
+.open-tab-chip:hover{color:var(--text); border-color:var(--accent-2);}
+.open-tab-chip.active{background:var(--panel-2); color:var(--accent); border-color:var(--accent);}
+.open-tab-chip .tab-name{
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; max-width:170px;
+}
+.open-tab-chip .tab-close{
+  background:transparent; border:none; color:var(--text-faint); font-size:15px; line-height:1;
+  padding:2px 4px; border-radius:6px; cursor:pointer;
+}
+.open-tab-chip .tab-close:hover{color:var(--danger); background:rgba(255,107,107,0.12);}
+
 .view{display:none;}
 .view.active{display:block; animation:fadein .25s ease;}
 @keyframes fadein{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
@@ -556,6 +575,7 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
   </aside>
 
   <main>
+    <div class="open-tabs-bar" id="openTabsBar"></div>
     <div class="topbar">
       <input id="tournamentName" placeholder="Nombre del torneo" oninput="App.setName(this.value)">
       <div class="status-strip" id="statusStrip"></div>
@@ -758,7 +778,7 @@ const App = {};
 
 let state = null; // referencia al torneo actualmente ABIERTO (un elemento de `tournaments`), o null si estamos en la lista
 
-let nav = { activeTab: 'inicio', torneoSubTab: 'lista' }; // navegación local del navegador — NO se sincroniza entre sesiones
+let nav = { activeTab: 'inicio', torneoSubTab: 'lista', openTabs: [] }; // navegación local del navegador — NO se sincroniza entre sesiones
 
 function freshTournament(){
   return {
@@ -1426,6 +1446,73 @@ const POINTS = {
 /* =========================================================
    HELPERS DE DATOS
    ========================================================= */
+/* ---- bloqueo progresivo: posiciones de zona ya aseguradas aunque falten partidos ---- */
+function computeZoneLocking(zone){
+  const n = zone.pairIds.length;
+  if(zone.matches.length>0 && zone.matches.every(m=>m.completed)){
+    // zona 100% completa: el resultado final ya vale tal cual (con desempate por sets/games real)
+    return computeZoneResults(zone);
+  }
+  if(zone.format==='playoff4'){
+    const out = new Array(4).fill(null);
+    const r1 = zone.matches.filter(m=>m.round===1);
+    if(!r1.every(m=>m.completed)) return out;
+    const r2 = zone.matches.filter(m=>m.round===2);
+    const finalM = r2.find(m=>m.label==='Definición 1°-2° de la zona');
+    const placeM = r2.find(m=>m.label==='Definición 3°-4° de la zona');
+    const statsFor = (pid)=>{
+      let gf=0,gc=0,sf=0,sc=0;
+      zone.matches.forEach(m=>{
+        if(m.aId!==pid && m.bId!==pid) return;
+        (m.sets||[]).forEach(s=>{
+          if(s.a===''||s.b==='') return;
+          const a=Number(s.a), b=Number(s.b);
+          if(m.aId===pid){ gf+=a; gc+=b; if(a>b) sf++; else if(b>a) sc++; }
+          else { gf+=b; gc+=a; if(b>a) sf++; else if(a>b) sc++; }
+        });
+      });
+      return {gf,gc,diffGames:gf-gc, sf,sc,diffSets:sf-sc};
+    };
+    if(finalM && finalM.completed){
+      const pos1=finalM.winnerId, pos2=finalM.aId===pos1?finalM.bId:finalM.aId;
+      out[0]={pairId:pos1,name:getPairName(pos1),position:1,pts:null,...statsFor(pos1)};
+      out[1]={pairId:pos2,name:getPairName(pos2),position:2,pts:null,...statsFor(pos2)};
+    }
+    if(placeM && placeM.completed){
+      const pos3=placeM.winnerId, pos4=placeM.aId===pos3?placeM.bId:placeM.aId;
+      out[2]={pairId:pos3,name:getPairName(pos3),position:3,pts:null,...statsFor(pos3)};
+      out[3]={pairId:pos4,name:getPairName(pos4),position:4,pts:null,...statsFor(pos4)};
+    }
+    return out;
+  }
+  // roundrobin incompleto: bloqueo conservador SOLO por partidos ganados garantizados
+  // (se ignoran sets/games como desempate mientras haya partidos pendientes, para no arriesgar un orden que podría cambiar)
+  const remainingCount={}, minWins={}, maxWins={};
+  zone.pairIds.forEach(pid=>{ remainingCount[pid]=0; minWins[pid]=0; maxWins[pid]=0; });
+  zone.matches.forEach(m=>{
+    if(m.completed){ minWins[m.winnerId]++; maxWins[m.winnerId]++; }
+    else { remainingCount[m.aId]++; remainingCount[m.bId]++; }
+  });
+  zone.pairIds.forEach(pid=> maxWins[pid]+=remainingCount[pid]);
+
+  const standings = computeZoneStandings(zone);
+  const out = new Array(n).fill(null);
+  zone.pairIds.forEach(pid=>{
+    let above=0, below=0;
+    zone.pairIds.forEach(other=>{
+      if(other===pid) return;
+      if(minWins[other] > maxWins[pid]) above++;
+      else if(maxWins[other] < minWins[pid]) below++;
+    });
+    if(above+below === n-1){
+      const position = above+1;
+      const s = standings.find(x=>x.pairId===pid);
+      out[position-1] = {pairId:pid, name:s.name, position, pts:s.pts, gf:s.gf, gc:s.gc, diffGames:s.diffGames, sf:s.sf, sc:s.sc, diffSets:s.diffSets};
+    }
+  });
+  return out;
+}
+
 function pairDisplayName(pair){
   if(!pair) return '???';
   if(pair.alias && pair.alias.trim()) return pair.alias.trim();
@@ -1465,7 +1552,7 @@ function rebuildZoneMatches(zone){
 function warnIfBracketExists(extra){
   let msg = extra;
   if(state.primera){
-    msg += ' Además, la llave de este torneo ya se generó a partir de las zonas — se va a reiniciar por completo.';
+    msg += ' Además, esto puede reacomodar cupos de la llave que todavía no se jugaron (los partidos ya jugados en repechaje o llave no se pierden).';
   }
   return msg;
 }
@@ -1484,8 +1571,7 @@ App.autoAddPairToZone = function(pairId){
   }
   zone.pairIds.push(pairId);
   rebuildZoneMatches(zone);
-  state.primera = null;
-  state.segunda = null;
+  refreshBracket();
   render();
 };
 
@@ -1503,8 +1589,7 @@ App.removePairFromZone = function(pairId, zoneId){
   } else {
     rebuildZoneMatches(zone);
   }
-  state.primera = null;
-  state.segunda = null;
+  refreshBracket();
   render();
 };
 
@@ -1527,8 +1612,7 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
   } else {
     rebuildZoneMatches(fromZone);
   }
-  state.primera = null;
-  state.segunda = null;
+  refreshBracket();
   render();
 };
 
@@ -1536,14 +1620,13 @@ App.createZoneFromUnassigned = function(){
   const unassigned = getUnassignedPairs();
   if(unassigned.length<3){ alert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
   if(state.primera){
-    const ok = confirm('La llave de este torneo ya se generó — crear una zona nueva la reinicia por completo. ¿Continuar?');
+    const ok = confirm('Esto puede reacomodar cupos de la llave que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   const chosen = unassigned.slice(0,4);
   const newZone = makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, chosen.map(p=>p.id));
   state.zones.push(newZone);
-  state.primera = null;
-  state.segunda = null;
+  refreshBracket();
   render();
 };
 
@@ -1777,6 +1860,7 @@ App.createTournament = function(){
   if(currentUser && currentUser.role==='coordinador') t.ownerCoordinador = currentUser.username;
   tournaments.push(t);
   state = t;
+  if(!nav.openTabs.includes(t.tournamentId)) nav.openTabs.push(t.tournamentId);
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'parejas';
   scheduleSaveTournament(t);
@@ -1795,8 +1879,38 @@ App.openTournament = function(id){
     return;
   }
   state = t;
+  if(!nav.openTabs.includes(id)) nav.openTabs.push(id);
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'parejas';
+  render();
+};
+
+App.switchToOpenTab = function(id){
+  const t = tournaments.find(x=>x.tournamentId===id);
+  if(!t) return;
+  if(currentUser.role==='coordinador' && t.ownerCoordinador!==currentUser.username){
+    nav.openTabs = nav.openTabs.filter(x=>x!==id);
+    alert('Este torneo ya no te pertenece.');
+    render();
+    return;
+  }
+  state = t;
+  nav.activeTab = 'torneoActual';
+  if(nav.torneoSubTab==='lista') nav.torneoSubTab = 'parejas';
+  render();
+};
+
+App.closeOpenTab = function(id, ev){
+  if(ev) ev.stopPropagation();
+  nav.openTabs = nav.openTabs.filter(x=>x!==id);
+  if(state && state.tournamentId===id){
+    if(nav.openTabs.length>0){
+      App.switchToOpenTab(nav.openTabs[nav.openTabs.length-1]);
+      return;
+    }
+    state = null;
+    nav.torneoSubTab = 'lista';
+  }
   render();
 };
 
@@ -1821,6 +1935,7 @@ App.deleteTournamentActive = function(id){
   if(!ok) return;
   tournaments = tournaments.filter(x=>x.tournamentId!==id);
   deleteTournamentDoc(id);
+  nav.openTabs = nav.openTabs.filter(x=>x!==id);
   if(state && state.tournamentId===id){ state = null; nav.torneoSubTab = 'lista'; }
   render();
 };
@@ -1904,6 +2019,7 @@ App.generateZones = function(){
   state.segunda = null;
   nav.activeTab='torneoActual';
   nav.torneoSubTab='zonas';
+  refreshBracket();
   render();
 };
 
@@ -1957,20 +2073,26 @@ App.saveMatch = function(matchId){
       loc.zone.matches = loc.zone.matches.filter(m=>m.round!==2);
     }
   }
-  if(loc.type==='zone' && state.primera){
-    const ok = confirm('Ya se generó la llave del torneo a partir de la clasificación de zonas. Modificar este resultado la va a reiniciar por completo. ¿Continuar?');
-    if(!ok) return;
-    state.primera = null;
-    state.segunda = null;
+  const priorVal = (match.sets && match.sets[0]) ? match.sets[0].a : '';
+  const isCorrection = priorVal !== '' && priorVal !== undefined && priorVal !== null;
+  if(loc.type==='zone' && isCorrection){
+    const downstreamHasProgress = (state.primera && state.primera.matches.some(m=>m.completed)) || (state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed)));
+    if(downstreamHasProgress){
+      const ok = confirm('Ya hay partidos jugados en instancias posteriores (repechaje o llave). Corregir este resultado puede invalidar parejas que ya avanzaron. ¿Confirmás igual?');
+      if(!ok) return;
+    }
   }
-  if(loc.type==='primera' && state.segunda){
-    const ok = confirm('La Segunda Instancia ya se generó. Modificar este resultado la reiniciará por completo. ¿Continuar?');
-    if(!ok) return;
-    state.segunda = null;
+  if(loc.type==='primera' && isCorrection){
+    const segundaHasProgress = state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed));
+    if(segundaHasProgress){
+      const ok = confirm('La Segunda Instancia ya tiene partidos jugados. Corregir este resultado del repechaje puede invalidarlos. ¿Confirmás igual?');
+      if(!ok) return;
+    }
   }
   if(loc.type==='segunda'){
     const hasLaterRounds = state.segunda.rounds.length - 1 > loc.roundIdx;
-    if(hasLaterRounds || state.segunda.champion){
+    const laterHasProgress = hasLaterRounds && state.segunda.rounds.slice(loc.roundIdx+1).some(r=>r.some(m=>m.completed));
+    if(laterHasProgress || state.segunda.champion){
       const ok = confirm('Ya hay rondas posteriores generadas en la Segunda Instancia. Modificar este resultado las reiniciará. ¿Continuar?');
       if(!ok) return;
       state.segunda.rounds = state.segunda.rounds.slice(0, loc.roundIdx+1);
@@ -1983,7 +2105,7 @@ App.saveMatch = function(matchId){
   match.winnerId = setsA>setsB ? match.aId : match.bId;
 
   if(loc.type==='zone') advanceZonePlayoff(loc.zone);
-  if(loc.type==='primera') tryGenerateSegunda();
+  refreshBracket();
   if(loc.type==='segunda') advanceSegunda();
   render();
 };
@@ -1992,7 +2114,15 @@ App.editMatch = function(matchId){
   const loc = locateMatch(matchId);
   if(!loc) return;
   if(loc.match.bye) return;
+  if(loc.type==='zone'){
+    const downstreamHasProgress = (state.primera && state.primera.matches.some(m=>m.completed)) || (state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed)));
+    if(downstreamHasProgress){
+      const ok = confirm('Esta pareja (o su posición en la zona) ya podría haber avanzado a instancias posteriores con partidos jugados. Editar este resultado puede invalidar esos avances. ¿Continuar de todas formas?');
+      if(!ok) return;
+    }
+  }
   loc.match.completed = false;
+  refreshBracket();
   render();
 };
 
@@ -2004,28 +2134,43 @@ App.setMatchCancha = function(matchId, value){
 };
 
 /* ---- llave ---- */
-function buildRepechajeMatches(repechajeRanked){
+function buildRepechajeMatches(repechajeRanked, existingMatches){
+  existingMatches = existingMatches || [];
+  const findExisting = (aId,bId)=> existingMatches.find(m=> m.completed && !m.bye && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
+  const findExistingBye = (pid)=> existingMatches.find(m=> m.bye && m.completed && (m.aId===pid || m.bId===pid));
+
   let list = [...repechajeRanked];
-  let byePair = null;
-  if(list.length % 2 === 1){ byePair = list[0]; list = list.slice(1); }
+  let byeEntry = null;
+  if(list.length % 2 === 1){ byeEntry = list[0]; list = list.slice(1); }
+
   const matches=[];
+  if(byeEntry){
+    if(byeEntry.pending){
+      matches.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: byeEntry.pendingDesc||'Mejor semilla del repechaje (a definir)', cancha:''});
+    } else {
+      matches.push(findExistingBye(byeEntry.pairId) || {id:uid(), aId:byeEntry.pairId, bId:null, sets:[], completed:true, winnerId:byeEntry.pairId, bye:true, pending:false, cancha:''});
+    }
+  }
   for(let i=0;i<list.length/2;i++){
     const a = list[i], b = list[list.length-1-i];
-    matches.push({id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, cancha:''});
-  }
-  if(byePair){
-    matches.unshift({id:uid(), aId:byePair.pairId, bId:null, sets:[], completed:true, winnerId:byePair.pairId, bye:true, cancha:''});
+    if(!a.pending && !b.pending){
+      matches.push(findExisting(a.pairId, b.pairId) || {id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''});
+    } else {
+      matches.push({
+        id:uid(), aId: a.pending?null:a.pairId, bId: b.pending?null:b.pairId,
+        sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true,
+        pendingDescA: a.pending ? a.pendingDesc : null,
+        pendingDescB: b.pending ? b.pendingDesc : null,
+        cancha:''
+      });
+    }
   }
   return matches;
 }
 
 function buildBracketAvanzado(){
-  const ranking = computeGeneralRanking();
-  const n = ranking.length;
-  const directCount = Math.ceil(n/2);
-  const direct = ranking.slice(0, directCount);
-  const repechaje = ranking.slice(directCount);
-  state.primera = { matches: buildRepechajeMatches(repechaje), directRanked: direct, repechajeRanked: repechaje };
+  const {direct, repechaje} = computeAvanzadoGroups();
+  rebuildPrimera(direct, repechaje);
 }
 
 function sortByZonePosition(arr){
@@ -2034,74 +2179,203 @@ function sortByZonePosition(arr){
 
 function computePrincipiantesGroups(){
   let mejores=[], peores=[], repechaje=[];
+  let pendingSeq=0;
   state.zones.forEach(zone=>{
-    const results = computeZoneResults(zone);
-    if(!results) return;
+    const locking = computeZoneLocking(zone);
+    const mk = (idx, posLabel)=> locking[idx]
+      ? {...locking[idx], zoneName:zone.name, zoneId:zone.id, pending:false}
+      : {pending:true, pairId:null, name:null, zoneName:zone.name, zoneId:zone.id, pendingDesc:`${posLabel} de ${zone.name}`, _seq:pendingSeq++};
     if(zone.pairIds.length===4){
-      mejores.push({...results[0], zoneName:zone.name}, {...results[1], zoneName:zone.name});
-      peores.push({...results[2], zoneName:zone.name}, {...results[3], zoneName:zone.name});
+      mejores.push(mk(0,'1°'), mk(1,'2°'));
+      peores.push(mk(2,'3°'), mk(3,'4°'));
     } else {
-      mejores.push({...results[0], zoneName:zone.name}, {...results[1], zoneName:zone.name});
-      repechaje.push({...results[2], zoneName:zone.name});
+      mejores.push(mk(0,'1°'), mk(1,'2°'));
+      repechaje.push(mk(2,'3°'));
     }
   });
-  sortByZonePosition(mejores);
-  sortByZonePosition(peores);
-  sortByZonePosition(repechaje);
-  return {mejores, peores, repechaje};
+  const sortGroup=(arr)=>{
+    const resolved = arr.filter(x=>!x.pending);
+    const pending = arr.filter(x=>x.pending);
+    sortByZonePosition(resolved);
+    pending.sort((a,b)=> a._seq-b._seq);
+    return [...resolved, ...pending];
+  };
+  return {mejores: sortGroup(mejores), peores: sortGroup(peores), repechaje: sortGroup(repechaje)};
+}
+
+function computeAvanzadoGroups(){
+  // recolecta TODAS las posiciones de TODAS las zonas (resueltas o no) — el tamaño total ya se conoce de antemano
+  let all=[];
+  let pendingSeq=0;
+  state.zones.forEach(zone=>{
+    const locking = computeZoneLocking(zone);
+    locking.forEach((r,idx)=>{
+      const position = idx+1;
+      if(r) all.push({...r, position, zoneName:zone.name, zoneId:zone.id, pending:false});
+      else all.push({pending:true, pairId:null, name:null, position, zoneName:zone.name, zoneId:zone.id, pendingDesc:`${position}° de ${zone.name}`, _seq:pendingSeq++});
+    });
+  });
+  const totalCount = all.length;
+  const directCount = Math.ceil(totalCount/2);
+
+  const resolved = all.filter(x=>!x.pending);
+  sortByZonePosition(resolved);
+  const pending = all.filter(x=>x.pending);
+
+  // una pareja de posición X solo puede verse superada por otra pareja de la MISMA posición (1° vs 1°, 2° vs 2°, etc.),
+  // ya que la posición de zona manda antes que cualquier desempate por sets/games
+  const direct=[], repechaje=[], stillPending=[];
+  resolved.forEach(r=>{
+    const guaranteedAbove = resolved.filter(o=> o!==r && (
+      o.position < r.position ||
+      (o.position===r.position && (o.diffSets>r.diffSets || (o.diffSets===r.diffSets && o.diffGames>r.diffGames)))
+    )).length;
+    const possiblyAbove = pending.filter(p=> p.position === r.position).length; // solo las pendientes de la MISMA posición pueden todavía superarla
+    const worstRank = guaranteedAbove + possiblyAbove + 1;
+    const bestRank  = guaranteedAbove + 1;
+    if(worstRank <= directCount) direct.push(r);
+    else if(bestRank > directCount) repechaje.push(r);
+    else stillPending.push(r); // depende de otras zonas de su mismo escalón de posición
+  });
+
+  // completar cada lista al tamaño final conocido con cupos pendientes (genéricos)
+  const genericPool = [
+    ...pending.map(p=>({pending:true, pairId:null, name:null, pendingDesc:p.pendingDesc})),
+    ...stillPending.map(p=>({pending:true, pairId:null, name:null, pendingDesc:`${p.position}° de ${p.zoneName} (posición asegurada, a la espera de otras zonas para saber si clasifica directo o juega repechaje)`}))
+  ];
+  const neededDirect = directCount - direct.length;
+  const neededRepechaje = (totalCount - directCount) - repechaje.length;
+  for(let i=0;i<neededDirect;i++) direct.push(genericPool[i] || {pending:true, pairId:null, name:null, pendingDesc:'Pendiente'});
+  for(let i=0;i<neededRepechaje;i++) repechaje.push(genericPool[neededDirect+i] || {pending:true, pairId:null, name:null, pendingDesc:'Pendiente'});
+
+  return {direct, repechaje, directCount, totalCount};
 }
 
 function buildBracketPrincipiantes(){
   const {mejores, peores, repechaje} = computePrincipiantesGroups();
   const direct = [...mejores, ...peores];
-  state.primera = { matches: buildRepechajeMatches(repechaje), directRanked: direct, repechajeRanked: repechaje };
+  rebuildPrimera(direct, repechaje);
 }
 
-App.generateBracket = function(){
-  if(!allZoneMatchesComplete()){ alert('Todavía faltan resultados en la fase de zonas.'); return; }
-  if(state.primera){
-    const ok = confirm('Ya se generó la Primera Instancia. Esto reiniciará toda la llave. ¿Continuar?');
-    if(!ok) return;
-  }
+function rebuildPrimera(direct, repechaje){
+  const existingMatches = state.primera ? state.primera.matches : [];
+  const matches = buildRepechajeMatches(repechaje, existingMatches);
+  state.primera = { matches, directRanked: direct, repechajeRanked: repechaje };
+}
+
+function refreshBracket(){
+  if(!state || state.smallMode) return;
+  if(state.zones.length===0) return;
   if(state.format==='principiantes'){
     buildBracketPrincipiantes();
   } else {
     buildBracketAvanzado();
   }
-  state.segunda = null;
+  tryGenerateSegunda();
+}
+
+App.generateBracket = function(){
+  refreshBracket();
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'llave';
-  tryGenerateSegunda();
   render();
 };
 
+function getPlayedPairsSet(){
+  const played = new Set();
+  const addPlayed = (a,b)=>{ if(a && b) played.add([a,b].sort().join('|')); };
+  state.zones.forEach(zone=> zone.matches.forEach(m=>{ if(m.completed && !m.bye) addPlayed(m.aId, m.bId); }));
+  if(state.primera) state.primera.matches.forEach(m=>{ if(m.completed && !m.bye) addPlayed(m.aId, m.bId); });
+  return played;
+}
+
+function havePlayedBefore(playedSet, a, b){
+  if(!a || !b) return false;
+  return playedSet.has([a,b].sort().join('|'));
+}
+
+function deClashRound1(round1){
+  const played = getPlayedPairsSet();
+  const isClash = (m)=> !m.bye && !m.pending && havePlayedBefore(played, m.aId, m.bId);
+  const rematches = [];
+
+  for(let i=0;i<round1.length;i++){
+    if(!isClash(round1[i])) continue;
+    let fixed = false;
+    for(let j=0;j<round1.length && !fixed;j++){
+      if(j===i || round1[j].bye || round1[j].pending) continue;
+      for(const side of ['bId','aId']){
+        const tmp = round1[i][side];
+        round1[i][side] = round1[j][side];
+        round1[j][side] = tmp;
+        if(!isClash(round1[i]) && !isClash(round1[j])){
+          fixed = true;
+          break;
+        }
+        // revertir: no sirvió este intercambio
+        round1[j][side] = round1[i][side];
+        round1[i][side] = tmp;
+      }
+    }
+    if(!fixed) rematches.push(round1[i]);
+  }
+  return rematches; // partidos donde no se pudo evitar el repechaje entre rivales que ya jugaron
+}
+
 function tryGenerateSegunda(){
   if(!state.primera) return;
-  if(!state.primera.matches.every(m=>m.completed)) return;
-  if(state.segunda) return;
+  if(state.segunda && state.segunda.rounds.length>1) return; // ya avanzó de ronda: la ronda 1 queda fija
 
-  const winnerIds = state.primera.matches.map(m=>m.winnerId);
-  const winnersOrdered = state.primera.repechajeRanked.filter(r=> winnerIds.includes(r.pairId));
-  const combined = [...state.primera.directRanked, ...winnersOrdered];
-  const participants = combined.map(c=>({pairId:c.pairId, name:c.name}));
+  // el tamaño del cuadro es fijo desde el principio: parejas directas + un cupo por cada partido de repechaje
+  const directEntries = state.primera.directRanked;
+  const repechajeSlots = state.primera.matches.map(m=>{
+    if(m.completed) return {pairId:m.winnerId, name:getPairName(m.winnerId), pending:false};
+    const who = m.bye
+      ? (m.pendingDesc || 'Mejor semilla del repechaje')
+      : `${m.pending ? (m.pendingDescA||getPairName(m.aId)) : getPairName(m.aId)} vs ${m.pending ? (m.pendingDescB||getPairName(m.bId)) : getPairName(m.bId)}`;
+    return {pairId:null, name:null, pending:true, pendingDesc:`Ganador del repechaje (${who})`};
+  });
+  const participants = [...directEntries, ...repechajeSlots];
 
   const n = participants.length;
   const pow2 = nextPow2(n);
   const order = seedOrder(pow2);
   const slots = order.map(seedNum => seedNum<=n ? participants[seedNum-1] : null);
 
+  const existingMatches = (state.segunda && state.segunda.rounds[0]) ? state.segunda.rounds[0] : [];
+  const findExisting = (aId,bId)=> existingMatches.find(m=> m.completed && !m.bye && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
+
   const round1=[];
   for(let i=0;i<slots.length;i+=2){
     const a=slots[i], b=slots[i+1];
-    const bye = (!a || !b);
-    let winnerId=null, completed=false;
-    if(bye){ winnerId = a ? a.pairId : (b ? b.pairId : null); completed = true; }
-    round1.push({
-      id:uid(), aId: a?a.pairId:null, bId: b?b.pairId:null,
-      sets: bye? [] : emptySets(), completed, winnerId, bye, cancha:''
+    if(!a || !b){
+      // bye estructural del cuadro (no alcanza la cantidad total de parejas)
+      const only = a||b;
+      if(!only){ round1.push({id:uid(), aId:null,bId:null, sets:[], completed:false, winnerId:null, bye:false, cancha:''}); continue; }
+      if(only.pending){
+        round1.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: only.pendingDesc, cancha:''});
+      } else {
+        round1.push({id:uid(), aId:only.pairId, bId:null, sets:[], completed:true, winnerId:only.pairId, bye:true, pending:false, cancha:''});
+      }
+      continue;
+    }
+    if(a.pending || b.pending){
+      round1.push({
+        id:uid(), aId: a.pending?null:a.pairId, bId: b.pending?null:b.pairId,
+        sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true,
+        pendingDescA: a.pending ? a.pendingDesc : null,
+        pendingDescB: b.pending ? b.pendingDesc : null,
+        cancha:''
+      });
+      continue;
+    }
+    round1.push(findExisting(a.pairId, b.pairId) || {
+      id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''
     });
   }
-  state.segunda = { rounds:[round1], totalRounds: Math.log2(pow2), champion:null };
+
+  const unavoidableRematches = deClashRound1(round1);
+  state.segunda = { rounds:[round1], totalRounds: Math.log2(pow2), champion:null, unavoidableRematches: unavoidableRematches.length };
 }
 
 function advanceSegunda(){
@@ -2172,6 +2446,7 @@ App.closeTournament = function(){
   const closedId = state.tournamentId;
   tournaments = tournaments.filter(t=>t.tournamentId!==closedId);
   deleteTournamentDoc(closedId);
+  nav.openTabs = nav.openTabs.filter(id=>id!==closedId);
   state = null;
   nav.torneoSubTab = 'historial';
   render();
@@ -2307,6 +2582,7 @@ function renderUI(){
 
   renderStorageChip();
   renderStatusStrip();
+  renderOpenTabsBar();
   renderJugadores();
   renderClubes();
   renderProximos();
@@ -2317,6 +2593,25 @@ function renderUI(){
   renderLlave();
   renderHistorial();
   renderCoordinadores();
+}
+
+function renderOpenTabsBar(){
+  const el = document.getElementById('openTabsBar');
+  // solo mantener pestañas de torneos que siguen existiendo y a los que el usuario todavía tiene acceso
+  const visibleIds = new Set(getVisibleTournaments().map(t=>t.tournamentId));
+  nav.openTabs = nav.openTabs.filter(id=> visibleIds.has(id));
+  if(nav.openTabs.length===0){ el.innerHTML=''; return; }
+  el.innerHTML = nav.openTabs.map(id=>{
+    const t = tournaments.find(x=>x.tournamentId===id);
+    if(!t) return '';
+    const isActive = state && state.tournamentId===id;
+    const name = t.name && t.name.trim() ? t.name.trim() : 'Torneo sin nombre';
+    return `
+      <div class="open-tab-chip ${isActive?'active':''}">
+        <span class="tab-name" title="${escapeAttr(name)}" onclick="App.switchToOpenTab('${id}')">🎾 ${escapeHtml(name)}</span>
+        <button class="tab-close" title="Cerrar pestaña" onclick="App.closeOpenTab('${id}', event)">✕</button>
+      </div>`;
+  }).join('');
 }
 
 function renderStorageChip(){
@@ -2713,6 +3008,29 @@ function renderZonas(){
 }
 
 function matchCardHtml(m){
+  if(m.pending){
+    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || 'Pendiente de definir');
+    const nameB = m.bye ? null : (m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir'));
+    const labelHtml = m.label ? `<div class="hint" style="margin:0 0 6px; color:var(--accent-2);">${escapeHtml(m.label)}</div>` : '';
+    if(m.bye){
+      return `
+      <div class="match-card">
+        ${labelHtml}
+        <div class="match-teams"><span class="team-name" style="color:var(--text-faint)">${escapeHtml(m.pendingDesc||'Pendiente de definir')}</span><span class="vs">BYE</span><span class="team-name" style="color:var(--text-faint)">—</span></div>
+        <div class="hint">Todavía no se sabe quién pasa directo — depende de una zona en juego.</div>
+      </div>`;
+    }
+    return `
+    <div class="match-card">
+      ${labelHtml}
+      <div class="match-teams">
+        <span class="team-name" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</span>
+        <span class="vs">VS</span>
+        <span class="team-name" style="${m.bId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameB)}</span>
+      </div>
+      <div class="hint">⏳ A la espera de que se defina esta pareja en su zona.</div>
+    </div>`;
+  }
   const nameA = getPairName(m.aId);
   const nameB = getPairName(m.bId);
   if(m.bye){
@@ -2754,6 +3072,26 @@ function matchCardHtml(m){
 }
 
 function matchCardReadOnly(m, myPairId){
+  if(m.pending){
+    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || m.pendingDesc || 'Pendiente de definir');
+    const nameB = m.bye ? null : (m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir'));
+    if(m.bye){
+      return `
+      <div class="match-card">
+        <div class="match-teams"><span class="team-name" style="color:var(--text-faint)">${escapeHtml(nameA)}</span><span class="vs">BYE</span><span class="team-name" style="color:var(--text-faint)">—</span></div>
+        <div class="hint">A la espera de otra zona</div>
+      </div>`;
+    }
+    return `
+    <div class="match-card">
+      <div class="match-teams">
+        <span class="team-name" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</span>
+        <span class="vs">VS</span>
+        <span class="team-name" style="${m.bId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameB)}</span>
+      </div>
+      <div class="hint">A la espera de otra zona</div>
+    </div>`;
+  }
   const nameA = getPairName(m.aId);
   const nameB = getPairName(m.bId);
   const mine = myPairId && (m.aId===myPairId || m.bId===myPairId);
@@ -2842,7 +3180,7 @@ function renderGeneral(){
 
     c.innerHTML = `
       <div class="general-table-wrap">
-        ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⚠️ Todavía faltan resultados en la fase de zonas — este ranking es parcial.</div>` : ''}
+        ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⏳ Todavía hay resultados pendientes en la fase de zonas. Las parejas que ya tienen su posición asegurada avanzan igual, sin esperar al resto.</div>` : ''}
         <table class="gen">
           <thead><tr>
             <th>#</th><th>Pareja</th><th>Zona</th><th class="num">Pts</th><th class="num">Dif.S</th><th class="num">Dif.G</th><th>Clasificación</th>
@@ -2854,8 +3192,8 @@ function renderGeneral(){
           <div class="legend-item"><span class="legend-dot" style="background:var(--accent-2);"></span> 3° de zonas de 3 — juega repechaje antes de entrar a la llave</div>
         </div>
         <div class="actions-row" style="margin-top:20px;">
-          <button class="btn btn-primary" ${!zonesDone?'disabled':''} onclick="App.generateBracket()">Generar llave</button>
-          ${!zonesDone ? '<span class="hint">Completá todos los partidos de zona para generar la llave.</span>' : ''}
+          <button class="btn btn-primary" onclick="App.generateBracket()">Actualizar llave ahora</button>
+          <span class="hint">La llave y el repechaje se arman solos a medida que se cargan resultados — no hace falta esperar a que terminen todas las zonas. Este botón solo fuerza una actualización manual.</span>
         </div>
       </div>`;
     return;
@@ -2879,7 +3217,7 @@ function renderGeneral(){
 
   c.innerHTML = `
     <div class="general-table-wrap">
-      ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⚠️ Todavía faltan resultados en la fase de zonas — este ranking es parcial.</div>` : ''}
+      ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⏳ Todavía hay resultados pendientes en la fase de zonas. Las parejas que ya tienen su posición asegurada avanzan igual, sin esperar al resto.</div>` : ''}
       <table class="gen">
         <thead><tr>
           <th>#</th><th>Pareja</th><th>Zona</th><th class="num">Pts</th><th class="num">Dif.S</th><th class="num">Dif.G</th><th>Instancia</th>
@@ -2891,8 +3229,8 @@ function renderGeneral(){
         <div class="legend-item"><span class="legend-dot" style="background:var(--accent-2);"></span> Resto — juega Primera Instancia (repechaje)</div>
       </div>
       <div class="actions-row" style="margin-top:20px;">
-        <button class="btn btn-primary" ${!zonesDone?'disabled':''} onclick="App.generateBracket()">Generar llave</button>
-        ${!zonesDone ? '<span class="hint">Completá todos los partidos de zona para generar la llave.</span>' : ''}
+        <button class="btn btn-primary" onclick="App.generateBracket()">Actualizar llave ahora</button>
+        <span class="hint">La llave y el repechaje se arman solos a medida que se cargan resultados — no hace falta esperar a que terminen todas las zonas. Este botón solo fuerza una actualización manual.</span>
       </div>
     </div>`;
 }
@@ -2928,7 +3266,7 @@ function renderLlave(){
   }
 
   if(!state.primera){
-    c.innerHTML = `<div class="empty-state">La llave todavía no se generó. Andá a <b>Clasificación</b> y hacé clic en <b>Generar llave</b> una vez completada la fase de zonas.</div>`;
+    c.innerHTML = `<div class="empty-state">La llave todavía no se generó. Andá a <b>Zonas</b> y cargá algún resultado — el repechaje y la llave se arman solos a medida que las posiciones de zona quedan aseguradas.</div>`;
     return;
   }
 
@@ -2951,9 +3289,13 @@ function renderLlave(){
       return `<div class="bracket-col"><div class="round-label">${label}</div>${matchesHtml}</div>`;
     }).join('');
 
+    const rematchNote = state.segunda.unavoidableRematches>0
+      ? `<div class="hint" style="margin-bottom:14px; color:var(--gold);">⚠️ Con la cantidad de parejas de este torneo, no fue posible evitar ${state.segunda.unavoidableRematches===1?'un cruce':`${state.segunda.unavoidableRematches} cruces`} de rivales que ya se habían enfrentado.</div>`
+      : '';
     segundaHtml = `
       <div class="bracket-section">
         <h3 class="round-label" style="text-align:left;">Segunda instancia</h3>
+        ${rematchNote}
         <div class="bracket-cols">${cols}</div>
         ${state.segunda.champion ? `
           <div class="champion-banner">
@@ -2973,6 +3315,25 @@ function renderLlave(){
 }
 
 function bracketMatchHtml(m){
+  if(m.pending){
+    if(m.bye){
+      return `
+        <div class="bmatch">
+          <div class="side" style="color:var(--text-faint); font-style:italic;">${escapeHtml(m.pendingDesc||'Pendiente de definir')}</div>
+          <div class="mid-line"></div>
+          <div class="side loser">BYE</div>
+        </div>`;
+    }
+    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || 'Pendiente de definir');
+    const nameB = m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir');
+    return `
+      <div class="bmatch">
+        <div class="side" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</div>
+        <div class="mid-line"></div>
+        <div class="side" style="${m.bId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameB)}</div>
+        <div class="hint" style="margin-top:8px;">⏳ A la espera de que se defina esta pareja.</div>
+      </div>`;
+  }
   if(m.bye){
     return `
       <div class="bmatch">
@@ -3015,6 +3376,25 @@ function bracketMatchHtml(m){
 function bracketMatchReadOnly(m, myPairId){
   const mine = myPairId && (m.aId===myPairId || m.bId===myPairId);
   const borderStyle = mine ? 'border-color:var(--accent-2);' : '';
+  if(m.pending){
+    if(m.bye){
+      return `
+        <div class="bmatch" style="${borderStyle}">
+          <div class="side" style="color:var(--text-faint); font-style:italic;">${escapeHtml(m.pendingDesc||'Pendiente de definir')}</div>
+          <div class="mid-line"></div>
+          <div class="side loser">BYE</div>
+        </div>`;
+    }
+    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || 'Pendiente de definir');
+    const nameB = m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir');
+    return `
+      <div class="bmatch" style="${borderStyle}">
+        <div class="side" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</div>
+        <div class="mid-line"></div>
+        <div class="side" style="${m.bId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameB)}</div>
+        <div class="hint" style="margin-top:8px;">A la espera de otra zona</div>
+      </div>`;
+  }
   if(m.bye){
     return `
       <div class="bmatch" style="${borderStyle}">
