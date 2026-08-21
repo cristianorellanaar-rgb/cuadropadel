@@ -2781,7 +2781,7 @@ App.setMatchCancha = function(matchId, value){
 /* ---- llave ---- */
 function buildRepechajeMatches(repechajeRanked, existingMatches){
   existingMatches = existingMatches || [];
-  const findExisting = (aId,bId)=> existingMatches.find(m=> m.completed && !m.bye && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
+  const findExisting = (aId,bId)=> existingMatches.find(m=> !m.bye && !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
   const findExistingBye = (pid)=> existingMatches.find(m=> m.bye && m.completed && (m.aId===pid || m.bId===pid));
 
   let list = [...repechajeRanked];
@@ -2987,7 +2987,7 @@ function tryGenerateSegunda(){
   const slots = order.map(seedNum => seedNum<=n ? participants[seedNum-1] : null);
 
   const existingMatches = (state.segunda && state.segunda.rounds[0]) ? state.segunda.rounds[0] : [];
-  const findExisting = (aId,bId)=> existingMatches.find(m=> m.completed && !m.bye && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
+  const findExisting = (aId,bId)=> existingMatches.find(m=> !m.bye && !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
 
   const round1=[];
   for(let i=0;i<slots.length;i+=2){
