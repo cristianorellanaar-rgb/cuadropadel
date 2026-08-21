@@ -201,16 +201,7 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 
 .pairs-grid2{display:flex; flex-direction:column; gap:8px; max-width:680px; margin-bottom:14px;}
 
-.format-picker{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:14px; max-width:900px; margin-bottom:24px;}
-.format-option{
-  background:var(--panel); border:2px solid var(--line); border-radius:var(--radius); padding:18px 20px; cursor:pointer;
-  transition:border-color .15s;
-}
-.format-option:hover{border-color:var(--accent-2);}
-.format-option.selected{border-color:var(--accent); background:var(--panel-2);}
-.format-title{font-family:var(--font-display); font-size:15px; font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
-.format-option.selected .format-title::before{content:'✓'; color:var(--accent);}
-.format-desc{font-size:12px; color:var(--text-dim); line-height:1.5;}
+.tournament-summary-bar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;}
 .pair-row2{
   display:flex; align-items:center; gap:8px; background:var(--panel);
   border:1px solid var(--line); border-radius:8px; padding:8px 8px 8px 12px;
@@ -288,6 +279,7 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .format-pill{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 9px; border-radius:20px;}
 .format-pill.principiantes{background:rgba(18,122,148,0.14); color:var(--accent-2);}
 .format-pill.avanzado{background:rgba(90,154,31,0.14); color:var(--accent);}
+.format-pill.grupo{background:rgba(201,122,0,0.14); color:var(--gold);}
 .status-pill{display:flex; align-items:center; gap:6px;}
 .status-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
 .tournament-card .owner-select{
@@ -496,6 +488,11 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   min-width:260px; text-align:center;
 }
 .modal-title{font-family:var(--font-display); font-size:16px; margin-bottom:16px;}
+.modal-field-row{display:flex; flex-direction:column; gap:5px; margin-bottom:14px; font-size:12.5px; color:var(--text-dim);}
+.modal-field-row select, .modal-field-row input[type="text"]{
+  background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text);
+  font-size:13.5px; padding:8px 10px; border-radius:8px;
+}
 .modal-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
 .modal-btn-pago{
   border:none; border-radius:8px; padding:12px 18px; font-size:13.5px; font-weight:600; cursor:pointer;
@@ -741,6 +738,49 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 </div>
 
 <div id="app" style="display:none;">
+  <div class="modal-overlay" id="newTournamentModalOverlay" style="display:none;">
+    <div class="modal-box" style="text-align:left; min-width:340px; max-width:420px;">
+      <div class="modal-title" style="text-align:center;">Nuevo torneo</div>
+      <div class="modal-field-row">
+        <label>Club</label>
+        <select id="newTournamentClub" onchange="App.onNewTournamentClubChange(this.value)"></select>
+      </div>
+      <div class="modal-field-row" id="newTournamentNewClubRow" style="display:none; flex-direction:column; gap:8px; background:var(--panel-3); padding:10px; border-radius:8px;">
+        <input type="text" id="newTournamentNewClubName" placeholder="Nombre del club nuevo">
+        <input type="text" id="newTournamentNewClubAddress" placeholder="Dirección (opcional)">
+      </div>
+      <div class="modal-field-row">
+        <label>Categoría</label>
+        <select id="newTournamentCategoria">
+          <option value="9na">9na</option>
+          <option value="8va">8va</option>
+          <option value="7ma">7ma</option>
+          <option value="6ta">6ta</option>
+          <option value="5ta" selected>5ta</option>
+          <option value="4ta">4ta</option>
+          <option value="3ra">3ra</option>
+          <option value="2da">2da</option>
+          <option value="1ra">1ra</option>
+        </select>
+      </div>
+      <div class="modal-field-row">
+        <label>Cantidad de canchas</label>
+        <select id="newTournamentCourts"></select>
+      </div>
+      <div class="modal-field-row">
+        <label>Formato de torneo</label>
+        <select id="newTournamentFormat">
+          <option value="grupo">3 a 5 parejas - Todos contra todos</option>
+          <option value="principiantes">Torneo Americano Principiante</option>
+          <option value="avanzado" selected>Torneo Americano Avanzado</option>
+        </select>
+      </div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="App.confirmCreateTournament()">Crear torneo</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.closeNewTournamentModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>
   <div class="modal-overlay" id="paymentModalOverlay" style="display:none;">
     <div class="modal-box">
       <div class="modal-title">¿Cómo pagó?</div>
@@ -862,16 +902,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 
       <div class="subview" id="subview-parejas">
         <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
-        <div class="format-picker" id="formatPicker">
-          <div class="format-option" data-format="avanzado" onclick="App.setFormat('avanzado')">
-            <div class="format-title">Torneo Americano Avanzado</div>
-            <div class="format-desc">Zonas de 4 juegan solo 2 partidos por pareja (definición interna 1°-2° y 3°-4°). Zonas de 3 juegan todos contra todos. La mitad superior del ranking general clasifica directo a la llave; la mitad inferior juega repechaje.</div>
-          </div>
-          <div class="format-option" data-format="principiantes" onclick="App.setFormat('principiantes')">
-            <div class="format-title">Torneo Americano Principiantes</div>
-            <div class="format-desc">Todas las zonas (de 4 o de 3) juegan todos contra todos. Las 2 mejores de cada zona pasan directo a la llave junto con las 2 peores de las zonas de 4; el 3° de una zona de 3 juega un repechaje previo.</div>
-          </div>
-        </div>
+        <div class="tournament-summary-bar" id="tournamentSummaryBar"></div>
         <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder iniciar el torneo.</p>
         <datalist id="playersDatalist"></datalist>
         <div class="pairs-grid2" id="pairsGrid"></div>
@@ -999,6 +1030,8 @@ function freshTournament(){
     tournamentId: uid(),
     name: '',
     format: 'avanzado',
+    clubId: null,
+    categoria: '',
     ownerCoordinador: null,
     pairs: [],
     zones: [],
@@ -1022,6 +1055,8 @@ const TORNEO_SUBTABS = ['lista','parejas','cancha','zonas','general','llave'];
 function sanitizeTournament(t){
   if(!t) return null;
   if(!t.format) t.format = 'avanzado';
+  if(t.clubId===undefined) t.clubId = null;
+  if(t.categoria===undefined) t.categoria = '';
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -1583,7 +1618,7 @@ function nextPow2(n){ let p=1; while(p<n) p*=2; return p; }
 
 /* ---- construcción de zonas con formato reducido ---- */
 function makeZone(name, pairIds){
-  if(pairIds.length===4 && state.format!=='principiantes'){
+  if(pairIds.length===4 && state.format==='avanzado'){
     const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     return { id:uid(), name, pairIds, format:'playoff4', matches:[m1,m2] };
@@ -2462,20 +2497,90 @@ App.removeUpcoming = function(id){
 };
 
 /* ---- navegación desde Inicio ---- */
+App.clickNuevoTorneo = function(){
+  App.openNewTournamentModal();
+};
+
 App.createTournament = function(){
+  App.openNewTournamentModal();
+};
+
+App.openNewTournamentModal = function(){
+  const clubSelect = document.getElementById('newTournamentClub');
+  clubSelect.innerHTML = `<option value="">— Elegí un club —</option>` +
+    clubsDB.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') +
+    `<option value="__new__">+ Agregar club nuevo…</option>`;
+
+  const courtsSelect = document.getElementById('newTournamentCourts');
+  courtsSelect.innerHTML = Array.from({length:15},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===4?'selected':''}>${n}</option>`).join('');
+
+  document.getElementById('newTournamentNewClubRow').style.display = 'none';
+  document.getElementById('newTournamentNewClubName').value = '';
+  document.getElementById('newTournamentNewClubAddress').value = '';
+  document.getElementById('newTournamentCategoria').value = '5ta';
+  document.getElementById('newTournamentFormat').value = 'avanzado';
+
+  document.getElementById('newTournamentModalOverlay').style.display = 'flex';
+};
+
+App.closeNewTournamentModal = function(){
+  document.getElementById('newTournamentModalOverlay').style.display = 'none';
+};
+
+App.onNewTournamentClubChange = function(value){
+  const newClubRow = document.getElementById('newTournamentNewClubRow');
+  const courtsSelect = document.getElementById('newTournamentCourts');
+  if(value==='__new__'){
+    newClubRow.style.display = 'flex';
+    return;
+  }
+  newClubRow.style.display = 'none';
+  if(value){
+    const club = clubsDB.find(c=>c.id===value);
+    if(club && club.courts){ courtsSelect.value = String(club.courts); }
+  }
+};
+
+App.confirmCreateTournament = function(){
+  const clubSelect = document.getElementById('newTournamentClub');
+  const catSelect = document.getElementById('newTournamentCategoria');
+  const courtsSelect = document.getElementById('newTournamentCourts');
+  const formatSelect = document.getElementById('newTournamentFormat');
+
+  let clubId = clubSelect.value;
+  const courts = Number(courtsSelect.value) || 4;
+
+  if(clubId==='__new__'){
+    const nameEl = document.getElementById('newTournamentNewClubName');
+    const addressEl = document.getElementById('newTournamentNewClubAddress');
+    const name = nameEl.value.trim();
+    if(!name){ alert('Ponele un nombre al club nuevo.'); return; }
+    const club = {id:uid(), name, courts, address:addressEl.value.trim(), createdAt:new Date().toISOString()};
+    clubsDB.push(club);
+    clubId = club.id;
+  } else if(clubId){
+    const club = clubsDB.find(c=>c.id===clubId);
+    if(club && club.courts!==courts) club.courts = courts; // sincroniza la cancha si se cambió acá
+  } else {
+    alert('Elegí un club (o agregá uno nuevo).');
+    return;
+  }
+
   const t = freshTournament();
+  t.clubId = clubId;
+  t.categoria = catSelect.value;
+  t.courtCount = courts;
+  t.format = formatSelect.value;
   if(currentUser && currentUser.role==='coordinador') t.ownerCoordinador = currentUser.username;
+
   tournaments.push(t);
   state = t;
   if(!nav.openTabs.includes(t.tournamentId)) nav.openTabs.push(t.tournamentId);
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'parejas';
   scheduleSaveTournament(t);
+  App.closeNewTournamentModal();
   render();
-};
-
-App.clickNuevoTorneo = function(){
-  App.createTournament();
 };
 
 App.openTournament = function(id){
@@ -2618,8 +2723,8 @@ App.iniciarTorneo = function(){
   const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
 
-  if(state.format!=='principiantes' && shuffled.length<6){
-    // modo grupo único (solo Avanzado): todos contra todos, gana quien más puntos suma
+  if(state.format==='grupo' || (state.format!=='principiantes' && shuffled.length<6)){
+    // modo grupo único (formato "3 a 5 parejas", o avanzado con pocas parejas): todos contra todos, gana quien más puntos suma
     state.smallMode = true;
     state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
   } else {
@@ -3495,6 +3600,10 @@ function renderTournamentsList(){
         ${coordinadoresDB.map(co=>`<option value="${escapeAttr(co.username)}" ${t.ownerCoordinador===co.username?'selected':''}>${escapeHtml(co.username)}</option>`).join('')}
       </select>` : `<span class="pill">${escapeHtml(ownerLabel)}</span>`;
     const isPrincipiantes = t.format==='principiantes';
+    const isGrupo = t.format==='grupo';
+    const formatLabel = isGrupo ? '3 a 5 parejas' : (isPrincipiantes ? 'Principiantes' : 'Avanzado');
+    const formatClass = isGrupo ? 'grupo' : (isPrincipiantes ? 'principiantes' : 'avanzado');
+    const club = clubsDB.find(c=>c.id===t.clubId);
     const pairCount = t.pairs ? t.pairs.filter(p=>p.p1Id && p.p2Id).length : 0;
     return `
       <div class="tournament-card" style="border-left-color:${status.color};">
@@ -3502,8 +3611,10 @@ function renderTournamentsList(){
         <div class="info">
           <div class="title">${escapeHtml(t.name || 'Torneo sin nombre')}</div>
           <div class="meta">
-            <span class="format-pill ${isPrincipiantes?'principiantes':'avanzado'}">${isPrincipiantes ? 'Principiantes' : 'Avanzado'}</span>
+            <span class="format-pill ${formatClass}">${formatLabel}</span>
             <span class="status-pill"><span class="status-dot" style="background:${status.color};"></span>${escapeHtml(status.label)}</span>
+            ${club ? `<span>🏟️ ${escapeHtml(club.name)}</span>` : ''}
+            ${t.categoria ? `<span>${escapeHtml(t.categoria)}</span>` : ''}
             <span>${pairCount} pareja${pairCount===1?'':'s'}</span>
             ${ownerControl}
           </div>
@@ -3518,9 +3629,17 @@ function renderTournamentsList(){
 
 function renderParejas(){
   if(!state) return; // sin torneo abierto: esta subvista no está visible (nav.torneoSubTab sería 'lista')
-  document.querySelectorAll('.format-option').forEach(el=>{
-    el.classList.toggle('selected', el.dataset.format===state.format);
-  });
+  const summaryBar = document.getElementById('tournamentSummaryBar');
+  if(summaryBar){
+    const club = clubsDB.find(c=>c.id===state.clubId);
+    const formatLabel = state.format==='grupo' ? '3 a 5 parejas · Todos contra todos' : (state.format==='principiantes' ? 'Torneo Americano Principiantes' : 'Torneo Americano Avanzado');
+    summaryBar.innerHTML = `
+      <span class="pill">🏟️ ${club ? escapeHtml(club.name) : 'Sin club asignado'}</span>
+      <span class="pill">${state.categoria ? escapeHtml(state.categoria) : 'Sin categoría'}</span>
+      <span class="pill">${formatLabel}</span>
+      <span class="pill">🎾 ${state.courtCount||4} cancha${(state.courtCount||4)===1?'':'s'}</span>
+    `;
+  }
 
   const datalist = document.getElementById('playersDatalist');
   datalist.innerHTML = playersDB.map(p=>`<option value="${escapeAttr(p.name)}">`).join('');
