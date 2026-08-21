@@ -2196,7 +2196,19 @@ function warnIfBracketExists(extra){
   return msg;
 }
 
+function ensurePairPresentBeforeZoneAssign(pairId){
+  const pair = findPairById(pairId);
+  if(!pair) return true;
+  if(pair.present) return true;
+  const ok = confirm(`${pairDisplayName(pair)} todavía no está marcada como presente en el check-in. ¿Ya llegó y está presente en el club?`);
+  if(!ok) return false;
+  pair.present = true;
+  pair.presentAt = new Date().toISOString();
+  return true;
+}
+
 App.autoAddPairToZone = function(pairId){
+  if(!ensurePairPresentBeforeZoneAssign(pairId)) return;
   const eligible = state.zones.filter(z=> z.pairIds.length<4);
   if(eligible.length===0){
     alert('No hay ninguna zona con lugar (todas están completas con 4 parejas). Si tenés al menos 3 parejas sin asignar, podés crear una zona nueva.');
@@ -2264,11 +2276,14 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
 App.createZoneFromUnassigned = function(){
   const unassigned = getUnassignedPairs();
   if(unassigned.length<3){ alert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
+  const chosen = unassigned.slice(0,4);
+  for(const p of chosen){
+    if(!ensurePairPresentBeforeZoneAssign(p.id)) return;
+  }
   if(bracketHasRealProgress()){
     const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
-  const chosen = unassigned.slice(0,4);
   const newZone = makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, chosen.map(p=>p.id));
   state.zones.push(newZone);
   refreshBracket();
