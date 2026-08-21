@@ -11,37 +11,38 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  --bg:#0A1D27;
-  --bg-2:#081720;
-  --panel:#0F2B38;
-  --panel-2:#123244;
-  --panel-3:#0D2530;
-  --line: rgba(237,246,249,0.10);
-  --line-strong: rgba(237,246,249,0.22);
-  --text:#EAF4F6;
-  --text-dim:#8FADB8;
-  --text-faint:#5D7982;
-  --accent:#C7F464;
-  --accent-dim: #8FBE3E;
-  --accent-2:#2E9CB5;
-  --gold:#FFB627;
-  --danger:#FF6B6B;
+  --bg:#F5F8F4;
+  --bg-2:#EBF2E9;
+  --panel:#FFFFFF;
+  --panel-2:#F0F6EE;
+  --panel-3:#E8F1E6;
+  --line: rgba(10,29,39,0.10);
+  --line-strong: rgba(10,29,39,0.16);
+  --text:#0F262F;
+  --text-dim:#546A70;
+  --text-faint:#93A5A9;
+  --accent:#5A9A1F;
+  --accent-dim: #3E7012;
+  --accent-2:#127A94;
+  --gold:#C97A00;
+  --danger:#D33F3F;
   --radius:12px;
   --font-display:'Oswald', sans-serif;
   --font-body:'Inter', sans-serif;
   --font-mono:'Space Mono', monospace;
+  --shadow-card: 0 1px 2px rgba(15,38,47,0.06), 0 4px 16px rgba(15,38,47,0.06);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
   background:
-    radial-gradient(1200px 600px at 100% -10%, rgba(46,156,181,0.16), transparent 60%),
+    radial-gradient(1200px 600px at 100% -10%, rgba(18,122,148,0.07), transparent 60%),
     var(--bg);
   color:var(--text);
   font-family:var(--font-body);
   min-height:100vh;
 }
-::selection{background:var(--accent); color:#06141B;}
+::selection{background:var(--accent); color:#FFFFFF;}
 button{font-family:var(--font-body); cursor:pointer;}
 input{font-family:var(--font-mono);}
 a{color:inherit;}
@@ -74,8 +75,8 @@ a{color:inherit;}
   font-size:10.5px; font-family:var(--font-mono); padding:6px 10px; border-radius:6px;
   margin-bottom:18px; line-height:1.4;
 }
-.storage-chip.ok{background:rgba(199,244,100,0.1); color:var(--accent); border:1px solid rgba(199,244,100,0.3);}
-.storage-chip.off{background:rgba(255,107,107,0.1); color:var(--danger); border:1px solid rgba(255,107,107,0.3);}
+.storage-chip.ok{background:rgba(90,154,31,0.10); color:var(--accent); border:1px solid rgba(90,154,31,0.35);}
+.storage-chip.off{background:rgba(211,63,63,0.10); color:var(--danger); border:1px solid rgba(211,63,63,0.35);}
 
 nav{display:flex; flex-direction:column; gap:4px;}
 .tab{
@@ -121,6 +122,10 @@ main{flex:1; min-width:0; padding:28px 36px 60px;}
   display:flex; align-items:center; gap:6px;
 }
 .chip b{color:var(--text); font-weight:700;}
+.pairs-count-chip{
+  font-size:16px; padding:10px 20px; font-family:var(--font-display);
+}
+.pairs-count-chip b{font-size:22px; font-weight:700; color:var(--accent);}
 .chip.on{border-color:var(--accent); color:var(--accent);}
 
 .open-tabs-bar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
@@ -140,7 +145,7 @@ main{flex:1; min-width:0; padding:28px 36px 60px;}
   background:transparent; border:none; color:var(--text-faint); font-size:15px; line-height:1;
   padding:2px 4px; border-radius:6px; cursor:pointer;
 }
-.open-tab-chip .tab-close:hover{color:var(--danger); background:rgba(255,107,107,0.12);}
+.open-tab-chip .tab-close:hover{color:var(--danger); background:rgba(211,63,63,0.12);}
 
 .view{display:none;}
 .view.active{display:block; animation:fadein .25s ease;}
@@ -232,7 +237,7 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
   border:none; border-radius:8px; padding:11px 20px; font-size:14px; font-weight:600;
   display:inline-flex; align-items:center; gap:8px;
 }
-.btn-primary{background:var(--accent); color:#08201A;}
+.btn-primary{background:var(--accent); color:#FFFFFF;}
 .btn-primary:hover{background:#d5fb85;}
 .btn-primary:disabled{background:var(--panel-2); color:var(--text-faint); cursor:not-allowed;}
 .btn-ghost{background:transparent; border:1px solid var(--line-strong); color:var(--text);}
@@ -240,6 +245,7 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .btn-gold{background:var(--gold); color:#2B1B00;}
 .btn-gold:hover{background:#ffc45c;}
 .btn-sm{padding:7px 14px; font-size:12.5px;}
+.match-card .btn-sm, .zone-matches-grid .btn-sm{padding:5px 9px; font-size:11px;}
 .actions-row{display:flex; gap:12px; align-items:center; margin-top:6px; flex-wrap:wrap;}
 .hint{font-size:12.5px; color:var(--text-faint); margin-top:10px;}
 .hint b{color:var(--text-dim);}
@@ -269,12 +275,21 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .back-link{margin-bottom:18px;}
 
 .tournament-card{
-  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
-  padding:18px 20px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; max-width:920px;
+  background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--line-strong); border-radius:var(--radius);
+  padding:16px 20px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; max-width:920px;
+}
+.tournament-icon{
+  width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0;
 }
 .tournament-card .info{flex:1; min-width:200px;}
-.tournament-card .title{font-family:var(--font-display); font-size:16px; font-weight:600; margin-bottom:4px;}
+.tournament-card .title{font-family:var(--font-display); font-size:16px; font-weight:600; margin-bottom:6px;}
 .tournament-card .meta{font-size:12px; color:var(--text-dim); display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+.format-pill{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 9px; border-radius:20px;}
+.format-pill.principiantes{background:rgba(18,122,148,0.14); color:var(--accent-2);}
+.format-pill.avanzado{background:rgba(90,154,31,0.14); color:var(--accent);}
+.status-pill{display:flex; align-items:center; gap:6px;}
+.status-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
 .tournament-card .owner-select{
   background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text-dim);
   font-family:var(--font-mono); font-size:11.5px; padding:4px 8px; border-radius:6px;
@@ -357,19 +372,29 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
 .zone-body{padding:18px 20px 20px; display:grid; grid-template-columns:1.3fr 1fr; gap:24px;}
 @media(max-width:980px){.zone-body{grid-template-columns:1fr;}}
 
+.zone-matches-grid{
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; padding:14px 20px 8px;
+}
+@media(max-width:900px){.zone-matches-grid{grid-template-columns:repeat(2, 1fr);}}
+@media(max-width:560px){.zone-matches-grid{grid-template-columns:1fr;}}
+.zone-standings-wrap{padding:8px 20px 20px;}
+
 .match-card{
   background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
-  padding:12px 14px; margin-bottom:10px;
+  padding:9px 11px; margin-bottom:0; font-size:12px;
 }
-.match-teams{display:flex; justify-content:space-between; align-items:center; font-size:13.5px; margin-bottom:8px; gap:8px;}
-.match-teams .vs{color:var(--text-faint); font-family:var(--font-mono); font-size:11px;}
+.match-card.pending-match, .bmatch.pending-match{
+  background:var(--panel-3); border-style:dashed; opacity:0.6;
+}
+.match-teams{display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:6px; gap:6px;}
+.match-teams .vs{color:var(--text-faint); font-family:var(--font-mono); font-size:10px;}
 .team-name{font-weight:600;}
 .team-name.win{color:var(--accent);}
-.sets-row{display:flex; gap:6px; align-items:center; margin-bottom:8px; flex-wrap:wrap;}
-.set-input-pair{display:flex; align-items:center; gap:3px; background:var(--panel-3); border-radius:6px; padding:4px 6px; border:1px solid var(--line);}
-.set-input-pair span{font-size:10px; color:var(--text-faint); font-family:var(--font-mono); margin-right:2px;}
+.sets-row{display:flex; gap:5px; align-items:center; margin-bottom:6px; flex-wrap:wrap;}
+.set-input-pair{display:flex; align-items:center; gap:3px; background:var(--panel-3); border-radius:6px; padding:3px 5px; border:1px solid var(--line);}
+.set-input-pair span{font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); margin-right:2px;}
 .set-input-pair input{
-  width:26px; background:transparent; border:none; color:var(--text); text-align:center; font-size:13px;
+  width:22px; background:transparent; border:none; color:var(--text); text-align:center; font-size:12px;
 }
 .set-input-pair input:focus{outline:none;}
 .set-sep{color:var(--text-faint); font-size:12px;}
@@ -377,17 +402,137 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   font-size:12.5px; font-family:var(--font-mono); color:var(--accent); margin-bottom:8px;
   display:flex; justify-content:space-between; align-items:center; gap:10px;
 }
+/* esquema de color por estado del partido: verde=por jugar, naranja=jugando, gris oscuro=finalizado */
+.match-card.upcoming-match, .bmatch.upcoming-match{
+  background:rgba(90,154,31,0.07); border:2px solid var(--accent);
+}
+.match-card.playing-match, .bmatch.playing-match{
+  background:rgba(201,122,0,0.08); border:2px solid var(--gold);
+}
+.match-card.completed-match, .bmatch.completed-match{
+  background:#E7E9EB; border:2px solid #4B5563;
+}
+.match-content-gray{filter:grayscale(1); opacity:0.75;}
+.finalizado-badge{
+  display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; letter-spacing:0.3px;
+  color:#fff; background:#4B5563; padding:4px 10px; border-radius:20px; margin-bottom:8px;
+}
+.diag-match.upcoming-match{background:rgba(90,154,31,0.10); border-color:var(--accent);}
+.diag-match.playing-match{background:rgba(201,122,0,0.12); border-color:var(--gold);}
+.diag-match.completed-match{background:#E7E9EB; border-color:#4B5563;}
+.diag-content-gray{filter:grayscale(1); opacity:0.75;}
+.diag-finalizado{font-size:9.5px; font-weight:800; color:#3A4450; margin-top:2px;}
 .bye-banner{font-size:12.5px; color:var(--accent-2); font-family:var(--font-mono); padding:6px 0;}
-.cancha-row{display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:12px; color:var(--text-dim); font-family:var(--font-mono);}
+.cancha-row{display:flex; align-items:center; gap:5px; margin-bottom:6px; font-size:11px; color:var(--text-dim); font-family:var(--font-mono);}
 .cancha-input{
   background:var(--panel-3); border:1px solid var(--line-strong); color:var(--accent);
-  font-family:var(--font-mono); font-size:12.5px; padding:4px 8px; border-radius:6px; width:70px; text-align:center;
+  font-family:var(--font-mono); font-size:11px; padding:3px 5px; border-radius:6px; width:88px; text-align:center; cursor:pointer;
 }
 .cancha-input:focus{outline:none; border-color:var(--accent-2);}
 .cancha-badge{
   display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-family:var(--font-mono);
-  color:var(--accent); background:rgba(199,244,100,0.1); border:1px solid rgba(199,244,100,0.3);
+  color:var(--accent); background:rgba(90,154,31,0.10); border:1px solid rgba(90,154,31,0.35);
   padding:3px 10px; border-radius:20px; margin-bottom:8px;
+}
+.incourt-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;
+  font-size:10.5px; font-family:var(--font-mono); color:var(--gold); background:rgba(201,122,0,0.10);
+  border:1px solid rgba(201,122,0,0.35); padding:5px 7px; border-radius:8px; margin-bottom:8px;
+}
+
+@keyframes blinkDot{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:0.25; transform:scale(0.8);} }
+.blink-dot{
+  display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--danger);
+  animation:blinkDot 1s infinite; vertical-align:middle;
+}
+.live-label{
+  color:var(--danger); font-weight:700; font-size:11.5px; letter-spacing:0.4px;
+  display:inline-flex; align-items:center; gap:5px;
+}
+
+.cancha-section{margin-bottom:28px; max-width:900px;}
+.checkin-list, .queue-list{display:flex; flex-direction:column; gap:8px;}
+.checkin-row{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  box-shadow:var(--shadow-card);
+}
+.checkin-name{flex:1; min-width:160px; font-size:13.5px;}
+.pending-zone-badge{
+  flex-basis:100%; display:flex; align-items:center; gap:10px;
+  font-size:12px; color:var(--gold); background:rgba(201,122,0,0.10); border:1px solid rgba(201,122,0,0.35);
+  padding:6px 10px; border-radius:8px; margin-top:2px;
+}
+.money-summary{
+  display:flex; align-items:center; gap:24px; flex-wrap:wrap;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 20px;
+  box-shadow:var(--shadow-card);
+}
+.money-field{display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-dim);}
+.money-input{
+  background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text);
+  font-family:var(--font-mono); font-size:14px; padding:6px 10px; border-radius:8px; width:110px;
+}
+.money-stat{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--text-dim);}
+.money-stat b{font-family:var(--font-display); font-size:20px; color:var(--accent);}
+.money-stat.pending b{color:var(--danger);}
+.money-stat.efectivo b{color:var(--accent-dim);}
+.money-stat.transferencia b{color:var(--accent-2);}
+.pay-toggles{display:flex; gap:6px;}
+.pay-toggle{
+  background:rgba(211,63,63,0.08); border:1px solid rgba(211,63,63,0.35); color:var(--danger);
+  font-size:11px; font-weight:600; padding:5px 9px; border-radius:6px;
+}
+.pay-toggle.on{background:rgba(90,154,31,0.14); border-color:var(--accent); color:var(--accent);}
+.pay-toggle.on.efectivo{background:var(--accent-dim); border-color:var(--accent-dim); color:#fff;}
+.pay-toggle.on.transferencia{background:var(--accent-2); border-color:var(--accent-2); color:#fff;}
+
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(15,38,47,0.45); z-index:1000;
+  display:none; align-items:center; justify-content:center;
+}
+.modal-box{
+  background:var(--panel); border-radius:14px; padding:24px 28px; box-shadow:var(--shadow-card);
+  min-width:260px; text-align:center;
+}
+.modal-title{font-family:var(--font-display); font-size:16px; margin-bottom:16px;}
+.modal-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+.modal-btn-pago{
+  border:none; border-radius:8px; padding:12px 18px; font-size:13.5px; font-weight:600; cursor:pointer;
+}
+.modal-btn-pago.efectivo{background:var(--accent-dim); color:#fff;}
+.modal-btn-pago.efectivo:hover{background:#2E5A0E;}
+.modal-btn-pago.transferencia{background:var(--accent-2); color:#fff;}
+.modal-btn-pago.transferencia:hover{background:#0F6580;}
+.pay-bar-wrap{width:70px; height:8px; border-radius:6px; background:var(--panel-3); overflow:hidden; flex-shrink:0;}
+.pay-bar{height:100%; border-radius:6px; transition:width .2s ease;}
+.pay-bar.none{background:var(--danger);}
+.pay-bar.half{background:var(--gold);}
+.pay-bar.full{background:var(--accent);}
+.pay-pct{font-size:11px; font-family:var(--font-mono); color:var(--text-dim); width:32px; text-align:right;}
+.present-toggle{
+  background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text-dim);
+  font-size:12px; font-weight:600; padding:7px 12px; border-radius:8px; white-space:nowrap;
+}
+.present-toggle.on{background:rgba(90,154,31,0.14); border-color:var(--accent); color:var(--accent);}
+.present-toggle:disabled{opacity:0.5; cursor:not-allowed;}
+
+.queue-row, .incourt-row{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
+  box-shadow:var(--shadow-card);
+}
+.queue-pos{
+  font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--accent-2);
+  background:var(--panel-3); border-radius:6px; width:26px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.queue-teams{flex:1; min-width:180px; font-size:13.5px;}
+.vs-sep-sm{color:var(--text-faint); font-size:11.5px; margin:0 4px;}
+.incourt-cancha{font-family:var(--font-mono); font-weight:700; color:var(--gold); white-space:nowrap;}
+.court-count-row{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+  box-shadow:var(--shadow-card); font-size:13.5px;
 }
 
 table.standings{width:100%; border-collapse:collapse; font-size:12.5px;}
@@ -405,10 +550,24 @@ table.standings tr.leader td:first-child{font-weight:700;}
   border-radius:5px; background:var(--panel-3); font-family:var(--font-mono); font-size:11px; color:var(--text-dim);
 }
 
+.avatar{
+  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+  width:26px; height:26px; border-radius:50%; color:#fff; font-size:10.5px; font-weight:700;
+  font-family:var(--font-body); letter-spacing:0.2px; margin-right:8px; vertical-align:middle;
+}
+.pair-cell{display:flex; align-items:center;}
+
+th.num[title], th[title]{cursor:help;}
+.th-info{font-size:10px; color:var(--text-faint); margin-left:2px;}
+
+.general-table-wrap, .zone-card, .login-card, .next-match-card, .match-card, .bmatch, .tournament-card{
+  box-shadow:var(--shadow-card);
+}
+
 /* ---------- login ---------- */
 #loginScreen{
   min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
-  background: radial-gradient(1200px 600px at 100% -10%, rgba(46,156,181,0.16), transparent 60%), var(--bg);
+  background: radial-gradient(1200px 600px at 100% -10%, rgba(18,122,148,0.08), transparent 60%), var(--bg);
 }
 .login-card{
   background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
@@ -449,11 +608,11 @@ table.gen{width:100%; border-collapse:collapse; font-size:13px;}
 table.gen th{text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; padding:8px 10px; border-bottom:1px solid var(--line-strong);}
 table.gen td{padding:9px 10px; border-bottom:1px solid var(--line);}
 table.gen td.num{text-align:center; font-family:var(--font-mono);}
-tr.zone-direct{background:rgba(199,244,100,0.06);}
-tr.zone-repechaje{background:rgba(46,156,181,0.05);}
+tr.zone-direct{background:rgba(90,154,31,0.07);}
+tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 .tag{font-size:10.5px; padding:2px 8px; border-radius:20px; font-family:var(--font-mono); letter-spacing:0.3px;}
-.tag.direct{background:rgba(199,244,100,0.15); color:var(--accent);}
-.tag.rep{background:rgba(46,156,181,0.18); color:var(--accent-2);}
+.tag.direct{background:rgba(90,154,31,0.14); color:var(--accent);}
+.tag.rep{background:rgba(18,122,148,0.16); color:var(--accent-2);}
 .legend{display:flex; gap:18px; margin-top:16px; flex-wrap:wrap;}
 .legend-item{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim);}
 .legend-dot{width:10px; height:10px; border-radius:3px;}
@@ -462,6 +621,37 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
 .bracket-section{margin-bottom:36px;}
 .bracket-cols{display:flex; gap:34px; overflow-x:auto; padding-bottom:14px;}
 .bracket-col{display:flex; flex-direction:column; justify-content:space-around; gap:18px; min-width:230px;}
+
+.bracket-diagram{overflow-x:auto; padding-bottom:6px; margin-bottom:22px;}
+.bracket-headers-row{display:flex; align-items:flex-end;}
+.bracket-round-header{
+  text-align:center; font-family:var(--font-display); font-size:12px; text-transform:uppercase;
+  letter-spacing:0.6px; color:var(--text-dim); padding-bottom:12px; flex-shrink:0;
+}
+.bracket-gap-spacer{flex-shrink:0;}
+.bracket-body-row{display:flex; align-items:stretch;}
+.bracket-round-body{display:flex; flex-direction:column; flex-shrink:0;}
+.bracket-slot{flex:1 1 0; display:flex; align-items:center; padding:5px 8px; box-sizing:border-box;}
+.bracket-connector-layer{position:relative; flex-shrink:0;}
+.conn-h{position:absolute; height:1px; background:var(--line-strong);}
+.conn-v{position:absolute; width:1px; background:var(--line-strong);}
+
+.diag-match{
+  width:100%; height:62px; box-sizing:border-box; background:var(--panel); border:1px solid var(--line);
+  border-radius:8px; box-shadow:var(--shadow-card); padding:7px 10px; display:flex; flex-direction:column;
+  justify-content:center; gap:2px; cursor:pointer; transition:border-color .15s ease;
+}
+.diag-match:hover{border-color:var(--accent-2);}
+.diag-match.pending{cursor:default; background:var(--panel-3); border-style:dashed; opacity:0.6;}
+.diag-side{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); line-height:1.35;}
+.diag-side.winner{color:var(--accent); font-weight:700;}
+.diag-side.loser{color:var(--text-faint);}
+.diag-score-line{font-family:var(--font-mono); font-size:10px; color:var(--text-dim); margin-top:1px;}
+.diag-hint-line{font-size:9.5px; color:var(--text-faint); margin-top:1px;}
+.diag-live{font-size:9.5px; color:var(--danger); font-weight:700; display:flex; align-items:center; gap:4px;}
+
+@keyframes flashHi{ 0%{box-shadow:0 0 0 3px var(--accent-2);} 100%{box-shadow:var(--shadow-card);} }
+.flash-highlight{animation:flashHi 1.4s ease;}
 .round-label{
   font-family:var(--font-display); font-size:13px; color:var(--text-faint); text-transform:uppercase;
   letter-spacing:1px; margin-bottom:10px; text-align:center;
@@ -472,7 +662,7 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
 .bmatch .side.loser{color:var(--text-faint); text-decoration:line-through;}
 .bmatch .mid-line{height:1px; background:var(--line); margin:2px 0;}
 .champion-banner{
-  margin-top:10px; background:linear-gradient(120deg, rgba(255,182,39,0.14), rgba(199,244,100,0.10));
+  margin-top:10px; background:linear-gradient(120deg, rgba(201,122,0,0.12), rgba(90,154,31,0.10));
   border:1px solid var(--gold); border-radius:var(--radius); padding:22px 26px;
   display:flex; align-items:center; gap:18px; flex-wrap:wrap; justify-content:space-between;
 }
@@ -551,6 +741,16 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
 </div>
 
 <div id="app" style="display:none;">
+  <div class="modal-overlay" id="paymentModalOverlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-title">¿Cómo pagó?</div>
+      <div class="modal-actions">
+        <button class="modal-btn-pago efectivo" onclick="App.confirmPaymentMethod('efectivo')">💵 Efectivo</button>
+        <button class="modal-btn-pago transferencia" onclick="App.confirmPaymentMethod('transferencia')">🏦 Transferencia</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="App.closePaymentModal()">Cancelar</button>
+    </div>
+  </div>
   <aside class="sidebar">
     <div class="brand">CUADRO<span>PÁDEL</span></div>
     <div class="brand-sub">Organizador de torneos</div>
@@ -561,7 +761,8 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       <button class="tab" data-tab="clubes"><span class="num">02</span> Clubes</button>
       <button class="tab" data-tab="torneoActual"><span class="num">03</span> Torneo Actual</button>
       <button class="tab" data-tab="proximos"><span class="num">04</span> Próximos Torneos</button>
-      <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">05</span> Coordinadores</button>
+      <button class="tab" data-tab="finalizados"><span class="num">05</span> Torneos Finalizados</button>
+      <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">06</span> Coordinadores</button>
     </nav>
     <div class="sidebar-footer">
       <div class="storage-chip ok" id="sessionChip" style="margin-bottom:2px;"></div>
@@ -610,6 +811,11 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
           <div class="home-card-title">Próximos Torneos</div>
           <div class="home-card-sub">Agenda de torneos programados</div>
         </button>
+        <button class="home-card" onclick="switchTab('finalizados')">
+          <div class="home-card-icon">🏁</div>
+          <div class="home-card-title">Torneos Finalizados</div>
+          <div class="home-card-sub">Ver puntajes y repasar cada torneo cerrado (solo lectura)</div>
+        </button>
       </div>
     </section>
 
@@ -641,10 +847,10 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
       <div class="subnav" id="torneoSubnav">
         <button class="subnav-btn" data-subtab="lista">Lista de torneos</button>
         <button class="subnav-btn" data-subtab="parejas">Parejas</button>
+        <button class="subnav-btn" data-subtab="cancha">Check In</button>
         <button class="subnav-btn" data-subtab="zonas">Zonas</button>
         <button class="subnav-btn" data-subtab="general">Clasificación</button>
         <button class="subnav-btn" data-subtab="llave">Llave</button>
-        <button class="subnav-btn" data-subtab="historial">Historial</button>
       </div>
 
       <div class="subview" id="subview-lista">
@@ -666,17 +872,24 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
             <div class="format-desc">Todas las zonas (de 4 o de 3) juegan todos contra todos. Las 2 mejores de cada zona pasan directo a la llave junto con las 2 peores de las zonas de 4; el 3° de una zona de 3 juega un repechaje previo.</div>
           </div>
         </div>
-        <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder sortear.</p>
+        <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder iniciar el torneo.</p>
         <datalist id="playersDatalist"></datalist>
         <div class="pairs-grid2" id="pairsGrid"></div>
         <div class="actions-row">
           <button class="btn btn-ghost btn-sm" onclick="App.addPairRow()">+ Agregar pareja</button>
         </div>
         <p class="hint" id="unassignedHint"></p>
-        <div class="actions-row" style="margin-top:22px;">
-          <button class="btn btn-primary" id="btnGenZones" onclick="App.generateZones()">Sortear zonas</button>
+        <div class="actions-row" style="margin-top:22px; align-items:center;">
+          <div class="chip pairs-count-chip" id="pairsCountChip"></div>
+          <button class="btn btn-primary" onclick="App.goToCheckin()">Ir a check-in →</button>
         </div>
         <p class="hint" id="setupHint"></p>
+      </div>
+
+      <div class="subview" id="subview-cancha">
+        <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
+        <p class="section-sub">Marcá quién pagó y quién ya llegó. Cuando tengas suficientes parejas presentes, iniciá el torneo desde el botón al final de esta página — se sortean las zonas solo con las parejas presentes. Una vez en marcha, iniciá cada partido eligiendo la cancha: mientras esté en juego, esa cancha y esas parejas quedan bloqueadas hasta cargar el resultado.</p>
+        <div id="canchaContainer"></div>
       </div>
 
       <div class="subview" id="subview-zonas">
@@ -696,11 +909,6 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
         <p class="section-sub">Primera Instancia define quién completa el cuadro. Segunda Instancia se juega por eliminación directa hasta el campeón.</p>
         <div id="llaveContainer"></div>
       </div>
-
-      <div class="subview" id="subview-historial">
-        <p class="section-sub">Torneos cerrados y archivados. Al cerrar un torneo desde Llave, se guarda acá y el puntaje se suma al ranking de jugadores.</p>
-        <div id="historialContainer"></div>
-      </div>
     </section>
 
     <section class="view" id="view-proximos">
@@ -714,6 +922,12 @@ tr.zone-repechaje{background:rgba(46,156,181,0.05);}
         <button class="btn btn-ghost btn-sm" onclick="App.addUpcoming()">+ Agregar</button>
       </div>
       <div id="proximosContainer"></div>
+    </section>
+
+    <section class="view" id="view-finalizados">
+      <h2 class="section-title">Torneos Finalizados</h2>
+      <p class="section-sub">Torneos cerrados y archivados. Al cerrar un torneo desde Llave, se guarda acá y el puntaje se suma al ranking de jugadores. Podés ver el torneo completo, pero no editarlo.</p>
+      <div id="historialContainer"></div>
     </section>
 
     <section class="view" id="view-coordinadores">
@@ -791,6 +1005,8 @@ function freshTournament(){
     smallMode: false,
     primera: null,
     segunda: null,
+    courtCount: 4,
+    registrationFee: 0,
     createdAt: new Date().toISOString()
   };
 }
@@ -800,14 +1016,16 @@ function uid(){
   return 'id-'+Math.random().toString(36).slice(2)+Date.now();
 }
 
-const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos','coordinadores'];
-const TORNEO_SUBTABS = ['lista','parejas','zonas','general','llave','historial'];
+const TOP_TABS = ['inicio','jugadores','clubes','torneoActual','proximos','finalizados','coordinadores'];
+const TORNEO_SUBTABS = ['lista','parejas','cancha','zonas','general','llave'];
 
 function sanitizeTournament(t){
   if(!t) return null;
   if(!t.format) t.format = 'avanzado';
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
+  if(!t.courtCount) t.courtCount = 4;
+  if(t.registrationFee===undefined || t.registrationFee===null) t.registrationFee = 0;
   delete t.activeTab; delete t.torneoSubTab; // formato viejo (versión de un solo torneo activo)
   return t;
 }
@@ -1200,17 +1418,18 @@ function renderJugadorView(){
   renderJugadorProximos();
 }
 
-function renderJugadorViewBody(pair, showSwitcher){
-  const switcherHtml = showSwitcher ? `<button class="archive-toggle" onclick="currentUser.selectedTournamentId=null; renderJugadorView();" style="margin-bottom:10px;">Ver otro torneo</button>` : '';
-  const nextMatchEl = document.getElementById('jugadorProximoPartido');
-  {
+function renderJugadorViewBody(pair, showSwitcher, ids){
+  ids = ids || {nextMatch:'jugadorProximoPartido', zonas:'jugadorZonas', llave:'jugadorLlave', tabla:'jugadorTablaPuntos'};
+  if(ids.nextMatch){
+    const switcherHtml = showSwitcher ? `<button class="archive-toggle" onclick="currentUser.selectedTournamentId=null; renderJugadorView();" style="margin-bottom:10px;">Ver otro torneo</button>` : '';
+    const nextMatchEl = document.getElementById(ids.nextMatch);
     const champId = typeof getChampionPairId==='function' ? getChampionPairId() : null;
     if(champId){
-      nextMatchEl.innerHTML = switcherHtml + (champId===pair.id
+      nextMatchEl.innerHTML = switcherHtml + (pair && champId===pair.id
         ? `<div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">¡Felicitaciones!</div><div class="name">Fuiste campeón de este torneo</div></div></div></div>`
         : `<div class="empty-state">El torneo ya terminó. ¡Gracias por participar!</div>`);
     } else {
-      const next = findNextMatchForPair(pair.id);
+      const next = pair ? findNextMatchForPair(pair.id) : null;
       if(!next){
         nextMatchEl.innerHTML = switcherHtml + `<div class="empty-state">No tenés partidos pendientes en este momento. Puede que estés esperando el resultado de otro partido, o que hayas quedado eliminado.</div>`;
       } else {
@@ -1228,7 +1447,7 @@ function renderJugadorViewBody(pair, showSwitcher){
     }
   }
 
-  const zonasEl = document.getElementById('jugadorZonas');
+  const zonasEl = document.getElementById(ids.zonas);
   if(state.zones.length===0){
     zonasEl.innerHTML = `<div class="empty-state">Todavía no hay zonas generadas para este torneo.</div>`;
   } else {
@@ -1241,12 +1460,12 @@ function renderJugadorViewBody(pair, showSwitcher){
       } else {
         standingsHtml = `
           <table class="standings">
-            <thead><tr><th>#</th><th>Pareja</th><th class="num">Sets</th><th class="num">Dif.S</th><th class="num">Games</th><th class="num">Dif.G</th>${zone.format==='roundrobin'?'<th class="num">Pts</th>':''}</tr></thead>
+            <thead><tr><th>#</th><th>Pareja</th>${thTip('Sets','Sets ganados - perdidos por esta pareja en la zona','num')}${thTip('Dif.S','Diferencia de sets: sets ganados menos perdidos','num')}${thTip('Games','Games ganados - perdidos por esta pareja en la zona','num')}${thTip('Dif.G','Diferencia de games: games ganados menos perdidos (desempate)','num')}${zone.format==='roundrobin'?thTip('Pts','2 puntos por cada partido ganado','num'):''}</tr></thead>
             <tbody>
             ${results.map((s,i)=>`
               <tr class="${i===0?'leader':''} ${pair && s.pairId===pair.id?'leader':''}">
                 <td><span class="rank-badge">${s.position}</span></td>
-                <td>${escapeHtml(s.name)}</td>
+                <td>${pairCellHtml(s.name)}</td>
                 <td class="num">${s.sf}-${s.sc}</td>
                 <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
                 <td class="num">${s.gf}-${s.gc}</td>
@@ -1264,7 +1483,7 @@ function renderJugadorViewBody(pair, showSwitcher){
     }).join('') + `</div>`;
   }
 
-  const llaveEl = document.getElementById('jugadorLlave');
+  const llaveEl = document.getElementById(ids.llave);
   if(state.smallMode || !state.primera){
     llaveEl.innerHTML = `<div class="empty-state">${state.smallMode ? 'Este torneo no tiene llave: se juega todo en un solo grupo.' : 'La llave todavía no se generó.'}</div>`;
   } else {
@@ -1293,7 +1512,7 @@ function renderJugadorViewBody(pair, showSwitcher){
     llaveEl.innerHTML = html;
   }
 
-  const tablaEl = document.getElementById('jugadorTablaPuntos');
+  const tablaEl = document.getElementById(ids.tabla);
   if(state.zones.length===0){
     tablaEl.innerHTML = `<div class="empty-state">Todavía no hay zonas generadas para este torneo.</div>`;
   } else {
@@ -1301,14 +1520,14 @@ function renderJugadorViewBody(pair, showSwitcher){
     const rowsHtml = ranking.map(s=>`
       <tr class="${pair && s.pairId===pair.id ? 'leader':''}">
         <td class="num">${state.smallMode ? s.position : s.rank}</td>
-        <td>${escapeHtml(s.name)}</td>
+        <td>${pairCellHtml(s.name)}</td>
         <td class="num">${s.pts===null?'—':s.pts}</td>
         <td class="num">${s.diffGames>0?'+':''}${s.diffGames}</td>
       </tr>`).join('');
     tablaEl.innerHTML = `
       <div class="general-table-wrap">
         <table class="gen">
-          <thead><tr><th>#</th><th>Pareja</th><th class="num">Pts</th><th class="num">Dif.G</th></tr></thead>
+          <thead><tr><th>#</th><th>Pareja</th>${thTip('Pts','Puntos acumulados según la etapa alcanzada en el torneo','num')}${thTip('Dif.G','Diferencia de games acumulada (desempate)','num')}</tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>`;
@@ -1513,6 +1732,378 @@ function computeZoneLocking(zone){
   return out;
 }
 
+const AVATAR_PALETTE = ['#127A94','#5A9A1F','#C97A00','#8B5CF6','#D33F3F','#0E6BA8','#2F8F4E','#B5541E'];
+function avatarInitialsAndColor(name){
+  const clean = (name||'').trim();
+  let initials;
+  if(clean.includes('/')){
+    const parts = clean.split('/').map(s=>s.trim()).filter(Boolean);
+    initials = parts.slice(0,2).map(p=> p.charAt(0).toUpperCase()).join('');
+  } else {
+    const words = clean.split(/\s+/).filter(Boolean);
+    initials = words.slice(0,2).map(w=> w.charAt(0).toUpperCase()).join('');
+  }
+  if(!initials) initials = '??';
+  let hash = 0;
+  for(let i=0;i<clean.length;i++) hash = (hash*31 + clean.charCodeAt(i)) | 0;
+  const color = AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+  return {initials, color};
+}
+function avatarHtml(name){
+  const {initials, color} = avatarInitialsAndColor(name);
+  return `<span class="avatar" style="background:${color};">${escapeHtml(initials)}</span>`;
+}
+function pairCellHtml(name){
+  return `<div class="pair-cell">${avatarHtml(name)}<span>${escapeHtml(name)}</span></div>`;
+}
+function thTip(label, tooltip, extraClass){
+  return `<th class="${extraClass||''}" title="${escapeAttr(tooltip)}">${label} <span class="th-info">ⓘ</span></th>`;
+}
+
+/* ---- pagos, presentes y control de cancha ---- */
+function getPairPaymentPercent(pair){
+  if(!pair) return 0;
+  const n = (pair.paid1?1:0) + (pair.paid2?1:0);
+  return n===2 ? 100 : (n===1 ? 50 : 0);
+}
+
+function findPairById(pairId){
+  return state.pairs.find(p=>p.id===pairId) || null;
+}
+
+function isPairPresent(pairId){
+  const p = findPairById(pairId);
+  return !!(p && p.present);
+}
+
+function getAllActiveMatches(){
+  // todos los partidos del torneo (zonas + primera + segunda), en un solo listado plano
+  const list = [];
+  state.zones.forEach(zone=> zone.matches.forEach(m=> list.push(m)));
+  if(state.primera) state.primera.matches.forEach(m=> list.push(m));
+  if(state.segunda) state.segunda.rounds.forEach(round=> round.forEach(m=> list.push(m)));
+  return list;
+}
+
+function isPairPlaying(pairId){
+  return getAllActiveMatches().some(m=> m.started && !m.completed && (m.aId===pairId || m.bId===pairId));
+}
+
+function getOccupiedCourts(){
+  const set = new Set();
+  getAllActiveMatches().forEach(m=>{
+    if(m.started && !m.completed && m.cancha && m.cancha.trim()) set.add(m.cancha.trim());
+  });
+  return set;
+}
+
+function isMatchReadyToStart(m){
+  return !m.pending && !m.bye && !m.completed && !m.started && m.aId && m.bId;
+}
+
+function matchStatusClass(m){
+  // esquema de color: verde = por jugar, naranja = jugando, gris oscuro = finalizado
+  if(m.pending || m.bye) return '';
+  if(m.completed) return 'completed-match';
+  if(m.started) return 'playing-match';
+  return 'upcoming-match';
+}
+
+App.setCourtCount = function(value){
+  const n = parseInt(value, 10);
+  state.courtCount = (n>=1 && n<=15) ? n : 4;
+  render();
+};
+
+function canchaSelectHtml(m){
+  const count = (state.courtCount>=1 && state.courtCount<=15) ? state.courtCount : 4;
+  const current = (m.cancha||'').trim();
+  const occupied = getOccupiedCourts(); // canchas ocupadas por partidos en juego ahora mismo
+  let options = `<option value="" ${!current?'selected':''}>—</option>`;
+  for(let i=1;i<=count;i++){
+    const val = String(i);
+    // si la cancha está ocupada por OTRO partido (no por este mismo), se deshabilita para no poder duplicarla
+    const occupiedByOther = occupied.has(val) && val!==current;
+    options += `<option value="${val}" ${current===val?'selected':''} ${occupiedByOther?'disabled':''}>Cancha ${i}${occupiedByOther?' (ocupada)':''}</option>`;
+  }
+  return `<select class="cancha-input" onchange="App.setMatchCancha('${m.id}', this.value)">${options}</select>`;
+}
+
+function isPairInAnyZone(pairId){
+  return state.zones.some(z=> z.pairIds.includes(pairId));
+}
+
+let pendingPaymentTarget = null;
+
+App.togglePaid = function(pairId, slot){
+  const pair = findPairById(pairId);
+  if(!pair) return;
+  if(pair[slot]){
+    // ya estaba pago: desmarcar directamente, sin preguntar método
+    pair[slot] = false;
+    pair[slot==='paid1'?'method1':'method2'] = null;
+    render();
+    return;
+  }
+  pendingPaymentTarget = {pairId, slot};
+  const overlay = document.getElementById('paymentModalOverlay');
+  if(overlay) overlay.style.display = 'flex';
+};
+
+App.confirmPaymentMethod = function(method){
+  if(pendingPaymentTarget){
+    const pair = findPairById(pendingPaymentTarget.pairId);
+    if(pair){
+      pair[pendingPaymentTarget.slot] = true;
+      pair[pendingPaymentTarget.slot==='paid1'?'method1':'method2'] = method;
+    }
+  }
+  pendingPaymentTarget = null;
+  const overlay = document.getElementById('paymentModalOverlay');
+  if(overlay) overlay.style.display = 'none';
+  render();
+};
+
+App.closePaymentModal = function(){
+  pendingPaymentTarget = null;
+  const overlay = document.getElementById('paymentModalOverlay');
+  if(overlay) overlay.style.display = 'none';
+};
+
+App.setRegistrationFee = function(value){
+  const n = Number(value);
+  state.registrationFee = (isFinite(n) && n>=0) ? n : 0;
+  render();
+};
+
+App.togglePresent = function(pairId){
+  const pair = findPairById(pairId);
+  if(!pair) return;
+  pair.present = !pair.present;
+  pair.presentAt = pair.present ? new Date().toISOString() : null;
+  render();
+};
+
+App.startMatch = function(matchId){
+  const loc = locateMatch(matchId);
+  if(!loc) return;
+  const m = loc.match;
+  if(!isMatchReadyToStart(m)) return;
+  if(!isPairPresent(m.aId) || !isPairPresent(m.bId)){
+    alert('Las dos parejas tienen que estar marcadas como "presente" antes de arrancar el partido.');
+    return;
+  }
+  if(isPairPlaying(m.aId) || isPairPlaying(m.bId)){
+    alert('Una de las dos parejas ya está jugando otro partido.');
+    return;
+  }
+  const cancha = (m.cancha||'').trim();
+  if(!cancha){
+    alert('Primero indicá el número de cancha en el campo "Cancha" de este partido.');
+    return;
+  }
+  const occupied = getOccupiedCourts();
+  if(occupied.has(cancha)){
+    alert(`La cancha "${cancha}" ya está ocupada por otro partido en curso.`);
+    return;
+  }
+  m.started = true;
+  m.startedAt = new Date().toISOString();
+  render();
+};
+
+App.cancelStartMatch = function(matchId){
+  const loc = locateMatch(matchId);
+  if(!loc) return;
+  loc.match.started = false;
+  render();
+};
+
+function pairReadySince(pairId){
+  const p = findPairById(pairId);
+  return p && p.presentAt ? p.presentAt : null;
+}
+
+function matchReadySince(m){
+  // el partido está "listo desde" que la ÚLTIMA de las dos parejas llegó (recién ahí pueden arrancar las dos)
+  const ta = pairReadySince(m.aId), tb = pairReadySince(m.bId);
+  if(!ta || !tb) return null;
+  return ta > tb ? ta : tb;
+}
+
+function renderCancha(){
+  if(!state) return;
+  const c = document.getElementById('canchaContainer');
+  if(!c) return;
+
+  const pairs = getReadyPairs();
+  if(pairs.length===0){
+    c.innerHTML = `<div class="empty-state">Todavía no hay parejas cargadas. Armalas primero en la pestaña <b>Parejas</b>.</div>`;
+    return;
+  }
+
+  // ---- 0) resumen económico: costo por inscripción, total esperado, total pendiente, por método ----
+  const fee = Number(state.registrationFee)||0;
+  const totalPlayers = pairs.length*2;
+  let unpaidSlots = 0, efectivoSlots = 0, transferenciaSlots = 0;
+  pairs.forEach(p=>{
+    if(!p.paid1) unpaidSlots++; else if(p.method1==='efectivo') efectivoSlots++; else if(p.method1==='transferencia') transferenciaSlots++;
+    if(!p.paid2) unpaidSlots++; else if(p.method2==='efectivo') efectivoSlots++; else if(p.method2==='transferencia') transferenciaSlots++;
+  });
+  const totalEsperado = fee*totalPlayers;
+  const totalPendiente = fee*unpaidSlots;
+  const totalEfectivo = fee*efectivoSlots;
+  const totalTransferencia = fee*transferenciaSlots;
+  const money = (n)=> '$'+n.toLocaleString('es-AR');
+
+  const summaryHtml = `
+    <div class="cancha-section">
+      <div class="money-summary">
+        <div class="money-field">
+          <span>Costo por inscripción (por jugador)</span>
+          <input class="money-input" type="number" min="0" step="1" value="${fee}" onchange="App.setRegistrationFee(this.value)">
+        </div>
+        <div class="money-stat"><span>Total esperado</span><b>${money(totalEsperado)}</b></div>
+        <div class="money-stat pending"><span>Total pendiente de cobrar</span><b>${money(totalPendiente)}</b></div>
+        <div class="money-stat efectivo"><span>💵 Total en efectivo</span><b>${money(totalEfectivo)}</b></div>
+        <div class="money-stat transferencia"><span>🏦 Total por transferencia</span><b>${money(totalTransferencia)}</b></div>
+      </div>
+    </div>`;
+
+  // ---- 1) check-in: pago + presente, por pareja ----
+  const checkinRows = pairs.map(pair=>{
+    const pct = getPairPaymentPercent(pair);
+    const pctClass = pct===100?'full':(pct===50?'half':'none');
+    const p1 = playersDB.find(pl=>pl.id===pair.p1Id);
+    const p2 = playersDB.find(pl=>pl.id===pair.p2Id);
+    const playing = isPairPlaying(pair.id);
+    const pendingZoneAdd = state.zones.length>0 && pair.present && !isPairInAnyZone(pair.id);
+    const pendingBadge = pendingZoneAdd
+      ? `<div class="pending-zone-badge">⏳ Pendiente de agregar a zona <button class="btn btn-ghost btn-sm" onclick="App.autoAddPairToZone('${pair.id}')">Agregar ahora</button></div>`
+      : '';
+    const methodTitle = (paid, method)=> paid ? (method==='efectivo' ? 'Pagó en efectivo (tocá para desmarcar)' : 'Pagó por transferencia (tocá para desmarcar)') : 'Marcar pagado';
+    return `
+      <div class="checkin-row">
+        <div class="checkin-name">${pairCellHtml(pairDisplayName(pair))}</div>
+        <div class="pay-toggles">
+          <button class="pay-toggle ${pair.paid1?'on '+(pair.method1||''):''}" title="${methodTitle(pair.paid1,pair.method1)}" onclick="App.togglePaid('${pair.id}','paid1')">${p1?escapeHtml(p1.name.split(' ')[0]):'J1'}</button>
+          <button class="pay-toggle ${pair.paid2?'on '+(pair.method2||''):''}" title="${methodTitle(pair.paid2,pair.method2)}" onclick="App.togglePaid('${pair.id}','paid2')">${p2?escapeHtml(p2.name.split(' ')[0]):'J2'}</button>
+        </div>
+        <div class="pay-bar-wrap" title="${pct}% pagado">
+          <div class="pay-bar ${pctClass}" style="width:${pct}%;"></div>
+        </div>
+        <div class="pay-pct">${pct}%</div>
+        <button class="present-toggle ${pair.present?'on':''}" onclick="App.togglePresent('${pair.id}')" ${playing?'disabled title="Está jugando"':''}>
+          ${pair.present ? '✓ Presente' : 'Marcar presente'}
+        </button>
+        ${pendingBadge}
+      </div>`;
+  }).join('');
+
+  // ---- 2) cola de listos para jugar, ordenada por orden de llegada ----
+  const readyMatches = getAllActiveMatches()
+    .filter(isMatchReadyToStart)
+    .filter(m=> isPairPresent(m.aId) && isPairPresent(m.bId))
+    .filter(m=> !isPairPlaying(m.aId) && !isPairPlaying(m.bId))
+    .map(m=> ({m, since: matchReadySince(m)}))
+    .sort((x,y)=> (x.since||'').localeCompare(y.since||''));
+
+  const queueHtml = readyMatches.length===0
+    ? `<div class="empty-state">No hay partidos listos para arrancar (faltan resultados anteriores, o faltan parejas por marcar presentes).</div>`
+    : readyMatches.map((row,i)=>{
+        const m = row.m;
+        return `
+        <div class="queue-row">
+          <span class="queue-pos">${i+1}°</span>
+          <div class="queue-teams">${escapeHtml(getPairName(m.aId))} <span class="vs-sep-sm">vs</span> ${escapeHtml(getPairName(m.bId))}</div>
+          ${m.label ? `<span class="pill">${escapeHtml(m.label)}</span>`:''}
+          ${canchaSelectHtml(m)}
+          <button class="btn btn-primary btn-sm" onclick="App.startMatch('${m.id}')">▶ Iniciar partido</button>
+        </div>`;
+      }).join('');
+
+  // ---- 3) partidos en juego ahora mismo ----
+  const playingMatches = getAllActiveMatches().filter(m=> m.started && !m.completed);
+  const playingHtml = playingMatches.length===0
+    ? `<div class="empty-state">Ninguna cancha ocupada ahora mismo.</div>`
+    : playingMatches.map(m=>`
+        <div class="incourt-row">
+          <span class="incourt-cancha">🎾 ${escapeHtml(m.cancha||'—')}</span>
+          <div class="queue-teams">${escapeHtml(getPairName(m.aId))} <span class="vs-sep-sm">vs</span> ${escapeHtml(getPairName(m.bId))}</div>
+          <span class="live-label"><span class="blink-dot"></span>JUGANDO</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.cancelStartMatch('${m.id}')">Cancelar inicio</button>
+        </div>`).join('');
+
+  const courtCount = (state.courtCount>=1 && state.courtCount<=15) ? state.courtCount : 4;
+  const courtCountOptions = Array.from({length:15}, (_,i)=>i+1)
+    .map(n=>`<option value="${n}" ${n===courtCount?'selected':''}>${n}</option>`).join('');
+
+  c.innerHTML = `
+    ${summaryHtml}
+    <div class="cancha-section">
+      <h3 class="round-label" style="text-align:left;">Check-in — pago y presentes</h3>
+      <div class="checkin-list">${checkinRows}</div>
+    </div>
+    <div class="cancha-section">
+      <h3 class="round-label" style="text-align:left;">Cola de parejas listas para jugar (por orden de llegada)</h3>
+      <div class="queue-list">${queueHtml}</div>
+    </div>
+    <div class="cancha-section">
+      <h3 class="round-label" style="text-align:left;">Canchas ocupadas ahora</h3>
+      <div class="queue-list">${playingHtml}</div>
+    </div>
+    <div class="cancha-section">
+      <h3 class="round-label" style="text-align:left;">Cantidad de canchas del club</h3>
+      <div class="court-count-row">
+        <span>Canchas disponibles</span>
+        <select class="cancha-input" onchange="App.setCourtCount(this.value)">${courtCountOptions}</select>
+        <span class="hint" style="margin:0;">Define las opciones que aparecen al asignar cancha en cada partido.</span>
+      </div>
+    </div>
+    <div class="cancha-section">
+      <h3 class="round-label" style="text-align:left;">Iniciar torneo</h3>
+      ${iniciarTorneoSectionHtml()}
+    </div>`;
+}
+
+function iniciarTorneoSectionHtml(){
+  if(state.zones.length>0){
+    const hasResults = getAllActiveMatches().some(m=>m.completed);
+    const warn = hasResults
+      ? `<div class="hint" style="color:var(--danger);">⚠️ Ya hay resultados cargados en este torneo — reiniciar los va a borrar todos.</div>`
+      : `<div class="hint">Todavía no hay resultados cargados.</div>`;
+    return `
+      <div class="hint">El torneo ya se inició (zonas sorteadas). Andá a la pestaña <b>Zonas</b> para ver los partidos.</div>
+      ${warn}
+      <div class="court-count-row" style="margin-top:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="App.reiniciarTorneo()">↺ Reiniciar torneo</button>
+        <span class="hint" style="margin:0;">Vuelve a dejar las parejas presentes listas para un nuevo sorteo de zonas.</span>
+      </div>`;
+  }
+  const presentPairs = getReadyPairs().filter(p=>p.present);
+  const n = presentPairs.length;
+  let hint;
+  let canStart = true;
+  if(n<3){
+    hint = `Faltan ${3-n} pareja(s) presente(s) más para poder iniciar (mínimo 3).`;
+    canStart = false;
+  } else if(state.format==='principiantes' && n===5){
+    hint = `Con 5 parejas presentes no se pueden armar zonas de solo 3 o 4 (formato Principiantes). Esperá una pareja más, o que quede una afuera.`;
+    canStart = false;
+  } else {
+    const sizes = computeZoneSizes(n) ;
+    hint = (state.format!=='principiantes' && n<6)
+      ? `Se jugará todos contra todos en un solo grupo, sin zonas ni llave.`
+      : `Se armarán <b>${sizes.length}</b> zona(s) de ${sizes.join(', ')} parejas.`;
+  }
+  return `
+    <div class="court-count-row">
+      <div class="chip ${n>=3?'on':''}"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'}</div>
+      <button class="btn btn-primary" ${canStart?'':'disabled'} onclick="App.iniciarTorneo()">▶ Iniciar torneo</button>
+      <span class="hint" style="margin:0;">${hint}</span>
+    </div>`;
+}
+
 function pairDisplayName(pair){
   if(!pair) return '???';
   if(pair.alias && pair.alias.trim()) return pair.alias.trim();
@@ -1537,6 +2128,14 @@ function zoneHasAnyResult(zone){
   return zone.matches.some(m=>m.completed);
 }
 
+function bracketHasRealProgress(){
+  // distinto de "state.primera existe": el repechaje/llave se arman solos apenas arranca el torneo,
+  // aunque todavía no se haya jugado nada — acá solo nos importa si YA hay partidos jugados de verdad
+  const primeraProgress = state.primera && state.primera.matches.some(m=>m.completed);
+  const segundaProgress = state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed));
+  return !!(primeraProgress || segundaProgress);
+}
+
 function getUnassignedPairs(){
   const assignedIds = new Set();
   state.zones.forEach(z=> z.pairIds.forEach(id=> assignedIds.add(id)));
@@ -1551,8 +2150,8 @@ function rebuildZoneMatches(zone){
 
 function warnIfBracketExists(extra){
   let msg = extra;
-  if(state.primera){
-    msg += ' Además, esto puede reacomodar cupos de la llave que todavía no se jugaron (los partidos ya jugados en repechaje o llave no se pierden).';
+  if(bracketHasRealProgress()){
+    msg += ' Además, ya hay partidos jugados en el repechaje o la llave — esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden).';
   }
   return msg;
 }
@@ -1565,8 +2164,11 @@ App.autoAddPairToZone = function(pairId){
   }
   eligible.sort((a,b)=> a.pairIds.length - b.pairIds.length);
   const zone = eligible[0];
-  if(zoneHasAnyResult(zone) || state.primera){
+  if(zoneHasAnyResult(zone)){
     const ok = confirm(warnIfBracketExists(`${zone.name} ya tiene resultados cargados. Agregar una pareja reinicia todos los partidos de esa zona (se pierden los resultados ya cargados ahí).`));
+    if(!ok) return;
+  } else if(bracketHasRealProgress()){
+    const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   zone.pairIds.push(pairId);
@@ -1600,8 +2202,11 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
   if(!fromZone || !toZone) return;
   if(toZone.pairIds.length>=4){ alert('Esa zona ya tiene 4 parejas (el máximo).'); render(); return; }
   const anyResults = zoneHasAnyResult(fromZone) || zoneHasAnyResult(toZone);
-  if(anyResults || state.primera){
+  if(anyResults){
     const ok = confirm(warnIfBracketExists('Alguna de las dos zonas ya tiene resultados cargados — se van a reiniciar todos los partidos de ambas zonas al mover esta pareja.'));
+    if(!ok){ render(); return; }
+  } else if(bracketHasRealProgress()){
+    const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok){ render(); return; }
   }
   fromZone.pairIds = fromZone.pairIds.filter(id=>id!==pairId);
@@ -1619,8 +2224,8 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
 App.createZoneFromUnassigned = function(){
   const unassigned = getUnassignedPairs();
   if(unassigned.length<3){ alert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
-  if(state.primera){
-    const ok = confirm('Esto puede reacomodar cupos de la llave que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+  if(bracketHasRealProgress()){
+    const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   const chosen = unassigned.slice(0,4);
@@ -1684,6 +2289,8 @@ function roundLabel(totalRounds, idx, matchCount){
   if(remaining===2) return 'Semifinal';
   if(remaining===3) return 'Cuartos de final';
   if(remaining===4) return 'Octavos de final';
+  if(remaining===5) return 'Dieciseisavos de final';
+  if(remaining===6) return 'Treintaidosavos de final';
   return `Ronda de ${matchCount*2}`;
 }
 
@@ -1943,7 +2550,7 @@ App.deleteTournamentActive = function(id){
 
 /* ---- parejas del torneo activo ---- */
 App.addPairRow = function(){
-  state.pairs.push({id:uid(), p1Id:null, p2Id:null, alias:''});
+  state.pairs.push({id:uid(), p1Id:null, p2Id:null, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
   render();
 };
 App.removePairRow = function(id){
@@ -1986,18 +2593,29 @@ App.setPairAlias = function(pairId, value){
   render();
 };
 
-App.generateZones = function(){
+App.goToCheckin = function(){
   const ready = getReadyPairs();
-  if(ready.length<3){ alert('Necesitás al menos 3 parejas completas (con sus dos jugadores asignados).'); return; }
+  if(ready.length<3){ alert('Necesitás al menos 3 parejas completas (con sus dos jugadores asignados) antes de pasar al check-in.'); return; }
   if(state.format==='principiantes' && ready.length===5){
-    alert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas no hay forma de repartirlas así. Sumá o quitá una pareja (a 4 o a 6) para poder sortear.');
+    alert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas no hay forma de repartirlas así. Sumá o quitá una pareja (a 4 o a 6) antes de pasar al check-in.');
+    return;
+  }
+  nav.torneoSubTab = 'cancha';
+  render();
+};
+
+App.iniciarTorneo = function(){
+  const present = getReadyPairs().filter(p=>p.present);
+  if(present.length<3){ alert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
+  if(state.format==='principiantes' && present.length===5){
+    alert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más antes de iniciar.');
     return;
   }
   if(state.zones.length>0){
     const ok = confirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
   }
-  const pairsForDraw = ready.map(p=>({id:p.id, name: pairDisplayName(p)}));
+  const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
 
   if(state.format!=='principiantes' && shuffled.length<6){
@@ -2020,6 +2638,21 @@ App.generateZones = function(){
   nav.activeTab='torneoActual';
   nav.torneoSubTab='zonas';
   refreshBracket();
+  render();
+};
+
+App.reiniciarTorneo = function(){
+  const hasResults = getAllActiveMatches().some(m=>m.completed);
+  const msg = hasResults
+    ? '⚠️ Ya hay resultados cargados (partidos jugados) en este torneo. Si reiniciás, se van a borrar todas las zonas, el repechaje y la llave, junto con esos resultados. Las parejas y su check-in (pago y presente) NO se pierden. ¿Confirmás que querés reiniciar el torneo desde cero?'
+    : '¿Reiniciar el torneo? Se van a borrar las zonas sorteadas. Todavía no hay resultados cargados, así que no se pierde nada más.';
+  const ok = confirm(msg);
+  if(!ok) return;
+  state.zones = [];
+  state.smallMode = false;
+  state.primera = null;
+  state.segunda = null;
+  nav.torneoSubTab = 'cancha';
   render();
 };
 
@@ -2103,6 +2736,7 @@ App.saveMatch = function(matchId){
   match.sets = raw.map(s=>({a:Number(s.a), b:Number(s.b)}));
   match.completed = true;
   match.winnerId = setsA>setsB ? match.aId : match.bId;
+  match.started = false; // se libera la cancha y las parejas quedan disponibles para otro partido
 
   if(loc.type==='zone') advanceZonePlayoff(loc.zone);
   refreshBracket();
@@ -2122,6 +2756,7 @@ App.editMatch = function(matchId){
     }
   }
   loc.match.completed = false;
+  loc.match.started = false;
   refreshBracket();
   render();
 };
@@ -2129,6 +2764,16 @@ App.editMatch = function(matchId){
 App.setMatchCancha = function(matchId, value){
   const loc = locateMatch(matchId);
   if(!loc) return;
+  const trimmed = (value||'').trim();
+  const current = (loc.match.cancha||'').trim();
+  if(trimmed && trimmed!==current){
+    const occupied = getOccupiedCourts();
+    if(occupied.has(trimmed)){
+      alert(`La cancha "${trimmed}" ya está ocupada por otro partido en curso. Elegí otra.`);
+      render(); // revierte el desplegable al valor anterior
+      return;
+    }
+  }
   loc.match.cancha = value;
   if(state) scheduleSaveTournament(state);
 };
@@ -2223,14 +2868,13 @@ function computeAvanzadoGroups(){
   const pending = all.filter(x=>x.pending);
 
   // una pareja de posición X solo puede verse superada por otra pareja de la MISMA posición (1° vs 1°, 2° vs 2°, etc.),
-  // ya que la posición de zona manda antes que cualquier desempate por sets/games
+  // ya que la posición de zona manda antes que cualquier desempate por sets/games.
+  // Se usa el índice dentro del array YA ORDENADO (no una comparación par a par) para que un empate exacto entre dos
+  // resueltas nunca las cuente dos veces (lo que rompería el total exacto de cupos directos/repechaje).
   const direct=[], repechaje=[], stillPending=[];
-  resolved.forEach(r=>{
-    const guaranteedAbove = resolved.filter(o=> o!==r && (
-      o.position < r.position ||
-      (o.position===r.position && (o.diffSets>r.diffSets || (o.diffSets===r.diffSets && o.diffGames>r.diffGames)))
-    )).length;
-    const possiblyAbove = pending.filter(p=> p.position === r.position).length; // solo las pendientes de la MISMA posición pueden todavía superarla
+  resolved.forEach((r,i)=>{
+    const guaranteedAbove = i + pending.filter(p=> p.position < r.position).length; // resueltas por delante (i, sin duplicar empates) + pendientes de un escalón MEJOR (siempre superan a r)
+    const possiblyAbove = pending.filter(p=> p.position === r.position).length; // pendientes del MISMO escalón: pueden superarla o no, según se resuelvan
     const worstRank = guaranteedAbove + possiblyAbove + 1;
     const bestRank  = guaranteedAbove + 1;
     if(worstRank <= directCount) direct.push(r);
@@ -2448,7 +3092,8 @@ App.closeTournament = function(){
   deleteTournamentDoc(closedId);
   nav.openTabs = nav.openTabs.filter(id=>id!==closedId);
   state = null;
-  nav.torneoSubTab = 'historial';
+  nav.torneoSubTab = 'lista';
+  nav.activeTab = 'inicio';
   render();
 };
 
@@ -2588,6 +3233,7 @@ function renderUI(){
   renderProximos();
   renderTournamentsList();
   renderParejas();
+  renderCancha();
   renderZonas();
   renderGeneral();
   renderLlave();
@@ -2814,18 +3460,21 @@ function renderProximos(){
 function tournamentStatusLabel(t){
   const savedState = state;
   state = t;
-  let label;
+  let label, color;
   try{
     const champ = getChampionPairId();
-    if(champ){ label = '🏆 Campeón definido'; }
-    else if(t.primera){ label = 'Llave en curso'; }
-    else if(t.zones.length>0){ label = allZoneMatchesComplete() ? 'Zonas completas' : 'Zonas en curso'; }
-    else if(t.pairs.length>0){ label = 'Armando parejas'; }
-    else { label = 'Recién creado'; }
+    if(champ){ label = 'Campeón definido'; color = 'var(--gold)'; }
+    else if(t.primera){ label = 'Llave en curso'; color = 'var(--accent-2)'; }
+    else if(t.zones.length>0){
+      if(allZoneMatchesComplete()){ label = 'Zonas completas'; color = 'var(--accent)'; }
+      else { label = 'Zonas en curso'; color = 'var(--gold)'; }
+    }
+    else if(t.pairs.length>0){ label = 'Armando parejas'; color = 'var(--accent-2)'; }
+    else { label = 'Recién creado'; color = 'var(--text-faint)'; }
   } finally {
     state = savedState;
   }
-  return label;
+  return {label, color};
 }
 
 function renderTournamentsList(){
@@ -2845,13 +3494,17 @@ function renderTournamentsList(){
         <option value="" ${!t.ownerCoordinador?'selected':''}>Sin asignar</option>
         ${coordinadoresDB.map(co=>`<option value="${escapeAttr(co.username)}" ${t.ownerCoordinador===co.username?'selected':''}>${escapeHtml(co.username)}</option>`).join('')}
       </select>` : `<span class="pill">${escapeHtml(ownerLabel)}</span>`;
+    const isPrincipiantes = t.format==='principiantes';
+    const pairCount = t.pairs ? t.pairs.filter(p=>p.p1Id && p.p2Id).length : 0;
     return `
-      <div class="tournament-card">
+      <div class="tournament-card" style="border-left-color:${status.color};">
+        <div class="tournament-icon" style="background:${isPrincipiantes?'rgba(18,122,148,0.12)':'rgba(90,154,31,0.12)'}; color:${isPrincipiantes?'var(--accent-2)':'var(--accent)'};">🎾</div>
         <div class="info">
           <div class="title">${escapeHtml(t.name || 'Torneo sin nombre')}</div>
           <div class="meta">
-            <span>${t.format==='principiantes' ? 'Principiantes' : 'Avanzado'}</span>
-            <span>${escapeHtml(status)}</span>
+            <span class="format-pill ${isPrincipiantes?'principiantes':'avanzado'}">${isPrincipiantes ? 'Principiantes' : 'Avanzado'}</span>
+            <span class="status-pill"><span class="status-dot" style="background:${status.color};"></span>${escapeHtml(status.label)}</span>
+            <span>${pairCount} pareja${pairCount===1?'':'s'}</span>
             ${ownerControl}
           </div>
         </div>
@@ -2898,28 +3551,16 @@ function renderParejas(){
     : '';
 
   const ready = getReadyPairs();
-  const btn = document.getElementById('btnGenZones');
+  const countChip = document.getElementById('pairsCountChip');
   const hint = document.getElementById('setupHint');
+  countChip.innerHTML = `<b>${ready.length}</b> pareja${ready.length===1?'':'s'} inscripta${ready.length===1?'':'s'}`;
 
   if(ready.length<3){
-    btn.disabled = true;
-    hint.textContent = `Tenés ${ready.length} pareja(s) completa(s). Faltan ${3-ready.length} más para poder sortear.`;
-  } else if(state.format==='principiantes'){
-    if(ready.length===5){
-      btn.disabled = true;
-      hint.innerHTML = `Con 5 parejas no se pueden armar zonas de solo 3 o 4. Sumá o quitá una pareja.`;
-    } else {
-      btn.disabled = false;
-      const sizes = computeZoneSizes(ready.length);
-      hint.innerHTML = `Con <b>${ready.length}</b> parejas se armarán <b>${sizes.length}</b> zona(s) de ${sizes.join(', ')} parejas, todas jugando todos contra todos.`;
-    }
-  } else if(ready.length<6){
-    btn.disabled = false;
-    hint.innerHTML = `Con <b>${ready.length}</b> parejas se juega todos contra todos en un solo grupo, sin zonas ni llave — gana quien más puntos suma.`;
+    hint.textContent = `Faltan ${3-ready.length} pareja(s) más para poder iniciar el torneo (mínimo 3).`;
+  } else if(state.format==='principiantes' && ready.length===5){
+    hint.innerHTML = `Con 5 parejas no se pueden armar zonas de solo 3 o 4. Sumá o quitá una pareja antes del check-in.`;
   } else {
-    btn.disabled = false;
-    const sizes = computeZoneSizes(ready.length);
-    hint.innerHTML = `Con <b>${ready.length}</b> parejas completas se armarán <b>${sizes.length}</b> zona(s) de ${sizes.join(', ')} parejas respectivamente (las zonas de 4 juegan máximo 2 partidos por pareja).`;
+    hint.textContent = '';
   }
 }
 
@@ -2948,21 +3589,24 @@ function renderZonas(){
     const matchesHtml = zone.matches.map(m=> matchCardHtml(m)).join('');
     const pendingNote = (zone.format==='playoff4' && !zone.matches.some(m=>m.round===2))
       ? `<div class="hint" style="margin-top:8px;">Los partidos de definición (3° y 4° puesto de la zona) se generan solos cuando termine lo de arriba.</div>` : '';
-    const results = computeZoneResults(zone);
+    const anyResult = zoneHasAnyResult(zone);
+    const zoneComplete = isZoneComplete(zone);
     let standingsHtml;
-    if(!results){
+    if(!anyResult){
       standingsHtml = `<div class="empty-state" style="padding:24px 18px;">Posiciones de la zona pendientes — faltan resultados.</div>`;
     } else {
+      const standings = computeZoneStandings(zone);
       standingsHtml = `
+      ${!zoneComplete ? `<div class="hint" style="margin-bottom:10px;">⏳ Posiciones provisorias — se van a actualizando a medida que se cargan resultados. Todavía faltan partidos de esta zona.</div>` : ''}
       <table class="standings">
         <thead><tr>
-          <th>#</th><th>Pareja</th><th class="num">Sets</th><th class="num">Dif.S</th><th class="num">Games</th><th class="num">Dif.G</th>${zone.format==='roundrobin'?'<th class="num">Pts</th>':''}
+          <th>#</th><th>Pareja</th>${thTip('Sets','Sets ganados - perdidos por esta pareja en la zona','num')}${thTip('Dif.S','Diferencia de sets: sets ganados menos perdidos','num')}${thTip('Games','Games ganados - perdidos por esta pareja en la zona','num')}${thTip('Dif.G','Diferencia de games: games ganados menos perdidos (desempate)','num')}${zone.format==='roundrobin'?thTip('Pts','2 puntos por cada partido ganado','num'):''}
         </tr></thead>
         <tbody>
-        ${results.map((s,i)=>`
+        ${standings.map((s,i)=>`
           <tr class="${i===0?'leader':''}">
-            <td><span class="rank-badge">${s.position}</span></td>
-            <td>${escapeHtml(s.name)}</td>
+            <td><span class="rank-badge">${i+1}</span></td>
+            <td>${pairCellHtml(s.name)}</td>
             <td class="num">${s.sf}-${s.sc}</td>
             <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
             <td class="num">${s.gf}-${s.gc}</td>
@@ -2999,10 +3643,9 @@ function renderZonas(){
         <div class="zone-body" style="grid-template-columns:1fr;">
           ${manageHtml}
         </div>
-        <div class="zone-body">
-          <div>${matchesHtml}${pendingNote}</div>
-          <div>${standingsHtml}</div>
-        </div>
+        <div class="zone-matches-grid">${matchesHtml}</div>
+        ${pendingNote ? `<div style="padding:0 20px;">${pendingNote}</div>` : ''}
+        <div class="zone-standings-wrap">${standingsHtml}</div>
       </div>`;
   }).join('') + `</div>`;
 }
@@ -3014,14 +3657,14 @@ function matchCardHtml(m){
     const labelHtml = m.label ? `<div class="hint" style="margin:0 0 6px; color:var(--accent-2);">${escapeHtml(m.label)}</div>` : '';
     if(m.bye){
       return `
-      <div class="match-card">
+      <div class="match-card pending-match">
         ${labelHtml}
         <div class="match-teams"><span class="team-name" style="color:var(--text-faint)">${escapeHtml(m.pendingDesc||'Pendiente de definir')}</span><span class="vs">BYE</span><span class="team-name" style="color:var(--text-faint)">—</span></div>
         <div class="hint">Todavía no se sabe quién pasa directo — depende de una zona en juego.</div>
       </div>`;
     }
     return `
-    <div class="match-card">
+    <div class="match-card pending-match">
       ${labelHtml}
       <div class="match-teams">
         <span class="team-name" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</span>
@@ -3055,19 +3698,43 @@ function matchCardHtml(m){
     resultBanner = `<div class="match-result-banner"><span>${scoreStr}</span><button class="btn btn-ghost btn-sm" onclick="App.editMatch('${m.id}')">Editar</button></div>`;
   }
   const labelHtml = m.label ? `<div class="hint" style="margin:0 0 6px; color:var(--accent-2);">${escapeHtml(m.label)}</div>` : '';
-  const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span><input class="cancha-input" type="text" placeholder="—" value="${escapeAttr(m.cancha||'')}" onchange="App.setMatchCancha('${m.id}', this.value)"></div>`;
+  const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span>${canchaSelectHtml(m)}</div>`;
 
+  let actionHtml = '';
+  if(!m.completed){
+    let startRow = '';
+    if(m.started){
+      startRow = `<div class="incourt-banner"><span class="blink-dot"></span><span class="live-label">JUGANDO</span>${m.cancha?' — Cancha '+escapeHtml(m.cancha):''} <button class="btn btn-ghost btn-sm" onclick="App.cancelStartMatch('${m.id}')">Cancelar inicio</button></div>`;
+    } else {
+      const bothPresent = isPairPresent(m.aId) && isPairPresent(m.bId);
+      const eitherPlaying = isPairPlaying(m.aId) || isPairPlaying(m.bId);
+      if(!bothPresent){
+        startRow = `<div class="hint">⏳ Marcá a las dos parejas como "presente" (pestaña Cancha) para poder iniciar el partido y bloquear la cancha.</div>`;
+      } else if(eitherPlaying){
+        startRow = `<div class="hint">⏳ Una de las dos parejas ya está jugando otro partido.</div>`;
+      } else {
+        startRow = `<button class="btn btn-ghost btn-sm" onclick="App.startMatch('${m.id}')">▶ Iniciar partido (bloquea la cancha)</button>`;
+      }
+    }
+    actionHtml = `${startRow}<div class="sets-row">${setsInputs}</div><button class="btn btn-primary btn-sm" onclick="App.saveMatch('${m.id}')">Guardar resultado</button>`;
+  }
+
+  const statusClass = matchStatusClass(m);
+  const contentWrapClass = m.completed ? 'match-content-gray' : '';
   return `
-    <div class="match-card">
-      ${labelHtml}
-      ${canchaHtml}
-      <div class="match-teams">
-        <span class="team-name ${m.completed && m.winnerId===m.aId?'win':''}">${escapeHtml(nameA)}</span>
-        <span class="vs">VS</span>
-        <span class="team-name ${m.completed && m.winnerId===m.bId?'win':''}">${escapeHtml(nameB)}</span>
+    <div class="match-card ${statusClass}">
+      ${m.completed ? `<div class="finalizado-badge">✔ FINALIZADO</div>` : ''}
+      <div class="${contentWrapClass}">
+        ${labelHtml}
+        ${canchaHtml}
+        <div class="match-teams">
+          <span class="team-name ${m.completed && m.winnerId===m.aId?'win':''}">${escapeHtml(nameA)}</span>
+          <span class="vs">VS</span>
+          <span class="team-name ${m.completed && m.winnerId===m.bId?'win':''}">${escapeHtml(nameB)}</span>
+        </div>
+        ${resultBanner}
+        ${actionHtml}
       </div>
-      ${resultBanner}
-      ${!m.completed ? `<div class="sets-row">${setsInputs}</div><button class="btn btn-primary btn-sm" onclick="App.saveMatch('${m.id}')">Guardar resultado</button>` : ''}
     </div>`;
 }
 
@@ -3106,18 +3773,22 @@ function matchCardReadOnly(m, myPairId){
     </div>`;
   }
   const resultHtml = m.completed
-    ? `<div class="match-result-banner"><span>${m.sets.map(s=>`${s.a}-${s.b}`).join(', ')}</span></div>`
+    ? `<div class="finalizado-badge">✔ FINALIZADO</div><div class="match-result-banner"><span>${m.sets.map(s=>`${s.a}-${s.b}`).join(', ')}</span></div>`
     : `<div class="hint">Sin jugar todavía</div>`;
+  const contentWrapClass = m.completed ? 'match-content-gray' : '';
   return `
-    <div class="match-card" style="${mine?'border-color:var(--accent-2);':''}">
+    <div class="match-card ${matchStatusClass(m)}" style="${mine?'border-color:var(--accent-2);':''}">
       ${labelHtml}
-      ${canchaHtml}
-      <div class="match-teams">
-        <span class="team-name ${m.completed && m.winnerId===m.aId?'win':''}">${escapeHtml(nameA)}</span>
-        <span class="vs">VS</span>
-        <span class="team-name ${m.completed && m.winnerId===m.bId?'win':''}">${escapeHtml(nameB)}</span>
+      ${m.completed?resultHtml:''}
+      <div class="${contentWrapClass}">
+        ${canchaHtml}
+        <div class="match-teams">
+          <span class="team-name ${m.completed && m.winnerId===m.aId?'win':''}">${escapeHtml(nameA)}</span>
+          <span class="vs">VS</span>
+          <span class="team-name ${m.completed && m.winnerId===m.bId?'win':''}">${escapeHtml(nameB)}</span>
+        </div>
+        ${m.completed?'':resultHtml}
       </div>
-      ${resultHtml}
     </div>`;
 }
 
@@ -3137,7 +3808,7 @@ function renderGeneral(){
     const rowsHtml = ranking.map(s=>`
       <tr class="${s.position===1?'leader':''}">
         <td class="num">${s.position}</td>
-        <td>${escapeHtml(s.name)}</td>
+        <td>${pairCellHtml(s.name)}</td>
         <td class="num">${s.pts}</td>
         <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
         <td class="num">${s.diffGames>0?'+':''}${s.diffGames}</td>
@@ -3147,7 +3818,7 @@ function renderGeneral(){
       <div class="general-table-wrap">
         <div class="hint" style="margin-bottom:14px;">Este torneo se juega todos contra todos, sin llave — gana quien más puntos suma.${!zonesDone?' Todavía faltan resultados.':''}</div>
         <table class="gen">
-          <thead><tr><th>#</th><th>Pareja</th><th class="num">Pts</th><th class="num">Dif.S</th><th class="num">Dif.G</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Pareja</th>${thTip('Pts','2 puntos por cada partido ganado','num')}${thTip('Dif.S','Diferencia de sets: sets ganados menos perdidos','num')}${thTip('Dif.G','Diferencia de games: games ganados menos perdidos (desempate)','num')}<th></th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
         ${champId ? `<div class="actions-row" style="margin-top:20px;"><span class="hint">Torneo terminado — cerralo desde la pestaña <b>Llave</b> para archivarlo y sumar los puntos.</span></div>` : ''}
@@ -3169,7 +3840,7 @@ function renderGeneral(){
       return `
         <tr class="${tag.cls==='direct'?'zone-direct':'zone-repechaje'}">
           <td class="num">${s.rank}</td>
-          <td>${escapeHtml(s.name)}</td>
+          <td>${pairCellHtml(s.name)}</td>
           <td>${escapeHtml(s.zoneName)}</td>
           <td class="num">${s.pts===null? '—' : s.pts}</td>
           <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
@@ -3183,7 +3854,7 @@ function renderGeneral(){
         ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⏳ Todavía hay resultados pendientes en la fase de zonas. Las parejas que ya tienen su posición asegurada avanzan igual, sin esperar al resto.</div>` : ''}
         <table class="gen">
           <thead><tr>
-            <th>#</th><th>Pareja</th><th>Zona</th><th class="num">Pts</th><th class="num">Dif.S</th><th class="num">Dif.G</th><th>Clasificación</th>
+            <th>#</th><th>Pareja</th><th>Zona</th>${thTip('Pts','2 puntos por cada partido ganado','num')}${thTip('Dif.S','Diferencia de sets: sets ganados menos perdidos','num')}${thTip('Dif.G','Diferencia de games: games ganados menos perdidos (desempate)','num')}<th>Clasificación</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
@@ -3206,7 +3877,7 @@ function renderGeneral(){
     return `
       <tr class="${isDirect?'zone-direct':'zone-repechaje'}">
         <td class="num">${s.rank}</td>
-        <td>${escapeHtml(s.name)}</td>
+        <td>${pairCellHtml(s.name)}</td>
         <td>${escapeHtml(s.zoneName)}</td>
         <td class="num">${s.pts===null? '—' : s.pts}</td>
         <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
@@ -3220,7 +3891,7 @@ function renderGeneral(){
       ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⏳ Todavía hay resultados pendientes en la fase de zonas. Las parejas que ya tienen su posición asegurada avanzan igual, sin esperar al resto.</div>` : ''}
       <table class="gen">
         <thead><tr>
-          <th>#</th><th>Pareja</th><th>Zona</th><th class="num">Pts</th><th class="num">Dif.S</th><th class="num">Dif.G</th><th>Instancia</th>
+          <th>#</th><th>Pareja</th><th>Zona</th>${thTip('Pts','2 puntos por cada partido ganado','num')}${thTip('Dif.S','Diferencia de sets: sets ganados menos perdidos','num')}${thTip('Dif.G','Diferencia de games: games ganados menos perdidos (desempate)','num')}<th>Instancia</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
@@ -3283,9 +3954,10 @@ function renderLlave(){
   if(!state.segunda){
     segundaHtml = `<div class="empty-state">La Segunda Instancia se habilita cuando termine la Primera Instancia.</div>`;
   } else {
+    const diagramHtml = renderBracketDiagram(state.segunda.rounds, state.segunda.totalRounds);
     const cols = state.segunda.rounds.map((round, idx)=>{
       const label = roundLabel(state.segunda.totalRounds, idx, round.length);
-      const matchesHtml = round.map(m=> bracketMatchHtml(m)).join('');
+      const matchesHtml = round.map(m=> `<div id="detail-match-${m.id}">${bracketMatchHtml(m)}</div>`).join('');
       return `<div class="bracket-col"><div class="round-label">${label}</div>${matchesHtml}</div>`;
     }).join('');
 
@@ -3296,6 +3968,8 @@ function renderLlave(){
       <div class="bracket-section">
         <h3 class="round-label" style="text-align:left;">Segunda instancia</h3>
         ${rematchNote}
+        ${diagramHtml}
+        <div class="divider-note">Detalle de cada partido — cargá resultado, cancha, o iniciá el partido acá abajo (tocá un partido del diagrama de arriba para saltar directo a él).</div>
         <div class="bracket-cols">${cols}</div>
         ${state.segunda.champion ? `
           <div class="champion-banner">
@@ -3314,11 +3988,102 @@ function renderLlave(){
   c.innerHTML = primeraHtml + segundaHtml;
 }
 
+/* ---- diagrama gráfico de la llave (columnas por instancia + líneas conectoras) ---- */
+function diagMatchHtml(m){
+  if(m.pending){
+    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || m.pendingDesc || 'Pendiente');
+    const nameB = m.bye ? null : (m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente'));
+    return `
+      <div class="diag-match pending">
+        <div class="diag-side" style="color:var(--text-faint); font-style:italic;">${escapeHtml(nameA)}</div>
+        ${m.bye ? `<div class="diag-side loser">BYE</div>` : `<div class="diag-side" style="color:var(--text-faint); font-style:italic;">${escapeHtml(nameB)}</div>`}
+      </div>`;
+  }
+  if(m.bye){
+    return `
+      <div class="diag-match" onclick="App.focusMatch('${m.id}')">
+        <div class="diag-side winner">${escapeHtml(getPairName(m.aId||m.bId))}</div>
+        <div class="diag-side loser">BYE</div>
+      </div>`;
+  }
+  const nameA = getPairName(m.aId), nameB = getPairName(m.bId);
+  if(m.completed){
+    const scoreStr = m.sets.map(s=>`${s.a}-${s.b}`).join(', ');
+    return `
+      <div class="diag-match completed-match" onclick="App.focusMatch('${m.id}')" title="Ver detalle del partido">
+        <div class="diag-content-gray">
+          <div class="diag-side">${escapeHtml(nameA)}</div>
+          <div class="diag-side">${escapeHtml(nameB)}</div>
+        </div>
+        <div class="diag-finalizado">✔ FINALIZADO — ${scoreStr}</div>
+      </div>`;
+  }
+  let footer;
+  if(m.started){
+    footer = `<div class="diag-live"><span class="blink-dot"></span>JUGANDO${m.cancha?' — Cancha '+escapeHtml(m.cancha):''}</div>`;
+  } else {
+    footer = `<div class="diag-hint-line">Sin jugar todavía</div>`;
+  }
+  return `
+    <div class="diag-match ${matchStatusClass(m)}" onclick="App.focusMatch('${m.id}')" title="Ver detalle del partido">
+      <div class="diag-side">${escapeHtml(nameA)}</div>
+      <div class="diag-side">${escapeHtml(nameB)}</div>
+      ${footer}
+    </div>`;
+}
+
+function bracketConnectorsHtml(nFrom, nTo){
+  let html = '';
+  for(let k=0;k<nTo;k++){
+    const topA = (2*k+0.5)/nFrom*100;
+    const topB = (2*k+1+0.5)/nFrom*100;
+    const topOut = (k+0.5)/nTo*100;
+    const top = Math.min(topA, topB), bottom = Math.max(topA, topB);
+    html += `<div class="conn-h" style="top:${topA}%; left:0; width:50%;"></div>`;
+    html += `<div class="conn-h" style="top:${topB}%; left:0; width:50%;"></div>`;
+    html += `<div class="conn-v" style="top:${top}%; height:${bottom-top}%; left:50%;"></div>`;
+    html += `<div class="conn-h" style="top:${topOut}%; left:50%; width:50%;"></div>`;
+  }
+  return html;
+}
+
+function renderBracketDiagram(rounds, totalRounds){
+  const colWidth = 200, gapWidth = 34;
+  const headerRow = rounds.map((round,idx)=>{
+    const header = `<div class="bracket-round-header" style="width:${colWidth}px;">${escapeHtml(roundLabel(totalRounds, idx, round.length))}</div>`;
+    return idx < rounds.length-1 ? header + `<div class="bracket-gap-spacer" style="width:${gapWidth}px;"></div>` : header;
+  }).join('');
+
+  const bodyRow = rounds.map((round, idx)=>{
+    const slots = round.map(m=> `<div class="bracket-slot">${diagMatchHtml(m)}</div>`).join('');
+    let part = `<div class="bracket-round-body" style="width:${colWidth}px;">${slots}</div>`;
+    if(idx < rounds.length-1){
+      const connectors = bracketConnectorsHtml(round.length, rounds[idx+1].length);
+      part += `<div class="bracket-connector-layer" style="width:${gapWidth}px;">${connectors}</div>`;
+    }
+    return part;
+  }).join('');
+
+  return `
+    <div class="bracket-diagram">
+      <div class="bracket-headers-row">${headerRow}</div>
+      <div class="bracket-body-row">${bodyRow}</div>
+    </div>`;
+}
+
+App.focusMatch = function(matchId){
+  const el = document.getElementById('detail-match-'+matchId);
+  if(!el) return;
+  if(el.scrollIntoView) el.scrollIntoView({behavior:'smooth', block:'center'});
+  el.classList.add('flash-highlight');
+  setTimeout(()=> el.classList.remove('flash-highlight'), 1400);
+};
+
 function bracketMatchHtml(m){
   if(m.pending){
     if(m.bye){
       return `
-        <div class="bmatch">
+        <div class="bmatch pending-match">
           <div class="side" style="color:var(--text-faint); font-style:italic;">${escapeHtml(m.pendingDesc||'Pendiente de definir')}</div>
           <div class="mid-line"></div>
           <div class="side loser">BYE</div>
@@ -3327,7 +4092,7 @@ function bracketMatchHtml(m){
     const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || 'Pendiente de definir');
     const nameB = m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir');
     return `
-      <div class="bmatch">
+      <div class="bmatch pending-match">
         <div class="side" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</div>
         <div class="mid-line"></div>
         <div class="side" style="${m.bId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameB)}</div>
@@ -3343,16 +4108,19 @@ function bracketMatchHtml(m){
       </div>`;
   }
   const nameA = getPairName(m.aId), nameB = getPairName(m.bId);
-  const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span><input class="cancha-input" type="text" placeholder="—" value="${escapeAttr(m.cancha||'')}" onchange="App.setMatchCancha('${m.id}', this.value)"></div>`;
+  const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span>${canchaSelectHtml(m)}</div>`;
   if(m.completed){
     const scoreStr = m.sets.map(s=>`${s.a}-${s.b}`).join(', ');
     return `
-      <div class="bmatch">
-        ${canchaHtml}
-        <div class="side ${m.winnerId===m.aId?'winner':'loser'}">${escapeHtml(nameA)}</div>
-        <div class="mid-line"></div>
-        <div class="side ${m.winnerId===m.bId?'winner':'loser'}">${escapeHtml(nameB)}</div>
-        <div class="match-result-banner" style="margin-top:8px;"><span>${scoreStr}</span><button class="btn btn-ghost btn-sm" onclick="App.editMatch('${m.id}')">Editar</button></div>
+      <div class="bmatch completed-match">
+        <div class="finalizado-badge">✔ FINALIZADO</div>
+        <div class="match-content-gray">
+          ${canchaHtml}
+          <div class="side ${m.winnerId===m.aId?'winner':'loser'}">${escapeHtml(nameA)}</div>
+          <div class="mid-line"></div>
+          <div class="side ${m.winnerId===m.bId?'winner':'loser'}">${escapeHtml(nameB)}</div>
+          <div class="match-result-banner" style="margin-top:8px;"><span>${scoreStr}</span><button class="btn btn-ghost btn-sm" onclick="App.editMatch('${m.id}')">Editar</button></div>
+        </div>
       </div>`;
   }
   const setsInputs = `
@@ -3362,12 +4130,27 @@ function bracketMatchHtml(m){
         <span class="set-sep">-</span>
         <input id="set-${m.id}-0-b" type="text" inputmode="numeric" maxlength="2" value="">
       </div>`;
+  let startRow;
+  if(m.started){
+    startRow = `<div class="incourt-banner"><span class="blink-dot"></span><span class="live-label">JUGANDO</span>${m.cancha?' — Cancha '+escapeHtml(m.cancha):''} <button class="btn btn-ghost btn-sm" onclick="App.cancelStartMatch('${m.id}')">Cancelar inicio</button></div>`;
+  } else {
+    const bothPresent = isPairPresent(m.aId) && isPairPresent(m.bId);
+    const eitherPlaying = isPairPlaying(m.aId) || isPairPlaying(m.bId);
+    if(!bothPresent){
+      startRow = `<div class="hint">⏳ Marcá a las dos parejas como "presente" para poder iniciar y bloquear la cancha.</div>`;
+    } else if(eitherPlaying){
+      startRow = `<div class="hint">⏳ Una de las dos parejas ya está jugando otro partido.</div>`;
+    } else {
+      startRow = `<button class="btn btn-ghost btn-sm" onclick="App.startMatch('${m.id}')">▶ Iniciar partido (bloquea la cancha)</button>`;
+    }
+  }
   return `
-    <div class="bmatch">
+    <div class="bmatch ${matchStatusClass(m)}">
       ${canchaHtml}
       <div class="side">${escapeHtml(nameA)}</div>
       <div class="mid-line"></div>
       <div class="side">${escapeHtml(nameB)}</div>
+      ${startRow}
       <div class="sets-row">${setsInputs}</div>
       <button class="btn btn-primary btn-sm" onclick="App.saveMatch('${m.id}')">Guardar resultado</button>
     </div>`;
@@ -3408,25 +4191,30 @@ function bracketMatchReadOnly(m, myPairId){
   if(m.completed){
     const scoreStr = m.sets.map(s=>`${s.a}-${s.b}`).join(', ');
     return `
-      <div class="bmatch" style="${borderStyle}">
-        ${canchaHtml}
-        <div class="side ${m.winnerId===m.aId?'winner':'loser'}">${escapeHtml(nameA)}</div>
-        <div class="mid-line"></div>
-        <div class="side ${m.winnerId===m.bId?'winner':'loser'}">${escapeHtml(nameB)}</div>
-        <div class="match-result-banner" style="margin-top:8px;"><span>${scoreStr}</span></div>
+      <div class="bmatch completed-match" style="${borderStyle}">
+        <div class="finalizado-badge">✔ FINALIZADO</div>
+        <div class="match-content-gray">
+          ${canchaHtml}
+          <div class="side ${m.winnerId===m.aId?'winner':'loser'}">${escapeHtml(nameA)}</div>
+          <div class="mid-line"></div>
+          <div class="side ${m.winnerId===m.bId?'winner':'loser'}">${escapeHtml(nameB)}</div>
+          <div class="match-result-banner" style="margin-top:8px;"><span>${scoreStr}</span></div>
+        </div>
       </div>`;
   }
   return `
-    <div class="bmatch" style="${borderStyle}">
+    <div class="bmatch ${matchStatusClass(m)}" style="${borderStyle}">
       ${canchaHtml}
       <div class="side">${escapeHtml(nameA)}</div>
       <div class="mid-line"></div>
       <div class="side">${escapeHtml(nameB)}</div>
-      <div class="hint" style="margin-top:8px;">Sin jugar todavía</div>
+      ${m.started ? `<div class="live-label" style="margin-top:6px;"><span class="blink-dot"></span>JUGANDO</div>` : `<div class="hint" style="margin-top:8px;">Sin jugar todavía</div>`}
     </div>`;
 }
 
-/* ---- Historial ---- */
+/* ---- Torneos Finalizados ---- */
+let expandedArchiveView = new Set();
+
 function renderHistorial(){
   const c = document.getElementById('historialContainer');
   if(archive.length===0){
@@ -3443,17 +4231,46 @@ function renderHistorial(){
         <span class="pill">${t.totalPairs} parejas</span>
       </div>
       <div class="archive-champ">🏆 Campeón: <b>${escapeHtml(t.championName)}</b></div>
-      <button class="archive-toggle" onclick="App.toggleArchive('${t.id}')">${expandedPlayers.has('arch-'+t.id) ? 'ocultar resultados' : 'ver resultados'}</button>
+      <div class="actions-row" style="margin-top:8px; gap:14px;">
+        <button class="archive-toggle" onclick="App.toggleArchive('${t.id}')">${expandedPlayers.has('arch-'+t.id) ? 'ocultar resultados' : 'ver resultados'}</button>
+        <button class="archive-toggle" onclick="App.toggleArchiveView('${t.id}')">${expandedArchiveView.has(t.id) ? 'ocultar torneo completo' : '👁 ver torneo completo (solo lectura)'}</button>
+      </div>
       ${expandedPlayers.has('arch-'+t.id) ? `
         <div class="archive-results">
           ${t.results.map(r=>`<div class="ar-row"><span>${escapeHtml(r.pairName)}</span><span>${escapeHtml(r.stageLabel)} · +${r.points} pts</span></div>`).join('')}
         </div>` : ''}
+      ${expandedArchiveView.has(t.id) ? `
+        <div class="archive-fullview" style="margin-top:16px; border-top:1px dashed var(--line-strong); padding-top:16px;">
+          <div class="hint" style="margin-bottom:10px;">🔒 Vista de solo lectura — este torneo ya está cerrado y no se puede editar.</div>
+          <h3 class="round-label" style="text-align:left;">Zonas</h3>
+          <div id="arcview-zonas-${t.id}"></div>
+          <h3 class="round-label" style="text-align:left; margin-top:20px;">Llave</h3>
+          <div id="arcview-llave-${t.id}"></div>
+          <h3 class="round-label" style="text-align:left; margin-top:20px;">Tabla de puntos</h3>
+          <div id="arcview-tabla-${t.id}"></div>
+        </div>` : ''}
     </div>
   `).join('');
+
+  expandedArchiveView.forEach(id=>{
+    const t = archive.find(a=>a.id===id);
+    if(!t) return;
+    const savedState = state;
+    state = t.snapshot;
+    try{
+      renderJugadorViewBody(null, false, {zonas:`arcview-zonas-${id}`, llave:`arcview-llave-${id}`, tabla:`arcview-tabla-${id}`});
+    } finally {
+      state = savedState;
+    }
+  });
 }
 App.toggleArchive = function(id){
   const key = 'arch-'+id;
   if(expandedPlayers.has(key)) expandedPlayers.delete(key); else expandedPlayers.add(key);
+  render();
+};
+App.toggleArchiveView = function(id){
+  if(expandedArchiveView.has(id)) expandedArchiveView.delete(id); else expandedArchiveView.add(id);
   render();
 };
 
