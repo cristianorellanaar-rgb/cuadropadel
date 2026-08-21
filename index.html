@@ -764,6 +764,10 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         </select>
       </div>
       <div class="modal-field-row">
+        <label>Horario</label>
+        <select id="newTournamentHorario"></select>
+      </div>
+      <div class="modal-field-row">
         <label>Cantidad de canchas</label>
         <select id="newTournamentCourts"></select>
       </div>
@@ -1032,6 +1036,7 @@ function freshTournament(){
     format: 'avanzado',
     clubId: null,
     categoria: '',
+    horario: '',
     ownerCoordinador: null,
     pairs: [],
     zones: [],
@@ -2514,6 +2519,13 @@ App.openNewTournamentModal = function(){
   const courtsSelect = document.getElementById('newTournamentCourts');
   courtsSelect.innerHTML = Array.from({length:15},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===4?'selected':''}>${n}</option>`).join('');
 
+  const horarioSelect = document.getElementById('newTournamentHorario');
+  const currentHour = new Date().getHours();
+  horarioSelect.innerHTML = Array.from({length:25},(_,i)=>i).map(h=>{
+    const label = String(h).padStart(2,'0')+':00';
+    return `<option value="${h}" ${h===currentHour?'selected':''}>${label}</option>`;
+  }).join('');
+
   document.getElementById('newTournamentNewClubRow').style.display = 'none';
   document.getElementById('newTournamentNewClubName').value = '';
   document.getElementById('newTournamentNewClubAddress').value = '';
@@ -2572,6 +2584,13 @@ App.confirmCreateTournament = function(){
   t.courtCount = courts;
   t.format = formatSelect.value;
   if(currentUser && currentUser.role==='coordinador') t.ownerCoordinador = currentUser.username;
+
+  const clubForName = clubsDB.find(c=>c.id===clubId);
+  const horarioSelect = document.getElementById('newTournamentHorario');
+  const horaStr = String(horarioSelect.value).padStart(2,'0')+':00';
+  const fechaStr = new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  t.horario = horarioSelect.value;
+  t.name = `Torneo ${t.categoria} ${clubForName ? clubForName.name : ''} ${fechaStr} ${horaStr}`.replace(/\s+/g,' ').trim();
 
   tournaments.push(t);
   state = t;
