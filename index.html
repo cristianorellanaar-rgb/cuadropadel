@@ -2763,6 +2763,7 @@ App.iniciarTorneo = function(){
   nav.torneoSubTab='zonas';
   refreshBracket();
   render();
+  alert('🎾 Torneo iniciado. Asegurate de que las parejas tengan el tubo de pelotas, y recordales que la pareja que perdió se queda en cancha para el próximo partido.');
 };
 
 App.reiniciarTorneo = function(){
@@ -2862,11 +2863,29 @@ App.saveMatch = function(matchId){
   match.winnerId = setsA>setsB ? match.aId : match.bId;
   match.started = false; // se libera la cancha y las parejas quedan disponibles para otro partido
 
-  if(loc.type==='zone') advanceZonePlayoff(loc.zone);
+  if(loc.type==='zone'){
+    advanceZonePlayoff(loc.zone);
+    reorderZoneMatchesAfterResult(loc.zone, match);
+  }
   refreshBracket();
   if(loc.type==='segunda') advanceSegunda();
   render();
 };
+
+function reorderZoneMatchesAfterResult(zone, completedMatch){
+  // en zonas todos-contra-todos: priorizar que la pareja que PERDIÓ juegue el próximo partido de la zona
+  // (si vuelve a perder, ya queda matemáticamente afuera de los primeros puestos sin esperar el resto de la zona)
+  if(zone.format!=='roundrobin') return;
+  const loserId = completedMatch.winnerId===completedMatch.aId ? completedMatch.bId : completedMatch.aId;
+  const done = zone.matches.filter(m=>m.completed);
+  const pending = zone.matches.filter(m=>!m.completed);
+  pending.sort((m1,m2)=>{
+    const p1 = (m1.aId===loserId || m1.bId===loserId) ? 0 : 1;
+    const p2 = (m2.aId===loserId || m2.bId===loserId) ? 0 : 1;
+    return p1-p2;
+  });
+  zone.matches = [...done, ...pending];
+}
 
 App.editMatch = function(matchId){
   const loc = locateMatch(matchId);
@@ -3040,9 +3059,11 @@ function refreshBracket(){
     buildBracketAvanzado();
   }
   tryGenerateSegunda();
+  advanceSegunda();
 }
 
 App.generateBracket = function(){
+  alert('📸 Ya estamos en fase de eliminación. Acordate de tomar las fotos a los participantes.');
   refreshBracket();
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'llave';
@@ -3064,14 +3085,15 @@ function havePlayedBefore(playedSet, a, b){
 
 function deClashRound1(round1){
   const played = getPlayedPairsSet();
-  const isClash = (m)=> !m.bye && !m.pending && havePlayedBefore(played, m.aId, m.bId);
+  const isClash = (m)=> !m.bye && !m.pending && !m.completed && havePlayedBefore(played, m.aId, m.bId);
   const rematches = [];
 
   for(let i=0;i<round1.length;i++){
+    if(round1[i].completed){ continue; } // ya jugado: nunca se toca, sin importar si es una revancha inevitable
     if(!isClash(round1[i])) continue;
     let fixed = false;
     for(let j=0;j<round1.length && !fixed;j++){
-      if(j===i || round1[j].bye || round1[j].pending) continue;
+      if(j===i || round1[j].bye || round1[j].pending || round1[j].completed) continue;
       for(const side of ['bId','aId']){
         const tmp = round1[i][side];
         round1[i][side] = round1[j][side];
@@ -3092,7 +3114,6 @@ function deClashRound1(round1){
 
 function tryGenerateSegunda(){
   if(!state.primera) return;
-  if(state.segunda && state.segunda.rounds.length>1) return; // ya avanzó de ronda: la ronda 1 queda fija
 
   // el tamaño del cuadro es fijo desde el principio: parejas directas + un cupo por cada partido de repechaje
   const directEntries = state.primera.directRanked;
@@ -3115,11 +3136,20 @@ function tryGenerateSegunda(){
 
   const round1=[];
   for(let i=0;i<slots.length;i+=2){
+    const slotIdx = i/2;
+    const oldMatch = existingMatches[slotIdx];
+    // una vez que un cruce de la ronda 1 queda resuelto (jugado o no), se congela para siempre en esa posición:
+    // así, si otra zona termina después y el sembrado "ideal" cambiaría, nunca se pierde un resultado ya jugado
+    // ni se le cambia el rival a una pareja que ya sabía contra quién jugaba.
+    if(oldMatch && !oldMatch.pending && (oldMatch.aId || oldMatch.bId || oldMatch.completed)){
+      round1.push(oldMatch);
+      continue;
+    }
     const a=slots[i], b=slots[i+1];
     if(!a || !b){
       // bye estructural del cuadro (no alcanza la cantidad total de parejas)
       const only = a||b;
-      if(!only){ round1.push({id:uid(), aId:null,bId:null, sets:[], completed:false, winnerId:null, bye:false, cancha:''}); continue; }
+      if(!only){ round1.push({id:uid(), aId:null,bId:null, sets:[], completed:false, winnerId:null, bye:false, pending:true, cancha:''}); continue; }
       if(only.pending){
         round1.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: only.pendingDesc, cancha:''});
       } else {
@@ -3143,23 +3173,54 @@ function tryGenerateSegunda(){
   }
 
   const unavoidableRematches = deClashRound1(round1);
-  state.segunda = { rounds:[round1], totalRounds: Math.log2(pow2), champion:null, unavoidableRematches: unavoidableRematches.length };
+  const existingLaterRounds = (state.segunda && state.segunda.rounds.length>1) ? state.segunda.rounds.slice(1) : [];
+  state.segunda = { rounds:[round1, ...existingLaterRounds], totalRounds: Math.log2(pow2), champion:null, unavoidableRematches: unavoidableRematches.length };
+}
+
+function buildNextRoundProgressive(prevRound, existingNext){
+  existingNext = existingNext || [];
+  const findExisting = (aId,bId)=> existingNext.find(m=> !m.bye && !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
+  const descFor = (m)=> m.pending
+    ? (m.pendingDesc || `${m.pendingDescA||'?'} vs ${m.pendingDescB||'?'}`)
+    : `${getPairName(m.aId)} vs ${getPairName(m.bId)}`;
+
+  const nextRound = [];
+  for(let i=0;i<prevRound.length;i+=2){
+    const a = prevRound[i], b = prevRound[i+1];
+    const aDone = !!a.winnerId && !a.pending;
+    const bDone = !!b.winnerId && !b.pending;
+    if(aDone && bDone){
+      nextRound.push(findExisting(a.winnerId, b.winnerId) || {
+        id:uid(), aId:a.winnerId, bId:b.winnerId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''
+      });
+    } else {
+      nextRound.push({
+        id:uid(),
+        aId: aDone ? a.winnerId : null,
+        bId: bDone ? b.winnerId : null,
+        sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true,
+        pendingDescA: aDone ? null : `Ganador: ${descFor(a)}`,
+        pendingDescB: bDone ? null : `Ganador: ${descFor(b)}`,
+        cancha:''
+      });
+    }
+  }
+  return nextRound;
 }
 
 function advanceSegunda(){
   if(!state.segunda) return;
   const rounds = state.segunda.rounds;
-  const last = rounds[rounds.length-1];
-  if(!last.every(m=>m.completed)) return;
-  if(last.length===1){ state.segunda.champion = last[0].winnerId; return; }
-  const next=[];
-  for(let i=0;i<last.length;i+=2){
-    next.push({
-      id:uid(), aId:last[i].winnerId, bId:last[i+1].winnerId,
-      sets:emptySets(), completed:false, winnerId:null, bye:false, cancha:''
-    });
+  const totalRounds = state.segunda.totalRounds;
+  for(let r=1; r<totalRounds; r++){
+    rounds[r] = buildNextRoundProgressive(rounds[r-1], rounds[r]);
   }
-  rounds.push(next);
+  const finalRound = rounds[rounds.length-1];
+  if(finalRound.length===1 && !finalRound[0].pending && finalRound[0].winnerId){
+    state.segunda.champion = finalRound[0].winnerId;
+  } else {
+    state.segunda.champion = null;
+  }
 }
 
 /* ---- cerrar torneo / archivar / sumar puntos ---- */
@@ -3786,6 +3847,13 @@ function renderZonas(){
         <div class="zone-standings-wrap">${standingsHtml}</div>
       </div>`;
   }).join('') + `</div>`;
+
+  if(allZoneMatchesComplete()){
+    c.innerHTML += `
+      <div class="actions-row" style="margin-top:10px; max-width:920px;">
+        <button class="btn btn-primary" onclick="switchSubTab('general')">✅ Todas las zonas completas — Ir a Clasificación →</button>
+      </div>`;
+  }
 }
 
 function matchCardHtml(m){
