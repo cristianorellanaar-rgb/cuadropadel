@@ -501,6 +501,14 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
 }
 .modal-title{font-family:var(--font-display); font-size:16px; margin-bottom:16px;}
 .custom-dialog-msg{font-size:13.5px; color:var(--text-dim); line-height:1.5; white-space:pre-line;}
+.format-choice-list{display:flex; flex-direction:column; gap:10px;}
+.format-choice-option{
+  display:block; width:100%; text-align:left; background:var(--panel-2); border:2px solid var(--line);
+  border-radius:var(--radius); padding:14px 16px; cursor:pointer; transition:border-color .15s;
+}
+.format-choice-option:hover{border-color:var(--accent-2);}
+.fc-title{font-family:var(--font-display); font-size:14.5px; font-weight:600; margin-bottom:6px; color:var(--text);}
+.fc-desc{font-size:12px; color:var(--text-dim); line-height:1.5;}
 .modal-field-row{display:flex; flex-direction:column; gap:5px; margin-bottom:14px; font-size:12.5px; color:var(--text-dim);}
 .modal-field-row select, .modal-field-row input[type="text"]{
   background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text);
@@ -941,18 +949,30 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <label>Cantidad de canchas</label>
         <select id="newTournamentCourts"></select>
       </div>
-      <div class="modal-field-row">
-        <label>Formato de torneo</label>
-        <select id="newTournamentFormat">
-          <option value="grupo">3 a 5 parejas - Todos contra todos</option>
-          <option value="principiantes">Torneo Americano Principiante</option>
-          <option value="avanzado" selected>Torneo Americano Avanzado</option>
-        </select>
-      </div>
       <div class="modal-actions" style="margin-top:16px;">
         <button class="btn btn-primary" onclick="App.confirmCreateTournament()">Crear torneo</button>
         <button class="btn btn-ghost btn-sm" onclick="App.closeNewTournamentModal()">Cancelar</button>
       </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="formatChoiceModalOverlay" style="display:none;">
+    <div class="modal-box" style="text-align:left; max-width:480px;">
+      <div class="modal-title" style="text-align:center;">Elegí el formato del torneo</div>
+      <div class="format-choice-list">
+        <button class="format-choice-option" onclick="App.chooseFormat('grupo')">
+          <div class="fc-title">3 a 5 parejas · Todos contra todos</div>
+          <div class="fc-desc">Para grupos chicos. Todas las parejas juegan entre sí una vez; gana quien más puntos suma. No arma zonas ni llave de eliminación.</div>
+        </button>
+        <button class="format-choice-option" onclick="App.chooseFormat('principiantes')">
+          <div class="fc-title">Torneo en Zonas de 3,4</div>
+          <div class="fc-desc">Todos contra todos - Clasifican todos a la siguiente instancia. Las parejas mejor posicionadas pasan directo a llave, y las de menor puntaje, dependiendo la cantidad de parejas, juegan un repechaje como tercer partido para poder avanzar.</div>
+        </button>
+        <button class="format-choice-option" onclick="App.chooseFormat('avanzado')">
+          <div class="fc-title">Torneo en Zonas de 3,4 (Reducido)</div>
+          <div class="fc-desc">Zonas de 4 juegan 2 partidos. Se arma una tabla general, donde los mejores posicionados pasan directo a llave, y dependiendo la cantidad de parejas, los de menor puntaje juegan un partido repechaje/eliminación para poder avanzar.</div>
+        </button>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:14px;" onclick="App.closeFormatChoiceModal()">Cancelar</button>
     </div>
   </div>
   <div class="modal-overlay" id="paymentModalOverlay" style="display:none;">
@@ -1203,6 +1223,8 @@ let clubsDB = [];     // [{id,name,courts,address,createdAt}]
 let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
 let coordinadoresDB = []; // [{id,email,password,createdAt}]
 let adminEmails = []; // correos adicionales con rol de administrador (además de ADMIN_EMAIL, que siempre es admin)
+let sessions = {}; // { "rol:correo": tokenDeSesionActivo } — para detectar inicio de sesión desde otro dispositivo
+let mySessionToken = null;
 let tournaments = [];  // [{tournamentId,name,format,ownerCoordinador,pairs,zones,smallMode,primera,segunda,createdAt}] — cada uno vive en su propio documento
 
 const ADMIN_PASSWORD = 'SUNAdm1n';
@@ -1287,6 +1309,7 @@ function freshTournament(){
     tournamentId: uid(),
     name: '',
     format: 'avanzado',
+    formatChosen: false,
     clubId: null,
     categoria: '',
     tipo: 'Caballero',
@@ -1318,6 +1341,7 @@ function sanitizeTournament(t){
   if(t.clubId===undefined) t.clubId = null;
   if(t.categoria===undefined) t.categoria = '';
   if(t.tipo===undefined) t.tipo = 'Caballero';
+  if(t.formatChosen===undefined) t.formatChosen = true; // torneos de antes de este cambio: ya tenían formato elegido
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -1341,7 +1365,7 @@ function scheduleSaveMain(){
   clearTimeout(saveMainTimer);
   saveMainTimer = setTimeout(async ()=>{
     if(liveSyncActive && firestoreDocRef){
-      try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, updatedAt: Date.now() }); }
+      try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() }); }
       catch(e){ console.error('Error guardando en Firebase', e); }
       return;
     }
@@ -1353,6 +1377,7 @@ function scheduleSaveMain(){
         await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
         await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
         await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
+        await window.storage.set('sessions-db', JSON.stringify(sessions), false);
       }catch(e){ console.error('Error guardando', e); }
     }
   }, 350);
@@ -1391,8 +1416,10 @@ function applyRemoteMain(data){
   upcomingTournaments = data.upcomingTournaments || [];
   coordinadoresDB = data.coordinadoresDB || [];
   adminEmails = data.adminEmails || [];
+  sessions = data.sessions || {};
   renderUI();
   applyingRemote = false;
+  checkSessionStillValid();
 }
 
 function applyRemoteTournaments(snap){
@@ -1454,6 +1481,7 @@ async function initApp(){
       upcomingTournaments = mainData.upcomingTournaments || [];
       coordinadoresDB = mainData.coordinadoresDB || [];
       adminEmails = mainData.adminEmails || [];
+      sessions = mainData.sessions || {};
 
       const toursSnap = await tournamentsColRef.get();
       tournaments = toursSnap.docs.map(d=> sanitizeTournament(d.data()));
@@ -1467,7 +1495,7 @@ async function initApp(){
       }
 
       if(!mainSnap.exists){
-        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, updatedAt: Date.now() });
+        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() });
       }
 
       liveSyncActive = true;
@@ -1497,6 +1525,7 @@ async function initApp(){
     try{ const r = await window.storage.get('clubs-db', false); clubsDB = r? JSON.parse(r.value): []; }catch(e){ clubsDB = []; }
     try{ const r = await window.storage.get('coordinadores-db', false); coordinadoresDB = r? JSON.parse(r.value): []; }catch(e){ coordinadoresDB = []; }
     try{ const r = await window.storage.get('admin-emails', false); adminEmails = r? JSON.parse(r.value): []; }catch(e){ adminEmails = []; }
+    try{ const r = await window.storage.get('sessions-db', false); sessions = r? JSON.parse(r.value): {}; }catch(e){ sessions = {}; }
     try{ const r = await window.storage.get('upcoming-tournaments', false); upcomingTournaments = r? JSON.parse(r.value): []; }catch(e){ upcomingTournaments = []; }
     try{ const r = await window.storage.get('active-tournaments', false); tournaments = r? JSON.parse(r.value).map(sanitizeTournament): []; }catch(e){ tournaments = []; }
     if(tournaments.length===0){
@@ -1507,7 +1536,11 @@ async function initApp(){
     }
   }
 
-  showLoginScreen();
+  if(tryRestoreSession()){
+    showAppForCurrentUser();
+  } else {
+    showLoginScreen();
+  }
   checkEmailLinkOnLoad();
 }
 
@@ -1540,14 +1573,14 @@ App.attemptLogin = function(){
   const resolved = resolveRoleForEmail(email);
   if(resolved.role==='admin'){
     if(pass !== ADMIN_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
-    currentUser = {role:'admin'};
+    currentUser = {role:'admin', email:email.trim().toLowerCase()};
     onLoginSuccess();
     return;
   }
   if(resolved.role==='coordinador'){
     const coord = coordinadoresDB.find(c=> c.email.trim().toLowerCase()===email.toLowerCase());
     if(!coord.password || pass !== coord.password){ errEl.textContent = 'Contraseña incorrecta.'; return; }
-    currentUser = {role:'coordinador', username:coord.email};
+    currentUser = {role:'coordinador', username:coord.email, email:coord.email.trim().toLowerCase()};
     onLoginSuccess();
     return;
   }
@@ -1555,7 +1588,7 @@ App.attemptLogin = function(){
   const existingPlayer = findPlayerByEmail(email);
   if(existingPlayer && existingPlayer.customPassword){
     if(pass !== existingPlayer.customPassword){ errEl.textContent = 'Contraseña incorrecta.'; return; }
-    currentUser = {role:'jugador', playerId:existingPlayer.id, name:existingPlayer.name};
+    currentUser = {role:'jugador', playerId:existingPlayer.id, name:existingPlayer.name, email:(existingPlayer.email||'').trim().toLowerCase()};
     onLoginSuccess();
     return;
   }
@@ -1569,7 +1602,72 @@ App.attemptLogin = function(){
   }
 };
 
-function onLoginSuccess(){
+function identityKeyForUser(user){
+  if(!user || !user.email) return null;
+  return user.role + ':' + user.email.trim().toLowerCase();
+}
+
+function establishSession(){
+  const key = identityKeyForUser(currentUser);
+  if(!key) return;
+  mySessionToken = uid();
+  sessions[key] = mySessionToken;
+  scheduleSaveMain();
+  try{
+    window.localStorage.setItem('cuadropadel_session', JSON.stringify({user: currentUser, token: mySessionToken}));
+  }catch(e){ /* localStorage no disponible: la sesión no persiste, pero la app sigue funcionando */ }
+}
+
+function tryRestoreSession(){
+  try{
+    const raw = window.localStorage.getItem('cuadropadel_session');
+    if(!raw) return false;
+    const saved = JSON.parse(raw);
+    if(!saved || !saved.user || !saved.token) return false;
+    const key = identityKeyForUser(saved.user);
+    if(!key) return false;
+    const remoteToken = sessions[key];
+    if(remoteToken && remoteToken !== saved.token){
+      // alguien inició sesión con la misma cuenta desde otro lado mientras este dispositivo estaba cerrado
+      window.localStorage.removeItem('cuadropadel_session');
+      return false;
+    }
+    if(saved.user.role==='jugador' && !playersDB.some(p=>p.id===saved.user.playerId)){
+      window.localStorage.removeItem('cuadropadel_session');
+      return false;
+    }
+    if(saved.user.role==='coordinador' && !coordinadoresDB.some(c=> c.email.trim().toLowerCase()===saved.user.email)){
+      window.localStorage.removeItem('cuadropadel_session');
+      return false;
+    }
+    currentUser = saved.user;
+    mySessionToken = saved.token;
+    if(!remoteToken){ sessions[key] = mySessionToken; scheduleSaveMain(); } // no había registro remoto todavía (ej. offline la vez pasada): lo restablece
+    return true;
+  }catch(e){ return false; }
+}
+
+function checkSessionStillValid(){
+  if(!currentUser || !mySessionToken) return;
+  const key = identityKeyForUser(currentUser);
+  if(!key) return;
+  const remoteToken = sessions[key];
+  if(remoteToken && remoteToken !== mySessionToken){
+    forceLogoutOtherDevice();
+  }
+}
+
+function forceLogoutOtherDevice(){
+  currentUser = null;
+  mySessionToken = null;
+  try{ window.localStorage.removeItem('cuadropadel_session'); }catch(e){}
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('jugadorScreen').style.display = 'none';
+  showLoginScreen();
+  customAlert('Tu sesión se cerró porque iniciaste sesión con esta misma cuenta desde otro dispositivo o navegador.');
+}
+
+function showAppForCurrentUser(){
   document.getElementById('loginScreen').style.display = 'none';
   if(currentUser.role==='jugador'){
     document.getElementById('app').style.display = 'none';
@@ -1580,6 +1678,11 @@ function onLoginSuccess(){
     document.getElementById('app').style.display = 'flex';
     render();
   }
+}
+
+function onLoginSuccess(){
+  establishSession();
+  showAppForCurrentUser();
 }
 
 /* ---- autenticación con Google / enlace mágico por correo (autorregistro de jugador) ---- */
@@ -1622,7 +1725,7 @@ App.confirmNewPlayerRegistration = function(){
   scheduleSaveMain();
   pendingNewPlayerAuth = null;
   document.getElementById('newPlayerModalOverlay').style.display = 'none';
-  currentUser = {role:'jugador', playerId:player.id, name:player.name};
+  currentUser = {role:'jugador', playerId:player.id, name:player.name, email:player.email.trim().toLowerCase()};
   onLoginSuccess();
 };
 
@@ -1644,7 +1747,7 @@ App.confirmSetPassword = function(){
   if(!pendingSetPasswordPlayer) return;
   pendingSetPasswordPlayer.customPassword = p1;
   scheduleSaveMain();
-  currentUser = {role:'jugador', playerId:pendingSetPasswordPlayer.id, name:pendingSetPasswordPlayer.name};
+  currentUser = {role:'jugador', playerId:pendingSetPasswordPlayer.id, name:pendingSetPasswordPlayer.name, email:(pendingSetPasswordPlayer.email||'').trim().toLowerCase()};
   pendingSetPasswordPlayer = null;
   document.getElementById('setPasswordModalOverlay').style.display = 'none';
   onLoginSuccess();
@@ -1653,19 +1756,19 @@ App.confirmSetPassword = function(){
 function handleAuthSuccess(email, displayName, authUid){
   const resolved = resolveRoleForEmail(email);
   if(resolved.role==='admin'){
-    currentUser = {role:'admin'};
+    currentUser = {role:'admin', email:email.trim().toLowerCase()};
     onLoginSuccess();
     return;
   }
   if(resolved.role==='coordinador'){
-    currentUser = {role:'coordinador', username:resolved.username};
+    currentUser = {role:'coordinador', username:resolved.username, email:resolved.username.trim().toLowerCase()};
     onLoginSuccess();
     return;
   }
   const player = findPlayerByEmail(email);
   if(player){
     if(authUid && player.authUid!==authUid) player.authUid = authUid;
-    currentUser = {role:'jugador', playerId:player.id, name:player.name};
+    currentUser = {role:'jugador', playerId:player.id, name:player.name, email:player.email.trim().toLowerCase()};
     onLoginSuccess();
     return;
   }
@@ -1719,8 +1822,14 @@ async function checkEmailLinkOnLoad(){
 }
 
 App.logout = function(){
+  const key = identityKeyForUser(currentUser);
+  if(key && sessions[key]===mySessionToken){
+    delete sessions[key];
+    scheduleSaveMain();
+  }
   currentUser = null;
-  loginRole = 'admin';
+  mySessionToken = null;
+  try{ window.localStorage.removeItem('cuadropadel_session'); }catch(e){}
   document.getElementById('loginPassword') && (document.getElementById('loginPassword').value = '');
   showLoginScreen();
 };
@@ -1840,7 +1949,7 @@ function renderJugadorInscripcion(){
     const club = clubsDB.find(c=>c.id===t.clubId);
     const already = t.pairs.some(p=> p.p1Id===myId || p.p2Id===myId);
     const isGrupo = t.format==='grupo', isPrincipiantes = t.format==='principiantes';
-    const formatLabel = isGrupo ? '3 a 5 parejas' : (isPrincipiantes ? 'Principiantes' : 'Avanzado');
+    const formatLabel = formatShortLabel(t.format);
     const formatClass = isGrupo ? 'grupo' : (isPrincipiantes ? 'principiantes' : 'avanzado');
     const pairCount = t.pairs.filter(p=>p.p1Id && p.p2Id).length;
     let actionHtml;
@@ -2614,21 +2723,21 @@ function iniciarTorneoSectionHtml(){
   if(n<3){
     hint = `Faltan ${3-n} pareja(s) presente(s) más para poder iniciar (mínimo 3).`;
     canStart = false;
-  } else if(state.format==='principiantes' && n===5){
-    hint = `Con 5 parejas presentes no se pueden armar zonas de solo 3 o 4 (formato Principiantes). Esperá una pareja más, o que quede una afuera.`;
-    canStart = false;
   } else {
-    const sizes = computeZoneSizes(n) ;
-    hint = (state.format!=='principiantes' && n<6)
-      ? `Se jugará todos contra todos en un solo grupo, sin zonas ni llave.`
-      : `Se armarán <b>${sizes.length}</b> zona(s) de ${sizes.join(', ')} parejas.`;
+    hint = `Vas a elegir el formato del torneo al presionar "Iniciar torneo".`;
   }
   return `
     <div class="court-count-row">
       <div class="chip ${n>=3?'on':''}"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'}</div>
-      <button class="btn btn-primary" ${canStart?'':'disabled'} onclick="App.iniciarTorneo()">▶ Iniciar torneo</button>
+      <button class="btn btn-primary" ${canStart?'':'disabled'} onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>
       <span class="hint" style="margin:0;">${hint}</span>
     </div>`;
+}
+
+function formatShortLabel(fmt){
+  if(fmt==='grupo') return '3 a 5 parejas';
+  if(fmt==='principiantes') return 'Zonas de 3,4 (Todos contra todos)';
+  return 'Zonas de 3,4 (Reducido)'; // avanzado
 }
 
 function pairDisplayName(pair){
@@ -2888,7 +2997,7 @@ function computeStageForPair(pairId){
 App.setName = function(v){ if(state){ state.name = v; scheduleSaveTournament(state); } };
 
 App.setFormat = async function(fmt){
-  if(state.format===fmt) return;
+  if(state.format===fmt && state.formatChosen) return;
   if(state.zones.length>0){
     const ok = await customConfirm('Ya hay zonas generadas para este torneo. Cambiar el formato borra las zonas, resultados y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
@@ -2898,7 +3007,34 @@ App.setFormat = async function(fmt){
     state.smallMode = false;
   }
   state.format = fmt;
+  state.formatChosen = true;
+  scheduleSaveTournament(state);
   render();
+};
+
+let formatChoiceContext = null; // 'start' (elegir e iniciar el torneo) o 'change' (solo cambiar el formato)
+
+App.openFormatChoiceModal = function(context){
+  formatChoiceContext = context || 'start';
+  document.getElementById('formatChoiceModalOverlay').style.display = 'flex';
+};
+
+App.closeFormatChoiceModal = function(){
+  document.getElementById('formatChoiceModalOverlay').style.display = 'none';
+  formatChoiceContext = null;
+};
+
+App.chooseFormat = async function(fmt){
+  const context = formatChoiceContext;
+  document.getElementById('formatChoiceModalOverlay').style.display = 'none';
+  formatChoiceContext = null;
+  if(context==='change'){
+    await App.setFormat(fmt);
+  } else {
+    state.format = fmt;
+    state.formatChosen = true;
+    await App.iniciarTorneo();
+  }
 };
 
 /* ---- jugadores (persistente) ---- */
@@ -3040,7 +3176,6 @@ App.openNewTournamentModal = function(){
   document.getElementById('newTournamentNewClubAddress').value = '';
   document.getElementById('newTournamentCategoria').value = '5ta';
   document.getElementById('newTournamentTipo').value = 'Caballero';
-  document.getElementById('newTournamentFormat').value = 'avanzado';
 
   document.getElementById('newTournamentModalOverlay').style.display = 'flex';
 };
@@ -3067,7 +3202,6 @@ App.confirmCreateTournament = function(){
   const clubSelect = document.getElementById('newTournamentClub');
   const catSelect = document.getElementById('newTournamentCategoria');
   const courtsSelect = document.getElementById('newTournamentCourts');
-  const formatSelect = document.getElementById('newTournamentFormat');
 
   let clubId = clubSelect.value;
   const courts = Number(courtsSelect.value) || 4;
@@ -3093,7 +3227,6 @@ App.confirmCreateTournament = function(){
   t.categoria = catSelect.value;
   t.tipo = document.getElementById('newTournamentTipo').value;
   t.courtCount = courts;
-  t.format = formatSelect.value;
   if(currentUser && currentUser.role==='coordinador') t.ownerCoordinador = currentUser.username;
 
   const clubForName = clubsDB.find(c=>c.id===clubId);
@@ -4259,7 +4392,7 @@ function renderTournamentsList(){
       </select>` : `<span class="pill">${escapeHtml(ownerLabel)}</span>`;
     const isPrincipiantes = t.format==='principiantes';
     const isGrupo = t.format==='grupo';
-    const formatLabel = isGrupo ? '3 a 5 parejas' : (isPrincipiantes ? 'Principiantes' : 'Avanzado');
+    const formatLabel = formatShortLabel(t.format);
     const formatClass = isGrupo ? 'grupo' : (isPrincipiantes ? 'principiantes' : 'avanzado');
     const club = clubsDB.find(c=>c.id===t.clubId);
     const pairCount = t.pairs ? t.pairs.filter(p=>p.p1Id && p.p2Id).length : 0;
@@ -4300,7 +4433,7 @@ function renderParejas(){
   const summaryBar = document.getElementById('tournamentSummaryBar');
   if(summaryBar){
     const club = clubsDB.find(c=>c.id===state.clubId);
-    const formatLabel = state.format==='grupo' ? '3 a 5 parejas · Todos contra todos' : (state.format==='principiantes' ? 'Torneo Americano Principiantes' : 'Torneo Americano Avanzado');
+    const formatLabel = formatShortLabel(state.format);
     summaryBar.innerHTML = `
       <span class="pill">🏟️ ${club ? escapeHtml(club.name) : 'Sin club asignado'}</span>
       <span class="pill">${state.categoria ? escapeHtml(state.categoria) : 'Sin categoría'}</span>
@@ -4350,8 +4483,14 @@ function renderParejas(){
 function renderZonas(){
   if(!state) return;
   const c = document.getElementById('zonasContainer');
+  const formatLabel = formatShortLabel(state.format);
+  const formatBar = `
+    <div class="actions-row" style="margin-bottom:16px; align-items:center;">
+      <span class="pill">Formato actual: ${formatLabel}</span>
+      <button class="btn btn-ghost btn-sm" onclick="App.openFormatChoiceModal('change')">Cambiar formato</button>
+    </div>`;
   if(state.zones.length===0){
-    c.innerHTML = `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Parejas y hacé clic en <b>Sortear zonas</b>.</div>`;
+    c.innerHTML = formatBar + `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Parejas y hacé clic en <b>Sortear zonas</b>.</div>`;
     return;
   }
 
@@ -4367,7 +4506,7 @@ function renderZonas(){
       ${unassigned.length>=3 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="App.createZoneFromUnassigned()">+ Crear zona nueva con estas parejas</button>` : ''}
     </div>`;
 
-  c.innerHTML = unassignedHtml + `<div class="zones-wrap">` + state.zones.map(zone=>{
+  c.innerHTML = formatBar + unassignedHtml + `<div class="zones-wrap">` + state.zones.map(zone=>{
     const matchesHtml = zone.matches.map(m=> matchCardHtml(m)).join('');
     const pendingNote = (zone.format==='playoff4' && !zone.matches.some(m=>m.round===2))
       ? `<div class="hint" style="margin-top:8px;">Los partidos de definición (3° y 4° puesto de la zona) se generan solos cuando termine lo de arriba.</div>` : '';
