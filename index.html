@@ -1862,7 +1862,14 @@ App.loginWithGoogle = function(){
   const errEl = document.getElementById('loginError');
   if(errEl) errEl.textContent = '';
   if(!auth || !googleProvider){ if(errEl) errEl.textContent = 'El inicio de sesión con Google no está disponible ahora mismo.'; return; }
-  auth.signInWithRedirect(googleProvider).catch(err=>{
+  auth.signInWithPopup(googleProvider).then(result=>{
+    handleAuthSuccess(result.user.email, result.user.displayName, result.user.uid);
+  }).catch(err=>{
+    if(err && err.code==='auth/popup-blocked'){
+      if(errEl) errEl.textContent = 'El navegador bloqueó la ventana de Google. Permití ventanas emergentes para este sitio e intentá de nuevo.';
+      return;
+    }
+    if(err && err.code==='auth/popup-closed-by-user') return; // el usuario cerró la ventana, no hace falta mostrar error
     if(errEl) errEl.textContent = 'No se pudo iniciar sesión con Google: ' + (err.message||'intentá de nuevo.');
   });
 };
