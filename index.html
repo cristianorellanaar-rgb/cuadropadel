@@ -740,14 +740,21 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <div class="brand-text"><span class="b-cuadro">Cuadro</span><span class="b-padel">Pádel</span></div>
     </div>
     <div class="login-sub">Iniciá sesión para continuar</div>
-    <div class="role-tabs">
-      <button class="role-tab" data-role="admin" onclick="App.setLoginRole('admin')">Administrador</button>
-      <button class="role-tab" data-role="coordinador" onclick="App.setLoginRole('coordinador')">Coordinador</button>
-      <button class="role-tab" data-role="jugador" onclick="App.setLoginRole('jugador')">Jugador</button>
+    <button type="button" class="btn btn-google" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="App.loginWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.27-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Continuar con Google
+    </button>
+    <div class="login-divider"><span>o con un enlace por correo</span></div>
+    <div class="login-field"><label>Correo electrónico</label><input type="email" id="loginEmailLink" autocomplete="off" placeholder="tu@correo.com"></div>
+    <button type="button" class="btn btn-ghost" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="App.sendEmailLoginLink()">Enviarme un enlace para ingresar</button>
+    <div class="login-divider"><span>o con contraseña</span></div>
+    <div id="loginFields">
+      <div class="login-field"><label>Correo electrónico</label><input type="email" id="loginEmail" autocomplete="off"></div>
+      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>
     </div>
-    <div id="loginFields"></div>
     <div class="login-error" id="loginError"></div>
     <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="App.attemptLogin()">Ingresar</button>
+    <div class="hint" style="text-align:center; margin-top:14px;">Tu rol (administrador, coordinador o jugador) se reconoce solo según tu correo.</div>
   </div>
 </div>
 
@@ -1044,10 +1051,10 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 
     <section class="view" id="view-coordinadores">
       <h2 class="section-title">Coordinadores</h2>
-      <p class="section-sub">Usuarios con permiso para crear torneos y cargar resultados. Solo el administrador ve y gestiona esta sección.</p>
+      <p class="section-sub">Personas con permiso para crear torneos y cargar resultados. Se reconocen por su correo — si ya usan ese correo como jugador, simplemente suman el rol de coordinador. Solo el administrador ve y gestiona esta sección.</p>
       <div class="add-club-row">
-        <input type="text" id="newCoordUser" placeholder="Usuario (ej. cord4)">
-        <input type="text" id="newCoordPass" placeholder="Contraseña">
+        <input type="email" id="newCoordEmail" placeholder="Correo electrónico">
+        <input type="text" id="newCoordPass" placeholder="Contraseña (opcional, para acceso rápido)">
         <button class="btn btn-ghost btn-sm" onclick="App.addCoordinador()">+ Nuevo</button>
       </div>
       <div id="coordinadoresContainer"></div>
@@ -1094,10 +1101,11 @@ let playersDB = [];   // [{id,name,dni,categoria,createdAt,stats:{puntos,torneos
 let archive = [];     // [{id,name,date,championName,totalPairs,results:[],snapshot:{...}}]
 let clubsDB = [];     // [{id,name,courts,address,createdAt}]
 let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
-let coordinadoresDB = []; // [{id,username,password}]
+let coordinadoresDB = []; // [{id,email,password,createdAt}]
 let tournaments = [];  // [{tournamentId,name,format,ownerCoordinador,pairs,zones,smallMode,primera,segunda,createdAt}] — cada uno vive en su propio documento
 
 const ADMIN_PASSWORD = 'SUNAdm1n';
+const ADMIN_EMAIL = 'cristian.orellana.ar@gmail.com';
 const PLAYER_PASSWORD = 'torneo';
 let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
 let loginRole = 'admin';
@@ -1261,8 +1269,6 @@ document.addEventListener('focusout', ()=>{
 });
 
 async function initApp(){
-  renderLoginFields();
-
   if(FIREBASE_ENABLED){
     try{
       firebase.initializeApp(firebaseConfig);
@@ -1331,15 +1337,6 @@ async function initApp(){
     }
   }
 
-  if(coordinadoresDB.length===0){
-    coordinadoresDB = [
-      {id:uid(), username:'cord1', password:'Torneo1842'},
-      {id:uid(), username:'cord2', password:'Torneo1842'},
-      {id:uid(), username:'cord3', password:'Torneo1842'}
-    ];
-    scheduleSaveMain();
-  }
-
   showLoginScreen();
   checkEmailLinkOnLoad();
 }
@@ -1351,66 +1348,41 @@ function showLoginScreen(){
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('jugadorScreen').style.display = 'none';
   document.getElementById('app').style.display = 'none';
-  renderLoginFields();
 }
 
-App.setLoginRole = function(role){
-  loginRole = role;
-  document.getElementById('loginError').textContent = '';
-  renderLoginFields();
-};
-
-function renderLoginFields(){
-  document.querySelectorAll('.role-tab').forEach(btn=>{
-    btn.classList.toggle('active', btn.dataset.role===loginRole);
-  });
-  const c = document.getElementById('loginFields');
-  if(loginRole==='admin'){
-    c.innerHTML = `
-      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
-  } else if(loginRole==='coordinador'){
-    c.innerHTML = `
-      <div class="login-field"><label>Usuario</label><input type="text" id="loginUser"></div>
-      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
-  } else {
-    c.innerHTML = `
-      <button type="button" class="btn btn-google" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="App.loginWithGoogle()">
-        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.27-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
-        Continuar con Google
-      </button>
-      <div class="login-divider"><span>o registrate con tu correo</span></div>
-      <div class="login-field"><label>Correo electrónico</label><input type="email" id="loginEmailLink" autocomplete="off" placeholder="tu@correo.com"></div>
-      <button type="button" class="btn btn-ghost" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="App.sendEmailLoginLink()">Enviarme un enlace para ingresar</button>
-      <div class="login-divider"><span>o con contraseña (si ya la tenés)</span></div>
-      <div class="login-field"><label>Correo electrónico</label><input type="email" id="loginEmail" autocomplete="off"></div>
-      <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
-  }
-  const first = c.querySelector('input');
-  if(first) first.focus();
+function resolveRoleForEmail(email){
+  const clean = (email||'').trim().toLowerCase();
+  if(clean === ADMIN_EMAIL.toLowerCase()) return {role:'admin'};
+  const coord = coordinadoresDB.find(c=> c.email && c.email.trim().toLowerCase()===clean);
+  if(coord) return {role:'coordinador', username:coord.email};
+  return {role:'jugador'};
 }
 
 App.attemptLogin = function(){
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
+  errEl.style.color = '';
+  const email = document.getElementById('loginEmail').value.trim();
   const pass = document.getElementById('loginPassword').value;
+  if(!email){ errEl.textContent = 'Ingresá tu correo electrónico.'; return; }
 
-  if(loginRole==='admin'){
+  const resolved = resolveRoleForEmail(email);
+  if(resolved.role==='admin'){
     if(pass !== ADMIN_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
     currentUser = {role:'admin'};
-  } else if(loginRole==='coordinador'){
-    const user = document.getElementById('loginUser').value.trim();
-    const coord = coordinadoresDB.find(c=> c.username.toLowerCase()===user.toLowerCase() && c.password===pass);
-    if(!coord){ errEl.textContent = 'Usuario o contraseña incorrectos.'; return; }
-    currentUser = {role:'coordinador', username:coord.username};
-  } else {
-    const email = document.getElementById('loginEmail').value.trim();
-    if(pass !== PLAYER_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
-    if(!email){ errEl.textContent = 'Ingresá tu correo electrónico.'; return; }
-    const player = playersDB.find(p=> p.email && p.email.trim().toLowerCase()===email.toLowerCase());
-    if(!player){ errEl.textContent = 'No hay ningún jugador cargado con ese correo. Pedile al organizador que lo cargue.'; return; }
-    currentUser = {role:'jugador', playerId:player.id, name:player.name};
+    onLoginSuccess();
+    return;
   }
-  onLoginSuccess();
+  if(resolved.role==='coordinador'){
+    const coord = coordinadoresDB.find(c=> c.email.trim().toLowerCase()===email.toLowerCase());
+    if(!coord.password || pass !== coord.password){ errEl.textContent = 'Contraseña incorrecta.'; return; }
+    currentUser = {role:'coordinador', username:coord.email};
+    onLoginSuccess();
+    return;
+  }
+  // jugador: contraseña fija de acceso rápido (o autorregistro si el correo no está cargado todavía)
+  if(pass !== PLAYER_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
+  handleAuthSuccess(email, null, null);
 };
 
 function onLoginSuccess(){
@@ -1444,9 +1416,16 @@ function findOrCreatePlayerByEmail(email, displayName, authUid){
   return player;
 }
 
-function handleJugadorAuthSuccess(email, displayName, authUid){
-  const player = findOrCreatePlayerByEmail(email, displayName, authUid);
-  currentUser = {role:'jugador', playerId:player.id, name:player.name};
+function handleAuthSuccess(email, displayName, authUid){
+  const resolved = resolveRoleForEmail(email);
+  if(resolved.role==='admin'){
+    currentUser = {role:'admin'};
+  } else if(resolved.role==='coordinador'){
+    currentUser = {role:'coordinador', username:resolved.username};
+  } else {
+    const player = findOrCreatePlayerByEmail(email, displayName, authUid);
+    currentUser = {role:'jugador', playerId:player.id, name:player.name};
+  }
   onLoginSuccess();
 }
 
@@ -1455,7 +1434,7 @@ App.loginWithGoogle = function(){
   if(errEl) errEl.textContent = '';
   if(!auth || !googleProvider){ if(errEl) errEl.textContent = 'El inicio de sesión con Google no está disponible ahora mismo.'; return; }
   auth.signInWithPopup(googleProvider).then(result=>{
-    handleJugadorAuthSuccess(result.user.email, result.user.displayName, result.user.uid);
+    handleAuthSuccess(result.user.email, result.user.displayName, result.user.uid);
   }).catch(err=>{
     if(errEl) errEl.textContent = 'No se pudo iniciar sesión con Google: ' + (err.message||'intentá de nuevo.');
   });
@@ -1485,7 +1464,7 @@ function checkEmailLinkOnLoad(){
     auth.signInWithEmailLink(email, window.location.href).then(result=>{
       window.localStorage.removeItem('cuadropadel_email_link');
       history.replaceState(null, '', window.location.pathname);
-      handleJugadorAuthSuccess(result.user.email || email, result.user.displayName, result.user.uid);
+      handleAuthSuccess(result.user.email || email, result.user.displayName, result.user.uid);
     }).catch(err=>{
       alert('No se pudo completar el ingreso con el enlace: ' + (err.message||''));
     });
@@ -1501,20 +1480,27 @@ App.logout = function(){
 
 /* ---- coordinadores (solo admin) ---- */
 App.addCoordinador = function(){
-  const userEl = document.getElementById('newCoordUser');
+  const emailEl = document.getElementById('newCoordEmail');
   const passEl = document.getElementById('newCoordPass');
-  const username = userEl.value.trim();
+  const email = emailEl.value.trim();
   const password = passEl.value;
-  if(!username || !password){ alert('Completá usuario y contraseña.'); return; }
-  if(coordinadoresDB.some(c=>c.username.toLowerCase()===username.toLowerCase())){
-    alert('Ya existe un coordinador con ese usuario.'); return;
+  if(!email){ alert('Ingresá un correo electrónico.'); return; }
+  if(email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){ alert('Ese correo ya es el administrador.'); return; }
+  const existing = coordinadoresDB.find(c=> c.email.trim().toLowerCase()===email.toLowerCase());
+  if(existing){
+    // ya es coordinador: si mandaron una contraseña nueva, la actualiza; si no, no hace falta nada más
+    if(password) existing.password = password;
+    alert(`${email} ya es coordinador.`);
+    emailEl.value=''; passEl.value='';
+    render();
+    return;
   }
-  coordinadoresDB.push({id:uid(), username, password});
-  userEl.value=''; passEl.value='';
+  coordinadoresDB.push({id:uid(), email, password: password||'', createdAt:new Date().toISOString()});
+  emailEl.value=''; passEl.value='';
   render();
 };
 App.removeCoordinador = function(id){
-  const ok = confirm('¿Eliminar este coordinador? Va a dejar de poder ingresar.');
+  const ok = confirm('¿Eliminar este coordinador? Va a dejar de poder ingresar como coordinador (si también es jugador, eso no se toca).');
   if(!ok) return;
   coordinadoresDB = coordinadoresDB.filter(c=>c.id!==id);
   render();
@@ -3753,14 +3739,14 @@ function renderCoordinadores(){
   }
   const rows = coordinadoresDB.map(co=>`
     <tr>
-      <td>${escapeHtml(co.username)}</td>
-      <td><input class="inline-edit" type="password" value="${escapeAttr(co.password)}" onchange="App.setCoordField('${co.id}','password',this.value)"></td>
+      <td>${escapeHtml(co.email)}</td>
+      <td><input class="inline-edit" type="password" placeholder="—" value="${escapeAttr(co.password||'')}" onchange="App.setCoordField('${co.id}','password',this.value)"></td>
       <td><button class="remove-player-btn" onclick="App.removeCoordinador('${co.id}')">✕</button></td>
     </tr>`).join('');
   c.innerHTML = `
     <div class="ranking-wrap">
       <table class="clubs">
-        <thead><tr><th>Usuario</th><th>Contraseña</th><th></th></tr></thead>
+        <thead><tr><th>Correo</th><th>Contraseña (acceso rápido, opcional)</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
@@ -3869,7 +3855,7 @@ function renderTournamentsList(){
     const ownerControl = isAdmin ? `
       <select class="owner-select" onchange="App.reassignTournament('${t.tournamentId}', this.value)">
         <option value="" ${!t.ownerCoordinador?'selected':''}>Sin asignar</option>
-        ${coordinadoresDB.map(co=>`<option value="${escapeAttr(co.username)}" ${t.ownerCoordinador===co.username?'selected':''}>${escapeHtml(co.username)}</option>`).join('')}
+        ${coordinadoresDB.map(co=>`<option value="${escapeAttr(co.email)}" ${t.ownerCoordinador===co.email?'selected':''}>${escapeHtml(co.email)}</option>`).join('')}
       </select>` : `<span class="pill">${escapeHtml(ownerLabel)}</span>`;
     const isPrincipiantes = t.format==='principiantes';
     const isGrupo = t.format==='grupo';
