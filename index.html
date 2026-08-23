@@ -9,6 +9,7 @@
 <!-- Firebase (opcional, para sincronizar en vivo entre varios organizadores) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
 :root{
   --bg:#F5F8F4;
@@ -31,6 +32,12 @@
   --font-body:'Inter', sans-serif;
   --font-mono:'Space Mono', monospace;
   --shadow-card: 0 1px 2px rgba(15,38,47,0.06), 0 4px 16px rgba(15,38,47,0.06);
+  --sidebar-bg:#0B1F17;
+  --sidebar-bg-2:#132C21;
+  --sidebar-text:#EAF3EC;
+  --sidebar-text-dim:#8FAC9B;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --accent-bright:#9BDB4D;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -52,49 +59,45 @@ a{color:inherit;}
 
 .sidebar{
   width:230px; flex-shrink:0;
-  background:var(--bg-2);
-  border-right:1px solid var(--line);
+  background:var(--sidebar-bg);
+  border-right:1px solid var(--sidebar-border);
   display:flex; flex-direction:column;
   padding:22px 16px;
   position:sticky; top:0; height:100vh;
 }
-.brand{
-  font-family:var(--font-display);
-  font-weight:700;
-  font-size:22px;
-  letter-spacing:0.5px;
-  margin-bottom:6px;
-  color:var(--text);
-}
-.brand span{color:var(--accent);}
+.brand-lockup{display:flex; align-items:center; gap:10px; margin-bottom:4px;}
+.brand-badge{flex-shrink:0; display:block;}
+.brand-text{font-family:var(--font-display); font-weight:700; font-size:19px; letter-spacing:0.2px; line-height:1.05;}
+.brand-text .b-cuadro{color:var(--sidebar-text); display:block;}
+.brand-text .b-padel{color:var(--accent-bright); display:block; margin-top:-2px;}
 .brand-sub{
-  font-size:11px; color:var(--text-faint); letter-spacing:1.5px; text-transform:uppercase;
-  margin-bottom:20px; font-family:var(--font-mono);
+  font-size:10.5px; color:var(--sidebar-text-dim); letter-spacing:1.5px; text-transform:uppercase;
+  margin:8px 0 20px; font-family:var(--font-mono);
 }
 .storage-chip{
   font-size:10.5px; font-family:var(--font-mono); padding:6px 10px; border-radius:6px;
   margin-bottom:18px; line-height:1.4;
 }
-.storage-chip.ok{background:rgba(90,154,31,0.10); color:var(--accent); border:1px solid rgba(90,154,31,0.35);}
-.storage-chip.off{background:rgba(211,63,63,0.10); color:var(--danger); border:1px solid rgba(211,63,63,0.35);}
+.storage-chip.ok{background:rgba(155,219,77,0.14); color:var(--accent-bright); border:1px solid rgba(155,219,77,0.35);}
+.storage-chip.off{background:rgba(211,63,63,0.16); color:#FF8A8A; border:1px solid rgba(211,63,63,0.4);}
 
 nav{display:flex; flex-direction:column; gap:4px;}
 .tab{
-  background:transparent; border:none; color:var(--text-dim);
+  background:transparent; border:none; color:var(--sidebar-text-dim);
   text-align:left; padding:11px 12px; border-radius:8px;
   font-size:14.5px; font-weight:500; display:flex; align-items:center; gap:10px;
   border-left:3px solid transparent;
 }
-.tab .num{font-family:var(--font-mono); font-size:11px; color:var(--text-faint); width:16px;}
-.tab:hover{background:var(--panel); color:var(--text);}
-.tab.active{background:var(--panel-2); color:var(--accent); border-left:3px solid var(--accent);}
-.tab.active .num{color:var(--accent);}
+.tab .num{font-family:var(--font-mono); font-size:11px; color:var(--sidebar-text-dim); width:16px; opacity:0.7;}
+.tab:hover{background:rgba(255,255,255,0.05); color:var(--sidebar-text);}
+.tab.active{background:rgba(255,255,255,0.07); color:var(--accent-bright); border-left:3px solid var(--accent-bright);}
+.tab.active .num{color:var(--accent-bright); opacity:1;}
 .tab:disabled{opacity:0.35; cursor:not-allowed;}
-.tab:disabled:hover{background:transparent; color:var(--text-dim);}
+.tab:disabled:hover{background:transparent; color:var(--sidebar-text-dim);}
 
-.sidebar-footer{margin-top:auto; display:flex; flex-direction:column; gap:8px; padding-top:16px; border-top:1px solid var(--line);}
+.sidebar-footer{margin-top:auto; display:flex; flex-direction:column; gap:8px; padding-top:16px; border-top:1px solid var(--sidebar-border);}
 .sb-btn{
-  background:var(--panel); border:1px solid var(--line-strong); color:var(--text-dim);
+  background:rgba(255,255,255,0.05); border:1px solid var(--sidebar-border); color:var(--sidebar-text-dim);
   padding:9px 10px; border-radius:8px; font-size:12.5px; font-weight:500; text-align:center;
 }
 .sb-btn:hover{color:var(--text); border-color:var(--accent-2);}
@@ -570,14 +573,27 @@ th.num[title], th[title]{cursor:help;}
   background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
   padding:36px 34px; width:100%; max-width:380px;
 }
-.login-brand{font-family:var(--font-display); font-size:24px; font-weight:700; margin-bottom:4px; text-align:center;}
-.login-brand span{color:var(--accent);}
+.login-brand{display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:8px;}
+.login-brand .brand-text{text-align:center; font-size:22px;}
+.login-brand .b-cuadro{color:var(--text);}
+.login-brand .b-padel{color:var(--accent);}
 .login-sub{font-size:12.5px; color:var(--text-faint); text-align:center; margin-bottom:24px;}
 .role-tabs{display:flex; gap:6px; margin-bottom:22px; background:var(--panel-3); border-radius:10px; padding:4px;}
 .role-tab{flex:1; background:transparent; border:none; color:var(--text-dim); padding:9px 6px; border-radius:8px; font-size:12.5px; font-weight:600;}
 .role-tab.active{background:var(--panel-2); color:var(--accent);}
 .login-field{margin-bottom:14px;}
 .login-field label{display:block; font-size:11.5px; color:var(--text-faint); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;}
+.btn-google{
+  background:#fff; border:1px solid var(--line-strong); color:#3C4043;
+  font-weight:600; font-size:13.5px; padding:11px 14px; border-radius:8px;
+  display:inline-flex; align-items:center; gap:10px; cursor:pointer;
+}
+.btn-google:hover{background:#F7F8F8;}
+.login-divider{
+  display:flex; align-items:center; gap:10px; margin:16px 0;
+  font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.4px;
+}
+.login-divider::before, .login-divider::after{content:''; flex:1; height:1px; background:var(--line-strong);}
 .login-field input{
   width:100%; background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text);
   font-family:var(--font-body); font-size:14px; padding:10px 12px; border-radius:8px;
@@ -683,13 +699,29 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 .archive-results{margin-top:12px; font-size:12.5px;}
 .archive-results .ar-row{display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dashed var(--line); color:var(--text-dim);}
 
+.mobile-menu-toggle{
+  display:none; position:fixed; top:14px; right:14px; z-index:1002;
+  width:44px; height:44px; border-radius:10px; background:var(--sidebar-bg); color:var(--sidebar-text);
+  border:none; align-items:center; justify-content:center; font-size:20px; box-shadow:var(--shadow-card); cursor:pointer;
+}
+.sidebar-overlay{display:none; position:fixed; inset:0; background:rgba(11,31,23,0.55); z-index:1000;}
+.sidebar-overlay.open{display:block;}
+
 @media(max-width:720px){
   #app{flex-direction:column;}
-  .sidebar{width:100%; height:auto; position:relative; flex-direction:row; align-items:center; padding:14px 16px; overflow-x:auto;}
-  .brand, .brand-sub, .storage-chip{display:none;}
-  nav{flex-direction:row;}
-  .sidebar-footer{display:none;}
-  main{padding:20px;}
+  .mobile-menu-toggle{display:flex;}
+  .sidebar{
+    position:fixed; top:0; right:-260px; width:250px; height:100vh; z-index:1001;
+    flex-direction:column; align-items:stretch; padding:64px 16px 22px; overflow-x:hidden; overflow-y:auto;
+    transition:right .25s ease; border-right:none; border-left:1px solid var(--sidebar-border);
+  }
+  .sidebar.open{right:0;}
+  .brand-lockup, .brand-sub, .storage-chip{display:flex;}
+  .brand-sub{display:block;}
+  .storage-chip{display:block;}
+  nav{flex-direction:column;}
+  .sidebar-footer{display:flex;}
+  main{padding:20px; padding-top:74px;}
 }
 </style>
 </head>
@@ -697,7 +729,16 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 
 <div id="loginScreen">
   <div class="login-card">
-    <div class="login-brand">CUADRO<span>PÁDEL</span></div>
+    <div class="login-brand">
+      <svg width="42" height="42" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="32" height="32" rx="9" fill="#5A9A1F"/>
+        <rect x="6.5" y="6.5" width="21" height="21" rx="2.5" fill="none" stroke="#F5F8F4" stroke-width="2"/>
+        <line x1="6.5" y1="17" x2="27.5" y2="17" stroke="#F5F8F4" stroke-width="2"/>
+        <line x1="17" y1="6.5" x2="17" y2="27.5" stroke="#F5F8F4" stroke-width="1.4" stroke-dasharray="2.2 2.2" opacity="0.75"/>
+        <circle cx="23.5" cy="11.2" r="2.7" fill="#FFD84D"/>
+      </svg>
+      <div class="brand-text"><span class="b-cuadro">Cuadro</span><span class="b-padel">Pádel</span></div>
+    </div>
     <div class="login-sub">Iniciá sesión para continuar</div>
     <div class="role-tabs">
       <button class="role-tab" data-role="admin" onclick="App.setLoginRole('admin')">Administrador</button>
@@ -761,11 +802,36 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
           <option value="3ra">3ra</option>
           <option value="2da">2da</option>
           <option value="1ra">1ra</option>
+          <option value="Suma 4">Suma 4</option>
+          <option value="Suma 5">Suma 5</option>
+          <option value="Suma 6">Suma 6</option>
+          <option value="Suma 7">Suma 7</option>
+          <option value="Suma 8">Suma 8</option>
+          <option value="Suma 9">Suma 9</option>
+          <option value="Suma 10">Suma 10</option>
+          <option value="Suma 11">Suma 11</option>
+          <option value="Suma 12">Suma 12</option>
+          <option value="Suma 13">Suma 13</option>
+          <option value="Suma 14">Suma 14</option>
+          <option value="Suma 15">Suma 15</option>
+          <option value="Suma 16">Suma 16</option>
         </select>
+      </div>
+      <div class="modal-field-row">
+        <label>Fecha</label>
+        <input type="date" id="newTournamentFecha">
       </div>
       <div class="modal-field-row">
         <label>Horario</label>
         <select id="newTournamentHorario"></select>
+      </div>
+      <div class="modal-field-row">
+        <label>Tipo de torneo</label>
+        <select id="newTournamentTipo">
+          <option value="Caballero" selected>Caballero</option>
+          <option value="Femenino">Femenino</option>
+          <option value="Mixto">Mixto</option>
+        </select>
       </div>
       <div class="modal-field-row">
         <label>Cantidad de canchas</label>
@@ -795,8 +861,19 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="App.closePaymentModal()">Cancelar</button>
     </div>
   </div>
-  <aside class="sidebar">
-    <div class="brand">CUADRO<span>PÁDEL</span></div>
+  <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Abrir menú">☰</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu(false)"></div>
+  <aside class="sidebar" id="sidebarEl">
+    <div class="brand-lockup">
+      <svg class="brand-badge" width="36" height="36" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="32" height="32" rx="9" fill="#5A9A1F"/>
+        <rect x="6.5" y="6.5" width="21" height="21" rx="2.5" fill="none" stroke="#F5F8F4" stroke-width="2"/>
+        <line x1="6.5" y1="17" x2="27.5" y2="17" stroke="#F5F8F4" stroke-width="2"/>
+        <line x1="17" y1="6.5" x2="17" y2="27.5" stroke="#F5F8F4" stroke-width="1.4" stroke-dasharray="2.2 2.2" opacity="0.75"/>
+        <circle cx="23.5" cy="11.2" r="2.7" fill="#FFD84D"/>
+      </svg>
+      <div class="brand-text"><span class="b-cuadro">Cuadro</span><span class="b-padel">Pádel</span></div>
+    </div>
     <div class="brand-sub">Organizador de torneos</div>
     <div class="storage-chip" id="storageChip">Verificando almacenamiento…</div>
     <nav>
@@ -1005,6 +1082,8 @@ let pendingRemoteData = null;
 let pendingRemoteTournaments = null;
 let applyingRemote = false;
 let tournamentsColRef = null;
+let auth = null;
+let googleProvider = null;
 
 /* =========================================================
    ALMACENAMIENTO PERSISTENTE
@@ -1036,7 +1115,9 @@ function freshTournament(){
     format: 'avanzado',
     clubId: null,
     categoria: '',
+    tipo: 'Caballero',
     horario: '',
+    fecha: '',
     ownerCoordinador: null,
     pairs: [],
     zones: [],
@@ -1062,6 +1143,7 @@ function sanitizeTournament(t){
   if(!t.format) t.format = 'avanzado';
   if(t.clubId===undefined) t.clubId = null;
   if(t.categoria===undefined) t.categoria = '';
+  if(t.tipo===undefined) t.tipo = 'Caballero';
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -1185,6 +1267,8 @@ async function initApp(){
     try{
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
+      auth = firebase.auth();
+      googleProvider = new firebase.auth.GoogleAuthProvider();
       firestoreDocRef = db.collection('cuadropadel').doc('main');
       tournamentsColRef = firestoreDocRef.collection('tournaments');
 
@@ -1257,6 +1341,7 @@ async function initApp(){
   }
 
   showLoginScreen();
+  checkEmailLinkOnLoad();
 }
 
 /* =========================================================
@@ -1289,7 +1374,15 @@ function renderLoginFields(){
       <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
   } else {
     c.innerHTML = `
-      <div class="login-field"><label>DNI</label><input type="text" id="loginDni" inputmode="numeric"></div>
+      <button type="button" class="btn btn-google" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="App.loginWithGoogle()">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.68 9c0-.59.1-1.17.27-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Continuar con Google
+      </button>
+      <div class="login-divider"><span>o registrate con tu correo</span></div>
+      <div class="login-field"><label>Correo electrónico</label><input type="email" id="loginEmailLink" autocomplete="off" placeholder="tu@correo.com"></div>
+      <button type="button" class="btn btn-ghost" style="width:100%; justify-content:center; margin-bottom:14px;" onclick="App.sendEmailLoginLink()">Enviarme un enlace para ingresar</button>
+      <div class="login-divider"><span>o con contraseña (si ya la tenés)</span></div>
+      <div class="login-field"><label>Correo electrónico</label><input type="email" id="loginEmail" autocomplete="off"></div>
       <div class="login-field"><label>Contraseña</label><input type="password" id="loginPassword" onkeydown="if(event.key==='Enter') App.attemptLogin();"></div>`;
   }
   const first = c.querySelector('input');
@@ -1310,11 +1403,11 @@ App.attemptLogin = function(){
     if(!coord){ errEl.textContent = 'Usuario o contraseña incorrectos.'; return; }
     currentUser = {role:'coordinador', username:coord.username};
   } else {
-    const dni = document.getElementById('loginDni').value.trim();
+    const email = document.getElementById('loginEmail').value.trim();
     if(pass !== PLAYER_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
-    if(!dni){ errEl.textContent = 'Ingresá tu DNI.'; return; }
-    const player = playersDB.find(p=> p.dni && p.dni.trim()===dni);
-    if(!player){ errEl.textContent = 'No hay ningún jugador cargado con ese DNI. Pedile al organizador que lo cargue.'; return; }
+    if(!email){ errEl.textContent = 'Ingresá tu correo electrónico.'; return; }
+    const player = playersDB.find(p=> p.email && p.email.trim().toLowerCase()===email.toLowerCase());
+    if(!player){ errEl.textContent = 'No hay ningún jugador cargado con ese correo. Pedile al organizador que lo cargue.'; return; }
     currentUser = {role:'jugador', playerId:player.id, name:player.name};
   }
   onLoginSuccess();
@@ -1330,6 +1423,72 @@ function onLoginSuccess(){
     document.getElementById('jugadorScreen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     render();
+  }
+}
+
+/* ---- autenticación con Google / enlace mágico por correo (autorregistro de jugador) ---- */
+function findOrCreatePlayerByEmail(email, displayName, authUid){
+  const clean = (email||'').trim().toLowerCase();
+  let player = playersDB.find(p=> p.email && p.email.trim().toLowerCase()===clean);
+  if(player){
+    if(authUid && player.authUid!==authUid) player.authUid = authUid;
+    return player;
+  }
+  // autorregistro: no existía ningún jugador con ese correo, se crea uno nuevo
+  player = {
+    id:uid(), name: displayName || clean, dni:'', email: email.trim(), authUid: authUid||null, categoria:'',
+    createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
+  };
+  playersDB.push(player);
+  scheduleSaveMain();
+  return player;
+}
+
+function handleJugadorAuthSuccess(email, displayName, authUid){
+  const player = findOrCreatePlayerByEmail(email, displayName, authUid);
+  currentUser = {role:'jugador', playerId:player.id, name:player.name};
+  onLoginSuccess();
+}
+
+App.loginWithGoogle = function(){
+  const errEl = document.getElementById('loginError');
+  if(errEl) errEl.textContent = '';
+  if(!auth || !googleProvider){ if(errEl) errEl.textContent = 'El inicio de sesión con Google no está disponible ahora mismo.'; return; }
+  auth.signInWithPopup(googleProvider).then(result=>{
+    handleJugadorAuthSuccess(result.user.email, result.user.displayName, result.user.uid);
+  }).catch(err=>{
+    if(errEl) errEl.textContent = 'No se pudo iniciar sesión con Google: ' + (err.message||'intentá de nuevo.');
+  });
+};
+
+App.sendEmailLoginLink = function(){
+  const errEl = document.getElementById('loginError');
+  if(errEl) errEl.textContent = '';
+  const email = document.getElementById('loginEmailLink').value.trim();
+  if(!email){ if(errEl) errEl.textContent = 'Ingresá tu correo electrónico.'; return; }
+  if(!auth){ if(errEl) errEl.textContent = 'El envío de enlaces no está disponible ahora mismo.'; return; }
+  const actionCodeSettings = { url: window.location.href.split('#')[0], handleCodeInApp: true };
+  auth.sendSignInLinkToEmail(email, actionCodeSettings).then(()=>{
+    window.localStorage.setItem('cuadropadel_email_link', email);
+    if(errEl){ errEl.style.color = 'var(--accent)'; errEl.textContent = `Te enviamos un enlace a ${email}. Abrilo desde este mismo dispositivo para ingresar.`; }
+  }).catch(err=>{
+    if(errEl) errEl.textContent = 'No se pudo enviar el enlace: ' + (err.message||'intentá de nuevo.');
+  });
+};
+
+function checkEmailLinkOnLoad(){
+  if(!auth) return;
+  if(auth.isSignInWithEmailLink(window.location.href)){
+    let email = window.localStorage.getItem('cuadropadel_email_link');
+    if(!email){ email = prompt('Confirmá tu correo electrónico para completar el ingreso:'); }
+    if(!email) return;
+    auth.signInWithEmailLink(email, window.location.href).then(result=>{
+      window.localStorage.removeItem('cuadropadel_email_link');
+      history.replaceState(null, '', window.location.pathname);
+      handleJugadorAuthSuccess(result.user.email || email, result.user.displayName, result.user.uid);
+    }).catch(err=>{
+      alert('No se pudo completar el ingreso con el enlace: ' + (err.message||''));
+    });
   }
 }
 
@@ -2424,7 +2583,7 @@ App.addPlayerFromInput = function(){
   names.forEach(n=>{
     if(playersDB.some(p=>p.name.toLowerCase()===n.toLowerCase())){ skipped.push(n); return; }
     playersDB.push({
-      id:uid(), name:n, dni:'', categoria:'', createdAt:new Date().toISOString(),
+      id:uid(), name:n, dni:'', email:'', categoria:'', createdAt:new Date().toISOString(),
       stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
     });
   });
@@ -2541,10 +2700,14 @@ App.openNewTournamentModal = function(){
     return `<option value="${h}" ${h===currentHour?'selected':''}>${label}</option>`;
   }).join('');
 
+  const todayStr = new Date().toISOString().slice(0,10); // yyyy-mm-dd, formato nativo del input date
+  document.getElementById('newTournamentFecha').value = todayStr;
+
   document.getElementById('newTournamentNewClubRow').style.display = 'none';
   document.getElementById('newTournamentNewClubName').value = '';
   document.getElementById('newTournamentNewClubAddress').value = '';
   document.getElementById('newTournamentCategoria').value = '5ta';
+  document.getElementById('newTournamentTipo').value = 'Caballero';
   document.getElementById('newTournamentFormat').value = 'avanzado';
 
   document.getElementById('newTournamentModalOverlay').style.display = 'flex';
@@ -2596,6 +2759,7 @@ App.confirmCreateTournament = function(){
   const t = freshTournament();
   t.clubId = clubId;
   t.categoria = catSelect.value;
+  t.tipo = document.getElementById('newTournamentTipo').value;
   t.courtCount = courts;
   t.format = formatSelect.value;
   if(currentUser && currentUser.role==='coordinador') t.ownerCoordinador = currentUser.username;
@@ -2603,9 +2767,12 @@ App.confirmCreateTournament = function(){
   const clubForName = clubsDB.find(c=>c.id===clubId);
   const horarioSelect = document.getElementById('newTournamentHorario');
   const horaStr = String(horarioSelect.value).padStart(2,'0')+':00';
-  const fechaStr = new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const fechaInput = document.getElementById('newTournamentFecha').value; // yyyy-mm-dd
+  const fechaDate = fechaInput ? new Date(fechaInput+'T00:00:00') : new Date();
+  const fechaStr = fechaDate.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
   t.horario = horarioSelect.value;
-  t.name = `Torneo ${t.categoria} ${clubForName ? clubForName.name : ''} ${fechaStr} ${horaStr}`.replace(/\s+/g,' ').trim();
+  t.fecha = fechaInput;
+  t.name = `Torneo ${t.tipo} ${t.categoria} ${clubForName ? clubForName.name : ''} ${fechaStr} ${horaStr}`.replace(/\s+/g,' ').trim();
 
   tournaments.push(t);
   state = t;
@@ -3371,7 +3538,16 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
 /* =========================================================
    NAVEGACIÓN
    ========================================================= */
-function switchTab(tab){ nav.activeTab = tab; render(); }
+function toggleMobileMenu(forceOpen){
+  const sb = document.getElementById('sidebarEl');
+  const ov = document.getElementById('sidebarOverlay');
+  if(!sb || !ov) return;
+  const shouldOpen = (forceOpen===undefined) ? !sb.classList.contains('open') : forceOpen;
+  sb.classList.toggle('open', shouldOpen);
+  ov.classList.toggle('open', shouldOpen);
+}
+
+function switchTab(tab){ nav.activeTab = tab; toggleMobileMenu(false); render(); }
 document.querySelectorAll('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
 });
@@ -3530,6 +3706,7 @@ function renderJugadores(){
           <button onclick="App.togglePlayerHistory('${p.id}')">${expanded?'ocultar':'ver historial'}</button>
         </td>
         <td><input class="inline-edit" placeholder="DNI" value="${escapeAttr(p.dni||'')}" onchange="App.setPlayerField('${p.id}','dni',this.value)"></td>
+        <td><input class="inline-edit" type="email" placeholder="Correo (para iniciar sesión)" value="${escapeAttr(p.email||'')}" onchange="App.setPlayerField('${p.id}','email',this.value)"></td>
         <td><input class="inline-edit" placeholder="Categoría" value="${escapeAttr(p.categoria||'')}" onchange="App.setPlayerField('${p.id}','categoria',this.value)"></td>
         <td class="num">${p.stats.torneos}</td>
         <td class="num">${p.stats.titulos}</td>
@@ -3545,7 +3722,7 @@ function renderJugadores(){
     <div class="ranking-wrap">
       <table class="ranking">
         <thead><tr>
-          <th>#</th><th>Jugador</th><th>DNI</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
+          <th>#</th><th>Jugador</th><th>DNI</th><th>Correo</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
           <th class="num">Finales</th><th class="num">Semis</th><th class="num">Puntos</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -3722,6 +3899,16 @@ function renderTournamentsList(){
   }).join('');
 }
 
+function updatePlayersDatalist(query){
+  const datalist = document.getElementById('playersDatalist');
+  if(!datalist) return;
+  datalist.innerHTML = '';
+  const q = (query||'').trim().toLowerCase();
+  if(!q) return;
+  const matches = playersDB.filter(p=> p.name.toLowerCase().includes(q)).slice(0,8);
+  datalist.innerHTML = matches.map(p=>`<option value="${escapeAttr(p.name)}">`).join('');
+}
+
 function renderParejas(){
   if(!state) return; // sin torneo abierto: esta subvista no está visible (nav.torneoSubTab sería 'lista')
   const summaryBar = document.getElementById('tournamentSummaryBar');
@@ -3731,13 +3918,11 @@ function renderParejas(){
     summaryBar.innerHTML = `
       <span class="pill">🏟️ ${club ? escapeHtml(club.name) : 'Sin club asignado'}</span>
       <span class="pill">${state.categoria ? escapeHtml(state.categoria) : 'Sin categoría'}</span>
+      <span class="pill">${escapeHtml(state.tipo || 'Caballero')}</span>
       <span class="pill">${formatLabel}</span>
       <span class="pill">🎾 ${state.courtCount||4} cancha${(state.courtCount||4)===1?'':'s'}</span>
     `;
   }
-
-  const datalist = document.getElementById('playersDatalist');
-  datalist.innerHTML = playersDB.map(p=>`<option value="${escapeAttr(p.name)}">`).join('');
 
   const pairsGrid = document.getElementById('pairsGrid');
   if(playersDB.length===0){
@@ -3749,20 +3934,17 @@ function renderParejas(){
       return `
       <div class="pair-row2">
         <span class="seed">${String(i+1).padStart(2,'0')}</span>
-        <input class="player-search" list="playersDatalist" placeholder="Buscar jugador 1..." value="${p1?escapeAttr(p1.name):''}" onchange="App.setPairSlot('${pair.id}','p1Id', this.value)">
+        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 1..." value="${p1?escapeAttr(p1.name):''}" oninput="updatePlayersDatalist(this.value)" onchange="App.setPairSlot('${pair.id}','p1Id', this.value)">
         <span class="vs-sep">/</span>
-        <input class="player-search" list="playersDatalist" placeholder="Buscar jugador 2..." value="${p2?escapeAttr(p2.name):''}" onchange="App.setPairSlot('${pair.id}','p2Id', this.value)">
+        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 2..." value="${p2?escapeAttr(p2.name):''}" oninput="updatePlayersDatalist(this.value)" onchange="App.setPairSlot('${pair.id}','p2Id', this.value)">
         <input class="alias-input" placeholder="Alias (opcional)" value="${escapeAttr(pair.alias||'')}" onchange="App.setPairAlias('${pair.id}', this.value)">
         <button class="icon-btn" title="Quitar pareja" onclick="App.removePairRow('${pair.id}')">✕</button>
       </div>`;
     }).join('');
   }
 
-  const unassigned = playersDB.filter(pl=> !state.pairs.some(p=>p.p1Id===pl.id || p.p2Id===pl.id));
   const unassignedHint = document.getElementById('unassignedHint');
-  unassignedHint.innerHTML = unassigned.length
-    ? `Sin asignar a una pareja (${unassigned.length}): ${unassigned.map(p=>escapeHtml(p.name)).join(', ')}`
-    : '';
+  if(unassignedHint) unassignedHint.innerHTML = '';
 
   const ready = getReadyPairs();
   const countChip = document.getElementById('pairsCountChip');
