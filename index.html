@@ -173,6 +173,15 @@ h2.section-title{
   font-family:var(--font-body); font-size:14px; padding:9px 12px; border-radius:8px;
 }
 .add-player-row input:focus{outline:none; border-color:var(--accent-2);}
+.player-search-row{max-width:320px; margin-bottom:16px;}
+.player-search-row input{
+  width:100%; background:var(--panel); border:1px solid var(--line-strong); color:var(--text);
+  font-family:var(--font-body); font-size:13.5px; padding:9px 12px; border-radius:8px;
+}
+.player-search-row input:focus{outline:none; border-color:var(--accent-2);}
+.role-check-cell{text-align:center;}
+.role-check-cell input[type="checkbox"]{width:18px; height:18px; cursor:pointer; accent-color:var(--accent);}
+.role-check-cell input[type="checkbox"]:disabled{cursor:not-allowed; opacity:0.5;}
 
 .ranking-wrap{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; max-width:920px;}
 table.ranking{width:100%; border-collapse:collapse; font-size:13px;}
@@ -805,6 +814,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <p class="hint" style="margin:0 0 16px; text-align:center;">Es la primera vez que entrás — necesitamos estos datos para anotarte en los torneos.</p>
       <div class="modal-field-row"><label>Nombre y apellido</label><input type="text" id="newPlayerName"></div>
       <div class="modal-field-row"><label>DNI</label><input type="text" id="newPlayerDni" inputmode="numeric"></div>
+      <div class="modal-field-row"><label>Celular</label><input type="tel" id="newPlayerPhone" inputmode="tel" placeholder="Ej. 11 2345 6789"></div>
       <div class="modal-field-row">
         <label>Categoría</label>
         <select id="newPlayerCategoria">
@@ -832,9 +842,25 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
           <option value="Suma 16">Suma 16</option>
         </select>
       </div>
+      <div class="modal-field-row">
+        <label>Contraseña propia (opcional, para entrar sin Google ni correo)</label>
+        <input type="password" id="newPlayerPassword" placeholder="Dejalo vacío si no la vas a usar">
+      </div>
       <div class="login-error" id="newPlayerError"></div>
       <div class="modal-actions" style="margin-top:16px;">
         <button class="btn btn-primary" onclick="App.confirmNewPlayerRegistration()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="setPasswordModalOverlay" style="display:none;">
+    <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
+      <div class="modal-title" style="text-align:center;">Elegí tu contraseña</div>
+      <p class="hint" style="margin:0 0 16px; text-align:center;">La contraseña de acceso rápido solo sirve una vez, por seguridad. Elegí la tuya propia para entrar las próximas veces (o usá Google o el enlace por correo, que no necesitan contraseña).</p>
+      <div class="modal-field-row"><label>Nueva contraseña</label><input type="password" id="setPasswordNew"></div>
+      <div class="modal-field-row"><label>Repetí la contraseña</label><input type="password" id="setPasswordConfirm"></div>
+      <div class="login-error" id="setPasswordError"></div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="App.confirmSetPassword()">Guardar y entrar</button>
       </div>
     </div>
   </div>
@@ -1006,6 +1032,9 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <input type="text" id="newPlayerInput" placeholder="Nombre del jugador (o varios separados por coma)" onkeydown="if(event.key==='Enter'){event.preventDefault(); App.addPlayerFromInput();}">
         <button class="btn btn-ghost btn-sm" onclick="App.addPlayerFromInput()">+ Agregar</button>
       </div>
+      <div class="player-search-row">
+        <input type="text" id="playerSearchBox" placeholder="🔍 Buscar jugador por nombre..." oninput="renderJugadores()">
+      </div>
       <div id="rankingContainer"></div>
     </section>
 
@@ -1154,6 +1183,7 @@ let archive = [];     // [{id,name,date,championName,totalPairs,results:[],snaps
 let clubsDB = [];     // [{id,name,courts,address,createdAt}]
 let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
 let coordinadoresDB = []; // [{id,email,password,createdAt}]
+let adminEmails = []; // correos adicionales con rol de administrador (además de ADMIN_EMAIL, que siempre es admin)
 let tournaments = [];  // [{tournamentId,name,format,ownerCoordinador,pairs,zones,smallMode,primera,segunda,createdAt}] — cada uno vive en su propio documento
 
 const ADMIN_PASSWORD = 'SUNAdm1n';
@@ -1227,7 +1257,7 @@ function scheduleSaveMain(){
   clearTimeout(saveMainTimer);
   saveMainTimer = setTimeout(async ()=>{
     if(liveSyncActive && firestoreDocRef){
-      try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() }); }
+      try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, updatedAt: Date.now() }); }
       catch(e){ console.error('Error guardando en Firebase', e); }
       return;
     }
@@ -1238,6 +1268,7 @@ function scheduleSaveMain(){
         await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
         await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
         await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
+        await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
       }catch(e){ console.error('Error guardando', e); }
     }
   }, 350);
@@ -1275,6 +1306,7 @@ function applyRemoteMain(data){
   clubsDB = data.clubsDB || [];
   upcomingTournaments = data.upcomingTournaments || [];
   coordinadoresDB = data.coordinadoresDB || [];
+  adminEmails = data.adminEmails || [];
   renderUI();
   applyingRemote = false;
 }
@@ -1337,6 +1369,7 @@ async function initApp(){
       clubsDB = mainData.clubsDB || [];
       upcomingTournaments = mainData.upcomingTournaments || [];
       coordinadoresDB = mainData.coordinadoresDB || [];
+      adminEmails = mainData.adminEmails || [];
 
       const toursSnap = await tournamentsColRef.get();
       tournaments = toursSnap.docs.map(d=> sanitizeTournament(d.data()));
@@ -1350,7 +1383,7 @@ async function initApp(){
       }
 
       if(!mainSnap.exists){
-        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, updatedAt: Date.now() });
+        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, updatedAt: Date.now() });
       }
 
       liveSyncActive = true;
@@ -1379,6 +1412,7 @@ async function initApp(){
     try{ const r = await window.storage.get('tournaments-archive', false); archive = r? JSON.parse(r.value): []; }catch(e){ archive = []; }
     try{ const r = await window.storage.get('clubs-db', false); clubsDB = r? JSON.parse(r.value): []; }catch(e){ clubsDB = []; }
     try{ const r = await window.storage.get('coordinadores-db', false); coordinadoresDB = r? JSON.parse(r.value): []; }catch(e){ coordinadoresDB = []; }
+    try{ const r = await window.storage.get('admin-emails', false); adminEmails = r? JSON.parse(r.value): []; }catch(e){ adminEmails = []; }
     try{ const r = await window.storage.get('upcoming-tournaments', false); upcomingTournaments = r? JSON.parse(r.value): []; }catch(e){ upcomingTournaments = []; }
     try{ const r = await window.storage.get('active-tournaments', false); tournaments = r? JSON.parse(r.value).map(sanitizeTournament): []; }catch(e){ tournaments = []; }
     if(tournaments.length===0){
@@ -1405,6 +1439,7 @@ function showLoginScreen(){
 function resolveRoleForEmail(email){
   const clean = (email||'').trim().toLowerCase();
   if(clean === ADMIN_EMAIL.toLowerCase()) return {role:'admin'};
+  if(adminEmails.some(e=> e && e.trim().toLowerCase()===clean)) return {role:'admin'};
   const coord = coordinadoresDB.find(c=> c.email && c.email.trim().toLowerCase()===clean);
   if(coord) return {role:'coordinador', username:coord.email};
   return {role:'jugador'};
@@ -1432,9 +1467,22 @@ App.attemptLogin = function(){
     onLoginSuccess();
     return;
   }
-  // jugador: contraseña fija de acceso rápido (o autorregistro si el correo no está cargado todavía)
+  // jugador
+  const existingPlayer = findPlayerByEmail(email);
+  if(existingPlayer && existingPlayer.customPassword){
+    if(pass !== existingPlayer.customPassword){ errEl.textContent = 'Contraseña incorrecta.'; return; }
+    currentUser = {role:'jugador', playerId:existingPlayer.id, name:existingPlayer.name};
+    onLoginSuccess();
+    return;
+  }
+  // todavía no tiene contraseña propia: la genérica "torneo" sirve, pero solo para entrar y elegir la suya
   if(pass !== PLAYER_PASSWORD){ errEl.textContent = 'Contraseña incorrecta.'; return; }
-  handleAuthSuccess(email, null, null);
+  if(existingPlayer){
+    pendingSetPasswordPlayer = existingPlayer;
+    openSetPasswordModal();
+  } else {
+    handleAuthSuccess(email, null, null);
+  }
 };
 
 function onLoginSuccess(){
@@ -1461,7 +1509,9 @@ function findPlayerByEmail(email){
 function openNewPlayerRegistrationModal(displayName){
   document.getElementById('newPlayerName').value = displayName || '';
   document.getElementById('newPlayerDni').value = '';
+  document.getElementById('newPlayerPhone').value = '';
   document.getElementById('newPlayerCategoria').value = '5ta';
+  document.getElementById('newPlayerPassword').value = '';
   document.getElementById('newPlayerError').textContent = '';
   document.getElementById('newPlayerModalOverlay').style.display = 'flex';
 }
@@ -1471,13 +1521,17 @@ App.confirmNewPlayerRegistration = function(){
   errEl.textContent = '';
   const name = document.getElementById('newPlayerName').value.trim();
   const dni = document.getElementById('newPlayerDni').value.trim();
+  const phone = document.getElementById('newPlayerPhone').value.trim();
   const categoria = document.getElementById('newPlayerCategoria').value;
+  const password = document.getElementById('newPlayerPassword').value;
   if(!name){ errEl.textContent = 'Ingresá tu nombre y apellido.'; return; }
   if(!dni){ errEl.textContent = 'Ingresá tu DNI.'; return; }
+  if(!phone){ errEl.textContent = 'Ingresá tu número de celular.'; return; }
+  if(password && password.length<4){ errEl.textContent = 'La contraseña tiene que tener al menos 4 caracteres.'; return; }
   if(!pendingNewPlayerAuth) return;
   const {email, authUid} = pendingNewPlayerAuth;
   const player = {
-    id:uid(), name, dni, email: email.trim(), authUid: authUid||null, categoria,
+    id:uid(), name, dni, phone, email: email.trim(), authUid: authUid||null, categoria, customPassword: password||null,
     createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
   };
   playersDB.push(player);
@@ -1485,6 +1539,30 @@ App.confirmNewPlayerRegistration = function(){
   pendingNewPlayerAuth = null;
   document.getElementById('newPlayerModalOverlay').style.display = 'none';
   currentUser = {role:'jugador', playerId:player.id, name:player.name};
+  onLoginSuccess();
+};
+
+let pendingSetPasswordPlayer = null;
+
+function openSetPasswordModal(){
+  document.getElementById('setPasswordNew').value = '';
+  document.getElementById('setPasswordConfirm').value = '';
+  document.getElementById('setPasswordError').textContent = '';
+  document.getElementById('setPasswordModalOverlay').style.display = 'flex';
+}
+
+App.confirmSetPassword = function(){
+  const errEl = document.getElementById('setPasswordError');
+  const p1 = document.getElementById('setPasswordNew').value;
+  const p2 = document.getElementById('setPasswordConfirm').value;
+  if(!p1 || p1.length<4){ errEl.textContent = 'Elegí una contraseña de al menos 4 caracteres.'; return; }
+  if(p1 !== p2){ errEl.textContent = 'Las contraseñas no coinciden.'; return; }
+  if(!pendingSetPasswordPlayer) return;
+  pendingSetPasswordPlayer.customPassword = p1;
+  scheduleSaveMain();
+  currentUser = {role:'jugador', playerId:pendingSetPasswordPlayer.id, name:pendingSetPasswordPlayer.name};
+  pendingSetPasswordPlayer = null;
+  document.getElementById('setPasswordModalOverlay').style.display = 'none';
   onLoginSuccess();
 };
 
@@ -1655,6 +1733,7 @@ function renderJugadorPerfil(){
     <div class="profile-grid">
       <div class="profile-item"><span class="profile-label">Nombre y apellido</span><span class="profile-value">${escapeHtml(player.name)}</span></div>
       <div class="profile-item"><span class="profile-label">DNI</span><span class="profile-value">${escapeHtml(player.dni||'—')}</span></div>
+      <div class="profile-item"><span class="profile-label">Celular</span><span class="profile-value">${escapeHtml(player.phone||'—')}</span></div>
       <div class="profile-item"><span class="profile-label">Categoría</span><span class="profile-value">${escapeHtml(player.categoria||'—')}</span></div>
       <div class="profile-item"><span class="profile-label">Correo</span><span class="profile-value">${escapeHtml(player.email||'—')}</span></div>
     </div>
@@ -2763,15 +2842,19 @@ App.setPlayerField = function(id, field, value){
 };
 
 App.removePlayer = function(id){
-  const inUse = state.pairs.some(p=>p.p1Id===id || p.p2Id===id);
+  const inUseTournaments = tournaments.filter(t=> t.pairs.some(p=>p.p1Id===id || p.p2Id===id));
+  const inUse = inUseTournaments.length>0;
   const player = playersDB.find(p=>p.id===id);
   const hasHistory = player && player.stats.historial.length>0;
   let msg = '¿Eliminar a este jugador de la base?';
-  if(inUse) msg = 'Este jugador está asignado a una pareja del torneo activo. Si lo eliminás, se lo va a quitar de esa pareja. ' + msg;
+  if(inUse) msg = `Este jugador está anotado en ${inUseTournaments.length} torneo(s) activo(s). Si lo eliminás, se lo va a quitar de esas parejas. ` + msg;
   if(hasHistory) msg += ' Se perderá también su historial y puntaje acumulado.';
   const ok = confirm(msg);
   if(!ok) return;
-  if(inUse){ state.pairs.forEach(p=>{ if(p.p1Id===id) p.p1Id=null; if(p.p2Id===id) p.p2Id=null; }); }
+  inUseTournaments.forEach(t=>{
+    t.pairs.forEach(p=>{ if(p.p1Id===id) p.p1Id=null; if(p.p2Id===id) p.p2Id=null; });
+    scheduleSaveTournament(t);
+  });
   playersDB = playersDB.filter(p=>p.id!==id);
   render();
 };
@@ -3655,7 +3738,7 @@ App.wipeEverything = function(){
 };
 
 App.exportState = function(){
-  const bundle = { playersDB, archive, tournaments, clubsDB, upcomingTournaments, coordinadoresDB };
+  const bundle = { playersDB, archive, tournaments, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails };
   const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3677,6 +3760,7 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
       archive = parsed.archive || [];
       clubsDB = parsed.clubsDB || [];
       coordinadoresDB = parsed.coordinadoresDB || [];
+      adminEmails = parsed.adminEmails || [];
       upcomingTournaments = parsed.upcomingTournaments || [];
       if(parsed.tournaments){
         tournaments = parsed.tournaments.map(sanitizeTournament);
@@ -3842,13 +3926,54 @@ function renderStatusStrip(){
 }
 
 /* ---- Jugadores + ranking ---- */
+App.togglePlayerCoordinador = function(playerId){
+  const player = playersDB.find(p=>p.id===playerId);
+  if(!player) return;
+  if(!player.email){ alert('Este jugador necesita tener un correo cargado antes de poder asignarlo como coordinador.'); return; }
+  const email = player.email.trim().toLowerCase();
+  if(email===ADMIN_EMAIL.toLowerCase()){ alert('Ese correo ya es el administrador principal.'); return; }
+  const existing = coordinadoresDB.find(c=> c.email && c.email.trim().toLowerCase()===email);
+  if(existing){
+    coordinadoresDB = coordinadoresDB.filter(c=>c.id!==existing.id);
+  } else {
+    coordinadoresDB.push({id:uid(), email:player.email.trim(), password:'', createdAt:new Date().toISOString()});
+  }
+  scheduleSaveMain();
+  render();
+};
+
+App.togglePlayerAdmin = function(playerId){
+  const player = playersDB.find(p=>p.id===playerId);
+  if(!player) return;
+  if(!player.email){ alert('Este jugador necesita tener un correo cargado antes de poder asignarlo como administrador.'); return; }
+  const email = player.email.trim().toLowerCase();
+  if(email===ADMIN_EMAIL.toLowerCase()){ return; } // el admin principal no se puede tocar desde acá
+  const idx = adminEmails.findIndex(e=> e && e.trim().toLowerCase()===email);
+  if(idx>=0){
+    adminEmails.splice(idx,1);
+  } else {
+    const ok = confirm(`¿Convertir a ${player.name} en administrador? Va a tener acceso total a la app: todos los torneos, jugadores, clubes y coordinadores.`);
+    if(!ok) return;
+    adminEmails.push(player.email.trim());
+  }
+  scheduleSaveMain();
+  render();
+};
+
 function renderJugadores(){
   const c = document.getElementById('rankingContainer');
   if(playersDB.length===0){
     c.innerHTML = `<div class="empty-state">Todavía no cargaste jugadores. Escribí un nombre arriba y presioná Enter o "+ Agregar".</div>`;
     return;
   }
-  const sorted = [...playersDB].sort((a,b)=> b.stats.puntos - a.stats.puntos);
+  const searchBox = document.getElementById('playerSearchBox');
+  const query = searchBox ? searchBox.value.trim().toLowerCase() : '';
+  let sorted = [...playersDB].sort((a,b)=> b.stats.puntos - a.stats.puntos);
+  if(query) sorted = sorted.filter(p=> p.name.toLowerCase().includes(query));
+  if(sorted.length===0){
+    c.innerHTML = `<div class="empty-state">Ningún jugador coincide con "${escapeHtml(query)}".</div>`;
+    return;
+  }
   const rows = sorted.map((p,i)=>{
     const expanded = expandedPlayers.has(p.id);
     let historyRow = '';
@@ -3859,8 +3984,13 @@ function renderJugadores(){
           <span class="h-instancia">${escapeHtml(h.instancia)}</span>
           <span class="h-puntos">+${h.puntos} pts</span>
         </div>`).join('') : `<div class="hint">Todavía no jugó ningún torneo cerrado.</div>`;
-      historyRow = `<tr class="player-history-row"><td colspan="9"><div class="player-history">${entries}</div></td></tr>`;
+      historyRow = `<tr class="player-history-row"><td colspan="14"><div class="player-history">${entries}</div></td></tr>`;
     }
+    const emailLower = (p.email||'').trim().toLowerCase();
+    const isMainAdmin = emailLower && emailLower===ADMIN_EMAIL.toLowerCase();
+    const isAdmin = isMainAdmin || adminEmails.some(e=> e && e.trim().toLowerCase()===emailLower);
+    const isCoord = !isMainAdmin && coordinadoresDB.some(cd=> cd.email && cd.email.trim().toLowerCase()===emailLower);
+    const noEmail = !p.email;
     return `
       <tr class="${i===0 && p.stats.puntos>0 ?'leader':''}">
         <td><span class="rank-badge">${i+1}</span></td>
@@ -3869,6 +3999,7 @@ function renderJugadores(){
           <button onclick="App.togglePlayerHistory('${p.id}')">${expanded?'ocultar':'ver historial'}</button>
         </td>
         <td><input class="inline-edit" placeholder="DNI" value="${escapeAttr(p.dni||'')}" onchange="App.setPlayerField('${p.id}','dni',this.value)"></td>
+        <td><input class="inline-edit" type="tel" placeholder="Celular" value="${escapeAttr(p.phone||'')}" onchange="App.setPlayerField('${p.id}','phone',this.value)"></td>
         <td><input class="inline-edit" type="email" placeholder="Correo (para iniciar sesión)" value="${escapeAttr(p.email||'')}" onchange="App.setPlayerField('${p.id}','email',this.value)"></td>
         <td><input class="inline-edit" placeholder="Categoría" value="${escapeAttr(p.categoria||'')}" onchange="App.setPlayerField('${p.id}','categoria',this.value)"></td>
         <td class="num">${p.stats.torneos}</td>
@@ -3876,6 +4007,12 @@ function renderJugadores(){
         <td class="num">${p.stats.finalista}</td>
         <td class="num">${p.stats.semifinal}</td>
         <td class="num">${p.stats.puntos}</td>
+        <td class="role-check-cell" title="${noEmail?'Necesita un correo cargado primero':'Marcar/desmarcar como coordinador'}">
+          <input type="checkbox" ${isCoord?'checked':''} ${noEmail||isMainAdmin?'disabled':''} onchange="App.togglePlayerCoordinador('${p.id}')">
+        </td>
+        <td class="role-check-cell" title="${noEmail?'Necesita un correo cargado primero':(isMainAdmin?'Administrador principal — no se puede quitar':'Marcar/desmarcar como administrador')}">
+          <input type="checkbox" ${isAdmin?'checked':''} ${noEmail||isMainAdmin?'disabled':''} onchange="App.togglePlayerAdmin('${p.id}')">
+        </td>
         <td><button class="remove-player-btn" onclick="App.removePlayer('${p.id}')">✕</button></td>
       </tr>
       ${historyRow}`;
@@ -3885,8 +4022,8 @@ function renderJugadores(){
     <div class="ranking-wrap">
       <table class="ranking">
         <thead><tr>
-          <th>#</th><th>Jugador</th><th>DNI</th><th>Correo</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
-          <th class="num">Finales</th><th class="num">Semis</th><th class="num">Puntos</th><th></th>
+          <th>#</th><th>Jugador</th><th>DNI</th><th>Celular</th><th>Correo</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
+          <th class="num">Finales</th><th class="num">Semis</th><th class="num">Puntos</th><th>Coord.</th><th>Admin</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
