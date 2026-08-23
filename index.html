@@ -515,6 +515,11 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   font-size:13.5px; padding:8px 10px; border-radius:8px;
 }
 .modal-actions{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+.privacy-check-row{
+  display:flex; align-items:flex-start; gap:9px; margin:4px 0 16px; cursor:pointer;
+  font-size:12px; color:var(--text-dim); line-height:1.5;
+}
+.privacy-check-row input[type="checkbox"]{margin-top:2px; width:16px; height:16px; flex-shrink:0; accent-color:var(--accent); cursor:pointer;}
 .modal-btn-pago{
   border:none; border-radius:8px; padding:12px 18px; font-size:13.5px; font-weight:600; cursor:pointer;
 }
@@ -816,81 +821,86 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
   </div>
 </div>
 
+<div class="modal-overlay" id="newPlayerModalOverlay" style="display:none;">
+  <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
+    <div class="modal-title" style="text-align:center;">Completá tu registro</div>
+    <p class="hint" style="margin:0 0 16px; text-align:center;">Es la primera vez que entrás — necesitamos estos datos para anotarte en los torneos.</p>
+    <div class="modal-field-row"><label>Nombre y apellido</label><input type="text" id="newPlayerName"></div>
+    <div class="modal-field-row"><label>DNI</label><input type="text" id="newPlayerDni" inputmode="numeric"></div>
+    <div class="modal-field-row"><label>Celular</label><input type="tel" id="newPlayerPhone" inputmode="tel" placeholder="Ej. 11 2345 6789"></div>
+    <div class="modal-field-row">
+      <label>Categoría</label>
+      <select id="newPlayerCategoria">
+        <option value="" selected disabled>— Elegí tu categoría —</option>
+        <option value="9na">9na</option>
+        <option value="8va">8va</option>
+        <option value="7ma">7ma</option>
+        <option value="6ta">6ta</option>
+        <option value="5ta">5ta</option>
+        <option value="4ta">4ta</option>
+        <option value="3ra">3ra</option>
+        <option value="2da">2da</option>
+        <option value="1ra">1ra</option>
+        <option value="Suma 4">Suma 4</option>
+        <option value="Suma 5">Suma 5</option>
+        <option value="Suma 6">Suma 6</option>
+        <option value="Suma 7">Suma 7</option>
+        <option value="Suma 8">Suma 8</option>
+        <option value="Suma 9">Suma 9</option>
+        <option value="Suma 10">Suma 10</option>
+        <option value="Suma 11">Suma 11</option>
+        <option value="Suma 12">Suma 12</option>
+        <option value="Suma 13">Suma 13</option>
+        <option value="Suma 14">Suma 14</option>
+        <option value="Suma 15">Suma 15</option>
+        <option value="Suma 16">Suma 16</option>
+      </select>
+    </div>
+    <div class="modal-field-row">
+      <label>Contraseña propia (opcional, para entrar sin Google ni correo)</label>
+      <input type="password" id="newPlayerPassword" placeholder="Dejalo vacío si no la vas a usar">
+    </div>
+    <label class="privacy-check-row">
+      <input type="checkbox" id="newPlayerPrivacyCheck">
+      <span>Entiendo que mi <b>nombre</b> y mi <b>categoría</b> van a poder verse en la página (por ejemplo, en tablas de torneos y rankings). Mis otros datos — DNI, celular y correo — son privados: solo los ve el organizador.</span>
+    </label>
+    <div class="login-error" id="newPlayerError"></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="App.confirmNewPlayerRegistration()">Confirmar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="customDialogOverlay" style="display:none;">
+  <div class="modal-box" style="text-align:left; max-width:420px;">
+    <div class="modal-title" id="customDialogTitle" style="text-align:left;"></div>
+    <div id="customDialogMessage" class="custom-dialog-msg"></div>
+    <div class="modal-actions" id="customDialogActions" style="justify-content:flex-end; margin-top:18px;"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="customPromptOverlay" style="display:none;">
+  <div class="modal-box" style="text-align:left; max-width:400px;">
+    <div class="modal-title" id="customPromptTitle" style="text-align:left;"></div>
+    <div id="customPromptMessage" class="custom-dialog-msg"></div>
+    <div class="modal-field-row"><input type="text" id="customPromptInput" onkeydown="if(event.key==='Enter') App._customPromptOk();"></div>
+    <div class="modal-actions" style="justify-content:flex-end; margin-top:12px;">
+      <button class="btn btn-ghost btn-sm" onclick="_customPromptCancel()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="_customPromptOk()">Aceptar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="setPasswordModalOverlay" style="display:none;">
+  <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
+    <div class="modal-title" style="text-align:center;">Elegí tu contraseña</div>
+    <p class="hint" style="margin:0 0 16px; text-align:center;">La contraseña de acceso rápido solo sirve una vez, por seguridad. Elegí la tuya propia para entrar las próximas veces (o usá Google o el enlace por correo, que no necesitan contraseña).</p>
+    <div class="modal-field-row"><label>Nueva contraseña</label><input type="password" id="setPasswordNew"></div>
+    <div class="modal-field-row"><label>Repetí la contraseña</label><input type="password" id="setPasswordConfirm"></div>
+    <div class="login-error" id="setPasswordError"></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="App.confirmSetPassword()">Guardar y entrar</button>
+    </div>
+  </div>
+</div>
 <div id="app" style="display:none;">
-  <div class="modal-overlay" id="newPlayerModalOverlay" style="display:none;">
-    <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
-      <div class="modal-title" style="text-align:center;">Completá tu registro</div>
-      <p class="hint" style="margin:0 0 16px; text-align:center;">Es la primera vez que entrás — necesitamos estos datos para anotarte en los torneos.</p>
-      <div class="modal-field-row"><label>Nombre y apellido</label><input type="text" id="newPlayerName"></div>
-      <div class="modal-field-row"><label>DNI</label><input type="text" id="newPlayerDni" inputmode="numeric"></div>
-      <div class="modal-field-row"><label>Celular</label><input type="tel" id="newPlayerPhone" inputmode="tel" placeholder="Ej. 11 2345 6789"></div>
-      <div class="modal-field-row">
-        <label>Categoría</label>
-        <select id="newPlayerCategoria">
-          <option value="9na">9na</option>
-          <option value="8va">8va</option>
-          <option value="7ma">7ma</option>
-          <option value="6ta">6ta</option>
-          <option value="5ta" selected>5ta</option>
-          <option value="4ta">4ta</option>
-          <option value="3ra">3ra</option>
-          <option value="2da">2da</option>
-          <option value="1ra">1ra</option>
-          <option value="Suma 4">Suma 4</option>
-          <option value="Suma 5">Suma 5</option>
-          <option value="Suma 6">Suma 6</option>
-          <option value="Suma 7">Suma 7</option>
-          <option value="Suma 8">Suma 8</option>
-          <option value="Suma 9">Suma 9</option>
-          <option value="Suma 10">Suma 10</option>
-          <option value="Suma 11">Suma 11</option>
-          <option value="Suma 12">Suma 12</option>
-          <option value="Suma 13">Suma 13</option>
-          <option value="Suma 14">Suma 14</option>
-          <option value="Suma 15">Suma 15</option>
-          <option value="Suma 16">Suma 16</option>
-        </select>
-      </div>
-      <div class="modal-field-row">
-        <label>Contraseña propia (opcional, para entrar sin Google ni correo)</label>
-        <input type="password" id="newPlayerPassword" placeholder="Dejalo vacío si no la vas a usar">
-      </div>
-      <div class="login-error" id="newPlayerError"></div>
-      <div class="modal-actions" style="margin-top:16px;">
-        <button class="btn btn-primary" onclick="App.confirmNewPlayerRegistration()">Confirmar</button>
-      </div>
-    </div>
-  </div>
-  <div class="modal-overlay" id="customDialogOverlay" style="display:none;">
-    <div class="modal-box" style="text-align:left; max-width:420px;">
-      <div class="modal-title" id="customDialogTitle" style="text-align:left;"></div>
-      <div id="customDialogMessage" class="custom-dialog-msg"></div>
-      <div class="modal-actions" id="customDialogActions" style="justify-content:flex-end; margin-top:18px;"></div>
-    </div>
-  </div>
-  <div class="modal-overlay" id="customPromptOverlay" style="display:none;">
-    <div class="modal-box" style="text-align:left; max-width:400px;">
-      <div class="modal-title" id="customPromptTitle" style="text-align:left;"></div>
-      <div id="customPromptMessage" class="custom-dialog-msg"></div>
-      <div class="modal-field-row"><input type="text" id="customPromptInput" onkeydown="if(event.key==='Enter') App._customPromptOk();"></div>
-      <div class="modal-actions" style="justify-content:flex-end; margin-top:12px;">
-        <button class="btn btn-ghost btn-sm" onclick="_customPromptCancel()">Cancelar</button>
-        <button class="btn btn-primary btn-sm" onclick="_customPromptOk()">Aceptar</button>
-      </div>
-    </div>
-  </div>
-  <div class="modal-overlay" id="setPasswordModalOverlay" style="display:none;">
-    <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
-      <div class="modal-title" style="text-align:center;">Elegí tu contraseña</div>
-      <p class="hint" style="margin:0 0 16px; text-align:center;">La contraseña de acceso rápido solo sirve una vez, por seguridad. Elegí la tuya propia para entrar las próximas veces (o usá Google o el enlace por correo, que no necesitan contraseña).</p>
-      <div class="modal-field-row"><label>Nueva contraseña</label><input type="password" id="setPasswordNew"></div>
-      <div class="modal-field-row"><label>Repetí la contraseña</label><input type="password" id="setPasswordConfirm"></div>
-      <div class="login-error" id="setPasswordError"></div>
-      <div class="modal-actions" style="margin-top:16px;">
-        <button class="btn btn-primary" onclick="App.confirmSetPassword()">Guardar y entrar</button>
-      </div>
-    </div>
-  </div>
   <div class="modal-overlay" id="newTournamentModalOverlay" style="display:none;">
     <div class="modal-box" style="text-align:left; min-width:340px; max-width:420px;">
       <div class="modal-title" style="text-align:center;">Nuevo torneo</div>
@@ -1537,10 +1547,26 @@ async function initApp(){
     }
   }
 
-  if(tryRestoreSession()){
-    showAppForCurrentUser();
-  } else {
-    showLoginScreen();
+  let handledGoogleRedirect = false;
+  if(auth){
+    try{
+      const redirectResult = await auth.getRedirectResult();
+      if(redirectResult && redirectResult.user){
+        handleAuthSuccess(redirectResult.user.email, redirectResult.user.displayName, redirectResult.user.uid);
+        handledGoogleRedirect = true;
+      }
+    }catch(e){
+      console.error('Error volviendo del login con Google', e);
+      customAlert('No se pudo completar el ingreso con Google: ' + (e.message||'intentá de nuevo.'));
+    }
+  }
+
+  if(!handledGoogleRedirect){
+    if(tryRestoreSession()){
+      showAppForCurrentUser();
+    } else {
+      showLoginScreen();
+    }
   }
   checkEmailLinkOnLoad();
 }
@@ -1698,8 +1724,9 @@ function openNewPlayerRegistrationModal(displayName){
   document.getElementById('newPlayerName').value = displayName || '';
   document.getElementById('newPlayerDni').value = '';
   document.getElementById('newPlayerPhone').value = '';
-  document.getElementById('newPlayerCategoria').value = '5ta';
+  document.getElementById('newPlayerCategoria').value = '';
   document.getElementById('newPlayerPassword').value = '';
+  document.getElementById('newPlayerPrivacyCheck').checked = false;
   document.getElementById('newPlayerError').textContent = '';
   document.getElementById('newPlayerModalOverlay').style.display = 'flex';
 }
@@ -1715,7 +1742,9 @@ App.confirmNewPlayerRegistration = function(){
   if(!name){ errEl.textContent = 'Ingresá tu nombre y apellido.'; return; }
   if(!dni){ errEl.textContent = 'Ingresá tu DNI.'; return; }
   if(!phone){ errEl.textContent = 'Ingresá tu número de celular.'; return; }
+  if(!categoria){ errEl.textContent = 'Elegí tu categoría.'; return; }
   if(password && password.length<4){ errEl.textContent = 'La contraseña tiene que tener al menos 4 caracteres.'; return; }
+  if(!document.getElementById('newPlayerPrivacyCheck').checked){ errEl.textContent = 'Tenés que aceptar el aviso sobre tus datos para continuar.'; return; }
   if(!pendingNewPlayerAuth) return;
   const {email, authUid} = pendingNewPlayerAuth;
   const player = {
@@ -1782,9 +1811,7 @@ App.loginWithGoogle = function(){
   const errEl = document.getElementById('loginError');
   if(errEl) errEl.textContent = '';
   if(!auth || !googleProvider){ if(errEl) errEl.textContent = 'El inicio de sesión con Google no está disponible ahora mismo.'; return; }
-  auth.signInWithPopup(googleProvider).then(result=>{
-    handleAuthSuccess(result.user.email, result.user.displayName, result.user.uid);
-  }).catch(err=>{
+  auth.signInWithRedirect(googleProvider).catch(err=>{
     if(errEl) errEl.textContent = 'No se pudo iniciar sesión con Google: ' + (err.message||'intentá de nuevo.');
   });
 };
