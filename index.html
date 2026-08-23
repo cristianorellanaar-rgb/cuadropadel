@@ -607,6 +607,10 @@ th.num[title], th[title]{cursor:help;}
 .jugador-header .who{font-family:var(--font-display); font-size:18px;}
 .jugador-header .who span{color:var(--accent);}
 .jugador-section{max-width:640px; margin:0 auto 30px;}
+.profile-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow-card);}
+.profile-item{display:flex; flex-direction:column; gap:4px;}
+.profile-label{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px;}
+.profile-value{font-size:14.5px; color:var(--text); font-weight:600;}
 .jugador-section.wide{max-width:1100px;}
 .jugador-section h3{font-family:var(--font-display); font-size:15px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-faint); margin:0 0 12px;}
 .next-match-card{
@@ -764,6 +768,10 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     <button class="sb-btn" onclick="App.logout()">Cerrar sesión</button>
   </div>
   <div class="jugador-section">
+    <h3>Mi perfil</h3>
+    <div id="jugadorPerfil"></div>
+  </div>
+  <div class="jugador-section">
     <h3>Tu próximo partido</h3>
     <div id="jugadorProximoPartido"></div>
   </div>
@@ -779,6 +787,11 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     <h3>Tabla de puntos</h3>
     <div id="jugadorTablaPuntos"></div>
   </div>
+  <div class="jugador-section wide">
+    <h3>Torneos para inscribirte</h3>
+    <div id="jugadorInscripcion"></div>
+    <datalist id="playersDatalistJugador"></datalist>
+  </div>
   <div class="jugador-section">
     <h3>Próximos torneos</h3>
     <div id="jugadorProximosTorneos"></div>
@@ -786,6 +799,45 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 </div>
 
 <div id="app" style="display:none;">
+  <div class="modal-overlay" id="newPlayerModalOverlay" style="display:none;">
+    <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
+      <div class="modal-title" style="text-align:center;">Completá tu registro</div>
+      <p class="hint" style="margin:0 0 16px; text-align:center;">Es la primera vez que entrás — necesitamos estos datos para anotarte en los torneos.</p>
+      <div class="modal-field-row"><label>Nombre y apellido</label><input type="text" id="newPlayerName"></div>
+      <div class="modal-field-row"><label>DNI</label><input type="text" id="newPlayerDni" inputmode="numeric"></div>
+      <div class="modal-field-row">
+        <label>Categoría</label>
+        <select id="newPlayerCategoria">
+          <option value="9na">9na</option>
+          <option value="8va">8va</option>
+          <option value="7ma">7ma</option>
+          <option value="6ta">6ta</option>
+          <option value="5ta" selected>5ta</option>
+          <option value="4ta">4ta</option>
+          <option value="3ra">3ra</option>
+          <option value="2da">2da</option>
+          <option value="1ra">1ra</option>
+          <option value="Suma 4">Suma 4</option>
+          <option value="Suma 5">Suma 5</option>
+          <option value="Suma 6">Suma 6</option>
+          <option value="Suma 7">Suma 7</option>
+          <option value="Suma 8">Suma 8</option>
+          <option value="Suma 9">Suma 9</option>
+          <option value="Suma 10">Suma 10</option>
+          <option value="Suma 11">Suma 11</option>
+          <option value="Suma 12">Suma 12</option>
+          <option value="Suma 13">Suma 13</option>
+          <option value="Suma 14">Suma 14</option>
+          <option value="Suma 15">Suma 15</option>
+          <option value="Suma 16">Suma 16</option>
+        </select>
+      </div>
+      <div class="login-error" id="newPlayerError"></div>
+      <div class="modal-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="App.confirmNewPlayerRegistration()">Confirmar</button>
+      </div>
+    </div>
+  </div>
   <div class="modal-overlay" id="newTournamentModalOverlay" style="display:none;">
     <div class="modal-box" style="text-align:left; min-width:340px; max-width:420px;">
       <div class="modal-title" style="text-align:center;">Nuevo torneo</div>
@@ -1399,34 +1451,65 @@ function onLoginSuccess(){
 }
 
 /* ---- autenticación con Google / enlace mágico por correo (autorregistro de jugador) ---- */
-function findOrCreatePlayerByEmail(email, displayName, authUid){
+let pendingNewPlayerAuth = null;
+
+function findPlayerByEmail(email){
   const clean = (email||'').trim().toLowerCase();
-  let player = playersDB.find(p=> p.email && p.email.trim().toLowerCase()===clean);
-  if(player){
-    if(authUid && player.authUid!==authUid) player.authUid = authUid;
-    return player;
-  }
-  // autorregistro: no existía ningún jugador con ese correo, se crea uno nuevo
-  player = {
-    id:uid(), name: displayName || clean, dni:'', email: email.trim(), authUid: authUid||null, categoria:'',
+  return playersDB.find(p=> p.email && p.email.trim().toLowerCase()===clean) || null;
+}
+
+function openNewPlayerRegistrationModal(displayName){
+  document.getElementById('newPlayerName').value = displayName || '';
+  document.getElementById('newPlayerDni').value = '';
+  document.getElementById('newPlayerCategoria').value = '5ta';
+  document.getElementById('newPlayerError').textContent = '';
+  document.getElementById('newPlayerModalOverlay').style.display = 'flex';
+}
+
+App.confirmNewPlayerRegistration = function(){
+  const errEl = document.getElementById('newPlayerError');
+  errEl.textContent = '';
+  const name = document.getElementById('newPlayerName').value.trim();
+  const dni = document.getElementById('newPlayerDni').value.trim();
+  const categoria = document.getElementById('newPlayerCategoria').value;
+  if(!name){ errEl.textContent = 'Ingresá tu nombre y apellido.'; return; }
+  if(!dni){ errEl.textContent = 'Ingresá tu DNI.'; return; }
+  if(!pendingNewPlayerAuth) return;
+  const {email, authUid} = pendingNewPlayerAuth;
+  const player = {
+    id:uid(), name, dni, email: email.trim(), authUid: authUid||null, categoria,
     createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
   };
   playersDB.push(player);
   scheduleSaveMain();
-  return player;
-}
+  pendingNewPlayerAuth = null;
+  document.getElementById('newPlayerModalOverlay').style.display = 'none';
+  currentUser = {role:'jugador', playerId:player.id, name:player.name};
+  onLoginSuccess();
+};
 
 function handleAuthSuccess(email, displayName, authUid){
   const resolved = resolveRoleForEmail(email);
   if(resolved.role==='admin'){
     currentUser = {role:'admin'};
-  } else if(resolved.role==='coordinador'){
-    currentUser = {role:'coordinador', username:resolved.username};
-  } else {
-    const player = findOrCreatePlayerByEmail(email, displayName, authUid);
-    currentUser = {role:'jugador', playerId:player.id, name:player.name};
+    onLoginSuccess();
+    return;
   }
-  onLoginSuccess();
+  if(resolved.role==='coordinador'){
+    currentUser = {role:'coordinador', username:resolved.username};
+    onLoginSuccess();
+    return;
+  }
+  const player = findPlayerByEmail(email);
+  if(player){
+    if(authUid && player.authUid!==authUid) player.authUid = authUid;
+    currentUser = {role:'jugador', playerId:player.id, name:player.name};
+    onLoginSuccess();
+    return;
+  }
+  // primera vez de este correo: pedir nombre, DNI y categoría antes de crear la ficha
+  pendingNewPlayerAuth = {email, authUid};
+  openNewPlayerRegistrationModal(displayName);
 }
 
 App.loginWithGoogle = function(){
@@ -1563,8 +1646,102 @@ App.selectJugadorTournament = function(id){
   renderJugadorView();
 };
 
+function renderJugadorPerfil(){
+  const el = document.getElementById('jugadorPerfil');
+  if(!el) return;
+  const player = playersDB.find(p=>p.id===currentUser.playerId);
+  if(!player){ el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="profile-grid">
+      <div class="profile-item"><span class="profile-label">Nombre y apellido</span><span class="profile-value">${escapeHtml(player.name)}</span></div>
+      <div class="profile-item"><span class="profile-label">DNI</span><span class="profile-value">${escapeHtml(player.dni||'—')}</span></div>
+      <div class="profile-item"><span class="profile-label">Categoría</span><span class="profile-value">${escapeHtml(player.categoria||'—')}</span></div>
+      <div class="profile-item"><span class="profile-label">Correo</span><span class="profile-value">${escapeHtml(player.email||'—')}</span></div>
+    </div>
+    <div class="hint" style="margin-top:8px;">Estos datos los carga el organizador — si hay algún error, pedile que lo corrija.</div>`;
+}
+
+let jugadorInscribiendoId = null;
+
+function renderJugadorInscripcion(){
+  const el = document.getElementById('jugadorInscripcion');
+  if(!el) return;
+  const myId = currentUser.playerId;
+  if(tournaments.length===0){
+    el.innerHTML = `<div class="empty-state">No hay torneos activos por el momento.</div>`;
+    return;
+  }
+  el.innerHTML = tournaments.map(t=>{
+    const club = clubsDB.find(c=>c.id===t.clubId);
+    const already = t.pairs.some(p=> p.p1Id===myId || p.p2Id===myId);
+    const isGrupo = t.format==='grupo', isPrincipiantes = t.format==='principiantes';
+    const formatLabel = isGrupo ? '3 a 5 parejas' : (isPrincipiantes ? 'Principiantes' : 'Avanzado');
+    const formatClass = isGrupo ? 'grupo' : (isPrincipiantes ? 'principiantes' : 'avanzado');
+    const pairCount = t.pairs.filter(p=>p.p1Id && p.p2Id).length;
+    let actionHtml;
+    if(already){
+      actionHtml = `<span class="tag direct" style="margin-top:8px; display:inline-block;">✓ Ya estás inscripto</span>`;
+    } else if(jugadorInscribiendoId===t.tournamentId){
+      actionHtml = `
+        <div class="modal-field-row" style="margin-top:8px;">
+          <label>Tu compañero/a (opcional, buscá por nombre)</label>
+          <input type="text" id="inscribirPartner-${t.tournamentId}" list="playersDatalistJugador" autocomplete="off" oninput="updatePlayersDatalist(this.value, 'playersDatalistJugador')" placeholder="Buscar jugador...">
+        </div>
+        <div class="actions-row">
+          <button class="btn btn-primary btn-sm" onclick="App.confirmarInscripcion('${t.tournamentId}')">Confirmar inscripción</button>
+          <button class="btn btn-ghost btn-sm" onclick="jugadorInscribiendoId=null; renderJugadorInscripcion();">Cancelar</button>
+        </div>`;
+    } else {
+      actionHtml = `<button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="jugadorInscribiendoId='${t.tournamentId}'; renderJugadorInscripcion();">Inscribirme</button>`;
+    }
+    return `
+      <div class="tournament-card" style="border-left-color:var(--accent);">
+        <div class="tournament-icon" style="background:rgba(90,154,31,0.12); color:var(--accent);">🎾</div>
+        <div class="info">
+          <div class="title">${escapeHtml(t.name || 'Torneo sin nombre')}</div>
+          <div class="meta">
+            <span class="format-pill ${formatClass}">${formatLabel}</span>
+            ${club ? `<span>🏟️ ${escapeHtml(club.name)}</span>` : ''}
+            ${t.categoria ? `<span>${escapeHtml(t.categoria)}</span>` : ''}
+            <span>${pairCount} pareja${pairCount===1?'':'s'}</span>
+          </div>
+          ${actionHtml}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+App.confirmarInscripcion = function(tournamentId){
+  const t = tournaments.find(x=>x.tournamentId===tournamentId);
+  if(!t) return;
+  const myId = currentUser.playerId;
+  if(t.pairs.some(p=>p.p1Id===myId || p.p2Id===myId)){
+    alert('Ya estás inscripto en este torneo.');
+    jugadorInscribiendoId = null;
+    renderJugadorInscripcion();
+    return;
+  }
+  const partnerInput = document.getElementById('inscribirPartner-'+tournamentId);
+  const partnerName = partnerInput ? partnerInput.value.trim() : '';
+  let partnerId = null;
+  if(partnerName){
+    const partner = playersDB.find(p=> p.name.toLowerCase()===partnerName.toLowerCase());
+    if(!partner){ alert(`"${partnerName}" no está en la base de jugadores. Dejalo en blanco si todavía no tiene compañero.`); return; }
+    if(partner.id===myId){ alert('No podés ponerte a vos mismo como compañero.'); return; }
+    if(t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ alert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
+    partnerId = partner.id;
+  }
+  t.pairs.push({id:uid(), p1Id:myId, p2Id:partnerId, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
+  scheduleSaveTournament(t);
+  jugadorInscribiendoId = null;
+  alert(partnerId ? '¡Listo! Ya están inscriptos en el torneo.' : '¡Listo! Quedaste inscripto — todavía falta sumar a tu compañero/a.');
+  renderJugadorInscripcion();
+};
+
 function renderJugadorView(){
   document.getElementById('jugadorNombre').textContent = currentUser.name;
+  renderJugadorPerfil();
+  renderJugadorInscripcion();
 
   const matches = findPlayerTournaments(currentUser.playerId);
 
@@ -3885,8 +4062,8 @@ function renderTournamentsList(){
   }).join('');
 }
 
-function updatePlayersDatalist(query){
-  const datalist = document.getElementById('playersDatalist');
+function updatePlayersDatalist(query, datalistId){
+  const datalist = document.getElementById(datalistId || 'playersDatalist');
   if(!datalist) return;
   datalist.innerHTML = '';
   const q = (query||'').trim().toLowerCase();
