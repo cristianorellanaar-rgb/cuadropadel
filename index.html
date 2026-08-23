@@ -1464,6 +1464,7 @@ document.addEventListener('focusout', ()=>{
 });
 
 async function initApp(){
+  try{ history.replaceState({cuadropadelNav:true, depth:0}, '', location.href); }catch(e){}
   if(FIREBASE_ENABLED){
     try{
       firebase.initializeApp(firebaseConfig);
@@ -1829,6 +1830,7 @@ App.logout = function(){
   }
   currentUser = null;
   mySessionToken = null;
+  navHistoryStack = [];
   try{ window.localStorage.removeItem('cuadropadel_session'); }catch(e){}
   document.getElementById('loginPassword') && (document.getElementById('loginPassword').value = '');
   showLoginScreen();
@@ -2572,9 +2574,21 @@ function renderCancha(){
   const c = document.getElementById('canchaContainer');
   if(!c) return;
 
+  const addPairHtml = `
+    <div class="cancha-section">
+      <h3 class="round-label" style="text-align:left;">Agregar pareja</h3>
+      <div class="pair-row2" style="max-width:640px;">
+        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 1..." id="checkinNewP1" oninput="updatePlayersDatalist(this.value)">
+        <span class="vs-sep">/</span>
+        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 2..." id="checkinNewP2" oninput="updatePlayersDatalist(this.value)">
+        <input class="alias-input" placeholder="Alias (opcional)" id="checkinNewAlias">
+        <button class="btn btn-primary btn-sm" onclick="App.addPairFromCheckin()">+ Agregar pareja</button>
+      </div>
+    </div>`;
+
   const pairs = getReadyPairs();
   if(pairs.length===0){
-    c.innerHTML = `<div class="empty-state">Todavía no hay parejas cargadas. Armalas primero en la pestaña <b>Parejas</b>.</div>`;
+    c.innerHTML = addPairHtml + `<div class="empty-state">Todavía no hay parejas cargadas. Agregá una arriba, o armalas en la pestaña <b>Parejas</b>.</div>`;
     return;
   }
 
@@ -2675,6 +2689,7 @@ function renderCancha(){
     .map(n=>`<option value="${n}" ${n===courtCount?'selected':''}>${n}</option>`).join('');
 
   c.innerHTML = `
+    ${addPairHtml}
     ${summaryHtml}
     <div class="cancha-section">
       <h3 class="round-label" style="text-align:left;">Check-in — pago y presentes</h3>
@@ -3240,6 +3255,7 @@ App.confirmCreateTournament = function(){
   t.name = `Torneo ${t.tipo} ${t.categoria} ${clubForName ? clubForName.name : ''} ${fechaStr} ${horaStr}`.replace(/\s+/g,' ').trim();
 
   tournaments.push(t);
+  pushNavHistory();
   state = t;
   if(!nav.openTabs.includes(t.tournamentId)) nav.openTabs.push(t.tournamentId);
   nav.activeTab = 'torneoActual';
@@ -3256,6 +3272,7 @@ App.openTournament = function(id){
     customAlert('Este torneo no te pertenece.');
     return;
   }
+  pushNavHistory();
   state = t;
   if(!nav.openTabs.includes(id)) nav.openTabs.push(id);
   nav.activeTab = 'torneoActual';
@@ -3272,6 +3289,7 @@ App.switchToOpenTab = function(id){
     render();
     return;
   }
+  pushNavHistory();
   state = t;
   nav.activeTab = 'torneoActual';
   if(nav.torneoSubTab==='lista') nav.torneoSubTab = 'parejas';
@@ -3293,6 +3311,7 @@ App.closeOpenTab = function(id, ev){
 };
 
 App.backToTournamentList = function(){
+  pushNavHistory();
   state = null;
   nav.torneoSubTab = 'lista';
   render();
@@ -3323,6 +3342,25 @@ App.deleteTournamentActive = async function(id){
 App.addPairRow = function(){
   state.pairs.push({id:uid(), p1Id:null, p2Id:null, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
   render();
+};
+App.addPairFromCheckin = function(){
+  const p1Input = document.getElementById('checkinNewP1');
+  const p2Input = document.getElementById('checkinNewP2');
+  const aliasInput = document.getElementById('checkinNewAlias');
+  const p1Name = p1Input.value.trim();
+  const p2Name = p2Input.value.trim();
+  if(!p1Name || !p2Name){ customAlert('Buscá y elegí a los dos jugadores de la pareja.'); return; }
+  const p1 = playersDB.find(p=>p.name.toLowerCase()===p1Name.toLowerCase());
+  const p2 = playersDB.find(p=>p.name.toLowerCase()===p2Name.toLowerCase());
+  if(!p1){ customAlert(`"${p1Name}" no está en la base de jugadores. Agregalo primero en la pestaña "Jugadores".`); return; }
+  if(!p2){ customAlert(`"${p2Name}" no está en la base de jugadores. Agregalo primero en la pestaña "Jugadores".`); return; }
+  if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
+  if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
+  if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
+  state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:aliasInput.value.trim(), paid1:false, paid2:false, present:false, presentAt:null});
+  p1Input.value=''; p2Input.value=''; aliasInput.value='';
+  render();
+  customAlert(`Pareja agregada: ${p1.name} / ${p2.name}. Ya la vas a ver también en la pestaña Parejas.`);
 };
 App.removePairRow = async function(id){
   if(state.zones.length>0){
@@ -3371,6 +3409,7 @@ App.goToCheckin = function(){
     customAlert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas no hay forma de repartirlas así. Sumá o quitá una pareja (a 4 o a 6) antes de pasar al check-in.');
     return;
   }
+  pushNavHistory();
   nav.torneoSubTab = 'cancha';
   render();
 };
@@ -3406,6 +3445,7 @@ App.iniciarTorneo = async function(){
   }
   state.primera = null;
   state.segunda = null;
+  pushNavHistory();
   nav.activeTab='torneoActual';
   nav.torneoSubTab='zonas';
   refreshBracket();
@@ -3712,6 +3752,7 @@ function refreshBracket(){
 App.generateBracket = function(){
   customAlert('📸 Ya estamos en fase de eliminación. Acordate de tomar las fotos a los participantes.');
   refreshBracket();
+  pushNavHistory();
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'llave';
   render();
@@ -4013,11 +4054,43 @@ function toggleMobileMenu(forceOpen){
   ov.classList.toggle('open', shouldOpen);
 }
 
-function switchTab(tab){ nav.activeTab = tab; toggleMobileMenu(false); render(); }
+/* =========================================================
+   HISTORIAL DEL NAVEGADOR (para que "atrás" navegue dentro de la app)
+   ========================================================= */
+let navHistoryStack = [];
+let isRestoringNavHistory = false;
+
+function snapshotNav(){
+  return { activeTab: nav.activeTab, torneoSubTab: nav.torneoSubTab, tournamentId: state ? state.tournamentId : null };
+}
+
+function pushNavHistory(){
+  if(isRestoringNavHistory) return;
+  navHistoryStack.push(snapshotNav());
+  try{ history.pushState({cuadropadelNav:true, depth:navHistoryStack.length}, '', location.href); }catch(e){}
+}
+
+window.addEventListener('popstate', ()=>{
+  if(navHistoryStack.length===0) return; // no queda nada propio: se deja que el navegador salga normalmente
+  isRestoringNavHistory = true;
+  const prev = navHistoryStack.pop();
+  nav.activeTab = prev.activeTab;
+  nav.torneoSubTab = prev.torneoSubTab;
+  if(prev.tournamentId){
+    const t = tournaments.find(x=>x.tournamentId===prev.tournamentId);
+    state = t || null;
+  } else {
+    state = null;
+  }
+  if(currentUser && document.getElementById('app').style.display!=='none'){ render(); }
+  isRestoringNavHistory = false;
+});
+
+function switchTab(tab){ pushNavHistory(); nav.activeTab = tab; toggleMobileMenu(false); render(); }
 document.querySelectorAll('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
 });
-function switchSubTab(sub){ nav.torneoSubTab = sub; render(); }
+function switchSubTab(sub){ pushNavHistory(); nav.torneoSubTab = sub; render(); }
 document.querySelectorAll('.subnav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> switchSubTab(btn.dataset.subtab));
 });
