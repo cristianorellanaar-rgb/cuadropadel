@@ -251,6 +251,11 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .match-card .btn-sm, .zone-matches-grid .btn-sm{padding:5px 9px; font-size:11px;}
 .actions-row{display:flex; gap:12px; align-items:center; margin-top:6px; flex-wrap:wrap;}
 .hint{font-size:12.5px; color:var(--text-faint); margin-top:10px;}
+.update-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  background:rgba(201,122,0,0.10); border:1px solid rgba(201,122,0,0.35); color:var(--gold);
+  padding:10px 16px; border-radius:10px; margin-bottom:16px; font-size:13px;
+}
 .hint b{color:var(--text-dim);}
 
 /* ---------- inicio (menú principal) ---------- */
@@ -1102,6 +1107,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     <section class="view" id="view-torneoActual">
       <h2 class="section-title">Torneos</h2>
       <p class="section-sub">Elegí un torneo activo para abrirlo, o creá uno nuevo. Cada torneo se guarda por separado — abrir o editar uno no afecta a los demás.</p>
+      <div id="tournamentUpdateBanner"></div>
       <div class="subnav" id="torneoSubnav">
         <button class="subnav-btn" data-subtab="lista">Lista de torneos</button>
         <button class="subnav-btn" data-subtab="parejas">Parejas</button>
@@ -1333,7 +1339,8 @@ function freshTournament(){
     segunda: null,
     courtCount: 4,
     registrationFee: 0,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: 0
   };
 }
 
@@ -1352,6 +1359,7 @@ function sanitizeTournament(t){
   if(t.categoria===undefined) t.categoria = '';
   if(t.tipo===undefined) t.tipo = 'Caballero';
   if(t.formatChosen===undefined) t.formatChosen = true; // torneos de antes de este cambio: ya tenían formato elegido
+  if(t.updatedAt===undefined) t.updatedAt = 0;
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -1370,9 +1378,14 @@ function getVisibleTournaments(){
 }
 
 let saveMainTimer=null;
+let lastKnownMainUpdatedAt = 0; // evita que un snapshot en vivo "atrasado" pise un guardado propio más reciente
 async function doSaveMain(){
   if(liveSyncActive && firestoreDocRef){
-    try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() }); }
+    const now = Date.now();
+    try{
+      await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
+      lastKnownMainUpdatedAt = now;
+    }
     catch(e){ console.error('Error guardando en Firebase', e); }
     return;
   }
@@ -1396,6 +1409,9 @@ function scheduleSaveMain(){
 
 let saveTournamentTimers = {};
 async function doSaveTournament(t){
+  if(!t) return;
+  t.updatedAt = Date.now(); // se guarda YA en el objeto local: sirve para comparar contra ecos viejos del oyente en vivo
+  lastKnownOwnUpdatedAt[t.tournamentId] = t.updatedAt;
   if(liveSyncActive && tournamentsColRef){
     try{ await tournamentsColRef.doc(t.tournamentId).set(t); }
     catch(e){ console.error('Error guardando el torneo', e); }
@@ -1440,6 +1456,8 @@ function deleteTournamentDoc(tournamentId){
 }
 
 function applyRemoteMain(data){
+  if((data.updatedAt||0) < lastKnownMainUpdatedAt) return; // eco atrasado del oyente en vivo: se ignora, no pisa algo mas reciente
+  lastKnownMainUpdatedAt = data.updatedAt||lastKnownMainUpdatedAt;
   applyingRemote = true;
   playersDB = data.playersDB || [];
   archive = data.archive || [];
@@ -1453,6 +1471,9 @@ function applyRemoteMain(data){
   checkSessionStillValid();
 }
 
+let pendingTournamentUpdate = null;
+let lastKnownOwnUpdatedAt = {}; // tournamentId -> el updatedAt que YO le puse en mi último guardado
+
 function applyRemoteTournaments(snap){
   applyingRemote = true;
   snap.docChanges().forEach(change=>{
@@ -1465,7 +1486,16 @@ function applyRemoteTournaments(snap){
         nav.torneoSubTab = 'lista';
       }
     } else if(idx>=0){
-      Object.assign(tournaments[idx], data); // mutar en el lugar: si `state` apunta a este objeto, se actualiza solo
+      const current = tournaments[idx];
+      if((data.updatedAt||0) < (current.updatedAt||0)){
+        // eco atrasado del oyente en vivo: se ignora para no pisar un cambio local más reciente
+      } else if(state && state.tournamentId===data.tournamentId && (data.updatedAt||0) > (current.updatedAt||0) && data.updatedAt !== lastKnownOwnUpdatedAt[data.tournamentId]){
+        // es el torneo que tengo abierto ahora mismo, y la novedad NO es un eco de mi propio guardado:
+        // alguien más lo modificó. Avisar en vez de pisarlo en el medio de lo que estoy viendo/editando.
+        pendingTournamentUpdate = data;
+      } else {
+        Object.assign(current, data); // mutar en el lugar: si `state` apunta a este objeto, se actualiza solo
+      }
     } else {
       tournaments.push(data);
     }
@@ -1473,6 +1503,28 @@ function applyRemoteTournaments(snap){
   renderUI();
   applyingRemote = false;
 }
+
+function renderTournamentUpdateBanner(){
+  const el = document.getElementById('tournamentUpdateBanner');
+  if(!el) return;
+  if(pendingTournamentUpdate && state && pendingTournamentUpdate.tournamentId===state.tournamentId){
+    el.innerHTML = `
+      <div class="update-banner">
+        <span>⚠️ Otra persona actualizó este torneo mientras lo tenías abierto.</span>
+        <button class="btn btn-primary btn-sm" onclick="App.applyPendingTournamentUpdate()">🔄 Actualizar</button>
+      </div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+App.applyPendingTournamentUpdate = function(){
+  if(!pendingTournamentUpdate) return;
+  const idx = tournaments.findIndex(t=>t.tournamentId===pendingTournamentUpdate.tournamentId);
+  if(idx>=0) Object.assign(tournaments[idx], pendingTournamentUpdate);
+  pendingTournamentUpdate = null;
+  render();
+};
 
 function isTypingInInput(){
   const el = document.activeElement;
@@ -1514,6 +1566,7 @@ async function initApp(){
       coordinadoresDB = mainData.coordinadoresDB || [];
       adminEmails = mainData.adminEmails || [];
       sessions = mainData.sessions || {};
+      lastKnownMainUpdatedAt = mainData.updatedAt || 0;
 
       const toursSnap = await tournamentsColRef.get();
       tournaments = toursSnap.docs.map(d=> sanitizeTournament(d.data()));
@@ -4196,6 +4249,7 @@ function render(){
 }
 
 function renderUI(){
+  renderTournamentUpdateBanner();
   const nameInput = document.getElementById('tournamentName');
   if(state){
     nameInput.disabled = false;
