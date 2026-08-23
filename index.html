@@ -500,6 +500,7 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   min-width:260px; text-align:center;
 }
 .modal-title{font-family:var(--font-display); font-size:16px; margin-bottom:16px;}
+.custom-dialog-msg{font-size:13.5px; color:var(--text-dim); line-height:1.5; white-space:pre-line;}
 .modal-field-row{display:flex; flex-direction:column; gap:5px; margin-bottom:14px; font-size:12.5px; color:var(--text-dim);}
 .modal-field-row select, .modal-field-row input[type="text"]{
   background:var(--panel-3); border:1px solid var(--line-strong); color:var(--text);
@@ -852,6 +853,24 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       </div>
     </div>
   </div>
+  <div class="modal-overlay" id="customDialogOverlay" style="display:none;">
+    <div class="modal-box" style="text-align:left; max-width:420px;">
+      <div class="modal-title" id="customDialogTitle" style="text-align:left;"></div>
+      <div id="customDialogMessage" class="custom-dialog-msg"></div>
+      <div class="modal-actions" id="customDialogActions" style="justify-content:flex-end; margin-top:18px;"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="customPromptOverlay" style="display:none;">
+    <div class="modal-box" style="text-align:left; max-width:400px;">
+      <div class="modal-title" id="customPromptTitle" style="text-align:left;"></div>
+      <div id="customPromptMessage" class="custom-dialog-msg"></div>
+      <div class="modal-field-row"><input type="text" id="customPromptInput" onkeydown="if(event.key==='Enter') App._customPromptOk();"></div>
+      <div class="modal-actions" style="justify-content:flex-end; margin-top:12px;">
+        <button class="btn btn-ghost btn-sm" onclick="_customPromptCancel()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="_customPromptOk()">Aceptar</button>
+      </div>
+    </div>
+  </div>
   <div class="modal-overlay" id="setPasswordModalOverlay" style="display:none;">
     <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
       <div class="modal-title" style="text-align:center;">Elegí tu contraseña</div>
@@ -1187,6 +1206,71 @@ let adminEmails = []; // correos adicionales con rol de administrador (además d
 let tournaments = [];  // [{tournamentId,name,format,ownerCoordinador,pairs,zones,smallMode,primera,segunda,createdAt}] — cada uno vive en su propio documento
 
 const ADMIN_PASSWORD = 'SUNAdm1n';
+
+/* =========================================================
+   VENTANAS PROPIAS (reemplazan alert/confirm/prompt nativos del navegador)
+   ========================================================= */
+function customAlert(message, title){
+  return new Promise(resolve=>{
+    document.getElementById('customDialogTitle').textContent = title || 'Aviso';
+    document.getElementById('customDialogMessage').textContent = message;
+    const actionsEl = document.getElementById('customDialogActions');
+    actionsEl.innerHTML = '';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn btn-primary btn-sm';
+    okBtn.textContent = 'Aceptar';
+    okBtn.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display = 'none'; resolve(true); };
+    actionsEl.appendChild(okBtn);
+    document.getElementById('customDialogOverlay').style.display = 'flex';
+    setTimeout(()=>okBtn.focus(), 50);
+  });
+}
+
+function customConfirm(message, title){
+  return new Promise(resolve=>{
+    document.getElementById('customDialogTitle').textContent = title || 'Confirmar';
+    document.getElementById('customDialogMessage').textContent = message;
+    const actionsEl = document.getElementById('customDialogActions');
+    actionsEl.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-ghost btn-sm';
+    cancelBtn.textContent = 'Cancelar';
+    cancelBtn.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display = 'none'; resolve(false); };
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn btn-primary btn-sm';
+    okBtn.textContent = 'Confirmar';
+    okBtn.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display = 'none'; resolve(true); };
+    actionsEl.appendChild(cancelBtn);
+    actionsEl.appendChild(okBtn);
+    document.getElementById('customDialogOverlay').style.display = 'flex';
+    setTimeout(()=>okBtn.focus(), 50);
+  });
+}
+
+let _customPromptResolve = null;
+function customPrompt(message, defaultValue, title){
+  return new Promise(resolve=>{
+    document.getElementById('customPromptTitle').textContent = title || 'Ingresá un dato';
+    document.getElementById('customPromptMessage').textContent = message;
+    const input = document.getElementById('customPromptInput');
+    input.value = defaultValue || '';
+    _customPromptResolve = resolve;
+    document.getElementById('customPromptOverlay').style.display = 'flex';
+    setTimeout(()=>input.focus(), 50);
+  });
+}
+function _customPromptOk(){
+  const input = document.getElementById('customPromptInput');
+  const value = input.value;
+  document.getElementById('customPromptOverlay').style.display = 'none';
+  if(_customPromptResolve) _customPromptResolve(value);
+  _customPromptResolve = null;
+}
+function _customPromptCancel(){
+  document.getElementById('customPromptOverlay').style.display = 'none';
+  if(_customPromptResolve) _customPromptResolve(null);
+  _customPromptResolve = null;
+}
 const ADMIN_EMAIL = 'cristian.orellana.ar@gmail.com';
 const PLAYER_PASSWORD = 'torneo';
 let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
@@ -1616,18 +1700,20 @@ App.sendEmailLoginLink = function(){
   });
 };
 
-function checkEmailLinkOnLoad(){
+async function checkEmailLinkOnLoad(){
   if(!auth) return;
   if(auth.isSignInWithEmailLink(window.location.href)){
     let email = window.localStorage.getItem('cuadropadel_email_link');
-    if(!email){ email = prompt('Confirmá tu correo electrónico para completar el ingreso:'); }
+    if(!email){ email = await customPrompt('Confirmá tu correo electrónico para completar el ingreso:'); }
+    // se limpia la URL siempre, haya salido bien o mal — así un enlace vencido/ya usado no se reintenta solo en cada recarga
+    history.replaceState(null, '', window.location.pathname);
     if(!email) return;
     auth.signInWithEmailLink(email, window.location.href).then(result=>{
       window.localStorage.removeItem('cuadropadel_email_link');
-      history.replaceState(null, '', window.location.pathname);
       handleAuthSuccess(result.user.email || email, result.user.displayName, result.user.uid);
     }).catch(err=>{
-      alert('No se pudo completar el ingreso con el enlace: ' + (err.message||''));
+      window.localStorage.removeItem('cuadropadel_email_link');
+      customAlert('El enlace ya no es válido (venció, ya se usó, o abriste uno viejo). Pedí uno nuevo desde la pantalla de ingreso y usá el último correo que te llegue.');
     });
   }
 }
@@ -1645,13 +1731,13 @@ App.addCoordinador = function(){
   const passEl = document.getElementById('newCoordPass');
   const email = emailEl.value.trim();
   const password = passEl.value;
-  if(!email){ alert('Ingresá un correo electrónico.'); return; }
-  if(email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){ alert('Ese correo ya es el administrador.'); return; }
+  if(!email){ customAlert('Ingresá un correo electrónico.'); return; }
+  if(email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){ customAlert('Ese correo ya es el administrador.'); return; }
   const existing = coordinadoresDB.find(c=> c.email.trim().toLowerCase()===email.toLowerCase());
   if(existing){
     // ya es coordinador: si mandaron una contraseña nueva, la actualiza; si no, no hace falta nada más
     if(password) existing.password = password;
-    alert(`${email} ya es coordinador.`);
+    customAlert(`${email} ya es coordinador.`);
     emailEl.value=''; passEl.value='';
     render();
     return;
@@ -1660,8 +1746,8 @@ App.addCoordinador = function(){
   emailEl.value=''; passEl.value='';
   render();
 };
-App.removeCoordinador = function(id){
-  const ok = confirm('¿Eliminar este coordinador? Va a dejar de poder ingresar como coordinador (si también es jugador, eso no se toca).');
+App.removeCoordinador = async function(id){
+  const ok = await customConfirm('¿Eliminar este coordinador? Va a dejar de poder ingresar como coordinador (si también es jugador, eso no se toca).');
   if(!ok) return;
   coordinadoresDB = coordinadoresDB.filter(c=>c.id!==id);
   render();
@@ -1795,7 +1881,7 @@ App.confirmarInscripcion = function(tournamentId){
   if(!t) return;
   const myId = currentUser.playerId;
   if(t.pairs.some(p=>p.p1Id===myId || p.p2Id===myId)){
-    alert('Ya estás inscripto en este torneo.');
+    customAlert('Ya estás inscripto en este torneo.');
     jugadorInscribiendoId = null;
     renderJugadorInscripcion();
     return;
@@ -1805,15 +1891,15 @@ App.confirmarInscripcion = function(tournamentId){
   let partnerId = null;
   if(partnerName){
     const partner = playersDB.find(p=> p.name.toLowerCase()===partnerName.toLowerCase());
-    if(!partner){ alert(`"${partnerName}" no está en la base de jugadores. Dejalo en blanco si todavía no tiene compañero.`); return; }
-    if(partner.id===myId){ alert('No podés ponerte a vos mismo como compañero.'); return; }
-    if(t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ alert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
+    if(!partner){ customAlert(`"${partnerName}" no está en la base de jugadores. Dejalo en blanco si todavía no tiene compañero.`); return; }
+    if(partner.id===myId){ customAlert('No podés ponerte a vos mismo como compañero.'); return; }
+    if(t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ customAlert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
     partnerId = partner.id;
   }
   t.pairs.push({id:uid(), p1Id:myId, p2Id:partnerId, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
   scheduleSaveTournament(t);
   jugadorInscribiendoId = null;
-  alert(partnerId ? '¡Listo! Ya están inscriptos en el torneo.' : '¡Listo! Quedaste inscripto — todavía falta sumar a tu compañero/a.');
+  customAlert(partnerId ? '¡Listo! Ya están inscriptos en el torneo.' : '¡Listo! Quedaste inscripto — todavía falta sumar a tu compañero/a.');
   renderJugadorInscripcion();
 };
 
@@ -2331,21 +2417,21 @@ App.startMatch = function(matchId){
   const m = loc.match;
   if(!isMatchReadyToStart(m)) return;
   if(!isPairPresent(m.aId) || !isPairPresent(m.bId)){
-    alert('Las dos parejas tienen que estar marcadas como "presente" antes de arrancar el partido.');
+    customAlert('Las dos parejas tienen que estar marcadas como "presente" antes de arrancar el partido.');
     return;
   }
   if(isPairPlaying(m.aId) || isPairPlaying(m.bId)){
-    alert('Una de las dos parejas ya está jugando otro partido.');
+    customAlert('Una de las dos parejas ya está jugando otro partido.');
     return;
   }
   const cancha = (m.cancha||'').trim();
   if(!cancha){
-    alert('Primero indicá el número de cancha en el campo "Cancha" de este partido.');
+    customAlert('Primero indicá el número de cancha en el campo "Cancha" de este partido.');
     return;
   }
   const occupied = getOccupiedCourts();
   if(occupied.has(cancha)){
-    alert(`La cancha "${cancha}" ya está ocupada por otro partido en curso.`);
+    customAlert(`La cancha "${cancha}" ya está ocupada por otro partido en curso.`);
     return;
   }
   m.started = true;
@@ -2597,31 +2683,31 @@ function warnIfBracketExists(extra){
   return msg;
 }
 
-function ensurePairPresentBeforeZoneAssign(pairId){
+async function ensurePairPresentBeforeZoneAssign(pairId){
   const pair = findPairById(pairId);
   if(!pair) return true;
   if(pair.present) return true;
-  const ok = confirm(`${pairDisplayName(pair)} todavía no está marcada como presente en el check-in. ¿Ya llegó y está presente en el club?`);
+  const ok = await customConfirm(`${pairDisplayName(pair)} todavía no está marcada como presente en el check-in. ¿Ya llegó y está presente en el club?`);
   if(!ok) return false;
   pair.present = true;
   pair.presentAt = new Date().toISOString();
   return true;
 }
 
-App.autoAddPairToZone = function(pairId){
-  if(!ensurePairPresentBeforeZoneAssign(pairId)) return;
+App.autoAddPairToZone = async function(pairId){
+  if(!(await ensurePairPresentBeforeZoneAssign(pairId))) return;
   const eligible = state.zones.filter(z=> z.pairIds.length<4);
   if(eligible.length===0){
-    alert('No hay ninguna zona con lugar (todas están completas con 4 parejas). Si tenés al menos 3 parejas sin asignar, podés crear una zona nueva.');
+    customAlert('No hay ninguna zona con lugar (todas están completas con 4 parejas). Si tenés al menos 3 parejas sin asignar, podés crear una zona nueva.');
     return;
   }
   eligible.sort((a,b)=> a.pairIds.length - b.pairIds.length);
   const zone = eligible[0];
   if(zoneHasAnyResult(zone)){
-    const ok = confirm(warnIfBracketExists(`${zone.name} ya tiene resultados cargados. Agregar una pareja reinicia todos los partidos de esa zona (se pierden los resultados ya cargados ahí).`));
+    const ok = await customConfirm(warnIfBracketExists(`${zone.name} ya tiene resultados cargados. Agregar una pareja reinicia todos los partidos de esa zona (se pierden los resultados ya cargados ahí).`));
     if(!ok) return;
   } else if(bracketHasRealProgress()){
-    const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   zone.pairIds.push(pairId);
@@ -2630,13 +2716,13 @@ App.autoAddPairToZone = function(pairId){
   render();
 };
 
-App.removePairFromZone = function(pairId, zoneId){
+App.removePairFromZone = async function(pairId, zoneId){
   const zone = state.zones.find(z=>z.id===zoneId);
   if(!zone) return;
   let msg = `¿Sacar a ${getPairName(pairId)} de ${zone.name}? Va a quedar sin asignar a ninguna zona.`;
   if(zoneHasAnyResult(zone)) msg += ' Esta zona ya tiene resultados cargados — se van a reiniciar todos los partidos de esa zona.';
   msg = warnIfBracketExists(msg);
-  const ok = confirm(msg);
+  const ok = await customConfirm(msg);
   if(!ok) return;
   zone.pairIds = zone.pairIds.filter(id=>id!==pairId);
   if(zone.pairIds.length===0){
@@ -2648,18 +2734,18 @@ App.removePairFromZone = function(pairId, zoneId){
   render();
 };
 
-App.movePairToZone = function(pairId, fromZoneId, toZoneId){
+App.movePairToZone = async function(pairId, fromZoneId, toZoneId){
   if(!toZoneId || fromZoneId===toZoneId) return;
   const fromZone = state.zones.find(z=>z.id===fromZoneId);
   const toZone = state.zones.find(z=>z.id===toZoneId);
   if(!fromZone || !toZone) return;
-  if(toZone.pairIds.length>=4){ alert('Esa zona ya tiene 4 parejas (el máximo).'); render(); return; }
+  if(toZone.pairIds.length>=4){ customAlert('Esa zona ya tiene 4 parejas (el máximo).'); render(); return; }
   const anyResults = zoneHasAnyResult(fromZone) || zoneHasAnyResult(toZone);
   if(anyResults){
-    const ok = confirm(warnIfBracketExists('Alguna de las dos zonas ya tiene resultados cargados — se van a reiniciar todos los partidos de ambas zonas al mover esta pareja.'));
+    const ok = await customConfirm(warnIfBracketExists('Alguna de las dos zonas ya tiene resultados cargados — se van a reiniciar todos los partidos de ambas zonas al mover esta pareja.'));
     if(!ok){ render(); return; }
   } else if(bracketHasRealProgress()){
-    const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok){ render(); return; }
   }
   fromZone.pairIds = fromZone.pairIds.filter(id=>id!==pairId);
@@ -2674,15 +2760,15 @@ App.movePairToZone = function(pairId, fromZoneId, toZoneId){
   render();
 };
 
-App.createZoneFromUnassigned = function(){
+App.createZoneFromUnassigned = async function(){
   const unassigned = getUnassignedPairs();
-  if(unassigned.length<3){ alert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
+  if(unassigned.length<3){ customAlert('Necesitás al menos 3 parejas sin asignar para crear una zona nueva.'); return; }
   const chosen = unassigned.slice(0,4);
   for(const p of chosen){
-    if(!ensurePairPresentBeforeZoneAssign(p.id)) return;
+    if(!(await ensurePairPresentBeforeZoneAssign(p.id))) return;
   }
   if(bracketHasRealProgress()){
-    const ok = confirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   const newZone = makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, chosen.map(p=>p.id));
@@ -2801,10 +2887,10 @@ function computeStageForPair(pairId){
 
 App.setName = function(v){ if(state){ state.name = v; scheduleSaveTournament(state); } };
 
-App.setFormat = function(fmt){
+App.setFormat = async function(fmt){
   if(state.format===fmt) return;
   if(state.zones.length>0){
-    const ok = confirm('Ya hay zonas generadas para este torneo. Cambiar el formato borra las zonas, resultados y llave cargados hasta ahora. ¿Continuar?');
+    const ok = await customConfirm('Ya hay zonas generadas para este torneo. Cambiar el formato borra las zonas, resultados y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
     state.zones = [];
     state.primera = null;
@@ -2832,7 +2918,7 @@ App.addPlayerFromInput = function(){
   input.value='';
   render();
   document.getElementById('newPlayerInput').focus();
-  if(skipped.length){ alert(`Ya existía en la base: ${skipped.join(', ')}`); }
+  if(skipped.length){ customAlert(`Ya existía en la base: ${skipped.join(', ')}`); }
 };
 
 App.setPlayerField = function(id, field, value){
@@ -2841,7 +2927,7 @@ App.setPlayerField = function(id, field, value){
   scheduleSaveMain();
 };
 
-App.removePlayer = function(id){
+App.removePlayer = async function(id){
   const inUseTournaments = tournaments.filter(t=> t.pairs.some(p=>p.p1Id===id || p.p2Id===id));
   const inUse = inUseTournaments.length>0;
   const player = playersDB.find(p=>p.id===id);
@@ -2849,7 +2935,7 @@ App.removePlayer = function(id){
   let msg = '¿Eliminar a este jugador de la base?';
   if(inUse) msg = `Este jugador está anotado en ${inUseTournaments.length} torneo(s) activo(s). Si lo eliminás, se lo va a quitar de esas parejas. ` + msg;
   if(hasHistory) msg += ' Se perderá también su historial y puntaje acumulado.';
-  const ok = confirm(msg);
+  const ok = await customConfirm(msg);
   if(!ok) return;
   inUseTournaments.forEach(t=>{
     t.pairs.forEach(p=>{ if(p.p1Id===id) p.p1Id=null; if(p.p2Id===id) p.p2Id=null; });
@@ -2871,7 +2957,7 @@ App.addClub = function(){
   const courtsEl = document.getElementById('newClubCourts');
   const addressEl = document.getElementById('newClubAddress');
   const name = nameEl.value.trim();
-  if(!name){ alert('Ponele un nombre al club.'); return; }
+  if(!name){ customAlert('Ponele un nombre al club.'); return; }
   clubsDB.push({
     id:uid(), name, courts: courtsEl.value ? Number(courtsEl.value) : null,
     address: addressEl.value.trim(), createdAt:new Date().toISOString()
@@ -2885,11 +2971,11 @@ App.setClubField = function(id, field, value){
   club[field] = (field==='courts') ? (value? Number(value): null) : value;
   scheduleSaveMain();
 };
-App.removeClub = function(id){
+App.removeClub = async function(id){
   const inUse = upcomingTournaments.some(u=>u.clubId===id);
   let msg = '¿Eliminar este club?';
   if(inUse) msg = 'Este club tiene torneos programados en la agenda. ' + msg;
-  const ok = confirm(msg);
+  const ok = await customConfirm(msg);
   if(!ok) return;
   clubsDB = clubsDB.filter(c=>c.id!==id);
   render();
@@ -2900,12 +2986,12 @@ App.addUpcoming = function(){
   const dateEl = document.getElementById('newUpcomingDate');
   const clubEl = document.getElementById('newUpcomingClub');
   const catEl = document.getElementById('newUpcomingCategoria');
-  if(!dateEl.value){ alert('Elegí una fecha.'); return; }
+  if(!dateEl.value){ customAlert('Elegí una fecha.'); return; }
   const clubName = clubEl.value.trim();
   let clubId = null;
   if(clubName){
     const club = clubsDB.find(c=>c.name.toLowerCase()===clubName.toLowerCase());
-    if(!club){ alert(`"${clubName}" no está cargado en Clubes. Agregalo primero ahí.`); return; }
+    if(!club){ customAlert(`"${clubName}" no está cargado en Clubes. Agregalo primero ahí.`); return; }
     clubId = club.id;
   }
   upcomingTournaments.push({
@@ -2914,8 +3000,8 @@ App.addUpcoming = function(){
   dateEl.value=''; clubEl.value=''; catEl.value='';
   render();
 };
-App.removeUpcoming = function(id){
-  const ok = confirm('¿Quitar este torneo de la agenda?');
+App.removeUpcoming = async function(id){
+  const ok = await customConfirm('¿Quitar este torneo de la agenda?');
   if(!ok) return;
   upcomingTournaments = upcomingTournaments.filter(u=>u.id!==id);
   render();
@@ -2990,7 +3076,7 @@ App.confirmCreateTournament = function(){
     const nameEl = document.getElementById('newTournamentNewClubName');
     const addressEl = document.getElementById('newTournamentNewClubAddress');
     const name = nameEl.value.trim();
-    if(!name){ alert('Ponele un nombre al club nuevo.'); return; }
+    if(!name){ customAlert('Ponele un nombre al club nuevo.'); return; }
     const club = {id:uid(), name, courts, address:addressEl.value.trim(), createdAt:new Date().toISOString()};
     clubsDB.push(club);
     clubId = club.id;
@@ -2998,7 +3084,7 @@ App.confirmCreateTournament = function(){
     const club = clubsDB.find(c=>c.id===clubId);
     if(club && club.courts!==courts) club.courts = courts; // sincroniza la cancha si se cambió acá
   } else {
-    alert('Elegí un club (o agregá uno nuevo).');
+    customAlert('Elegí un club (o agregá uno nuevo).');
     return;
   }
 
@@ -3034,7 +3120,7 @@ App.openTournament = function(id){
   const t = tournaments.find(x=>x.tournamentId===id);
   if(!t) return;
   if(currentUser.role==='coordinador' && t.ownerCoordinador!==currentUser.username){
-    alert('Este torneo no te pertenece.');
+    customAlert('Este torneo no te pertenece.');
     return;
   }
   state = t;
@@ -3049,7 +3135,7 @@ App.switchToOpenTab = function(id){
   if(!t) return;
   if(currentUser.role==='coordinador' && t.ownerCoordinador!==currentUser.username){
     nav.openTabs = nav.openTabs.filter(x=>x!==id);
-    alert('Este torneo ya no te pertenece.');
+    customAlert('Este torneo ya no te pertenece.');
     render();
     return;
   }
@@ -3087,10 +3173,10 @@ App.reassignTournament = function(id, newOwner){
   render();
 };
 
-App.deleteTournamentActive = function(id){
+App.deleteTournamentActive = async function(id){
   const t = tournaments.find(x=>x.tournamentId===id);
   if(!t) return;
-  const ok = confirm(`¿Eliminar el torneo "${t.name || 'sin nombre'}" sin archivarlo? Se pierden todos sus datos, esto no se puede deshacer.`);
+  const ok = await customConfirm(`¿Eliminar el torneo "${t.name || 'sin nombre'}" sin archivarlo? Se pierden todos sus datos, esto no se puede deshacer.`);
   if(!ok) return;
   tournaments = tournaments.filter(x=>x.tournamentId!==id);
   deleteTournamentDoc(id);
@@ -3105,9 +3191,9 @@ App.addPairRow = function(){
   state.pairs.push({id:uid(), p1Id:null, p2Id:null, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
   render();
 };
-App.removePairRow = function(id){
+App.removePairRow = async function(id){
   if(state.zones.length>0){
-    const ok = confirm('Ya hay zonas generadas. Sacar esta pareja no las va a modificar hasta que vuelvas a sortear. ¿Continuar?');
+    const ok = await customConfirm('Ya hay zonas generadas. Sacar esta pareja no las va a modificar hasta que vuelvas a sortear. ¿Continuar?');
     if(!ok) return;
   }
   state.pairs = state.pairs.filter(p=>p.id!==id);
@@ -3120,19 +3206,19 @@ App.setPairSlot = function(pairId, slot, value){
   if(trimmed===''){ pair[slot] = null; render(); return; }
   const player = playersDB.find(p=>p.name.toLowerCase()===trimmed.toLowerCase());
   if(!player){
-    alert(`"${value}" no está en la base de jugadores. Agregalo primero en la pestaña "Jugadores".`);
+    customAlert(`"${value}" no está en la base de jugadores. Agregalo primero en la pestaña "Jugadores".`);
     render();
     return;
   }
   const otherSlot = slot==='p1Id' ? 'p2Id' : 'p1Id';
   if(pair[otherSlot] === player.id){
-    alert('Ese jugador ya está seleccionado como el otro integrante de esta misma pareja.');
+    customAlert('Ese jugador ya está seleccionado como el otro integrante de esta misma pareja.');
     render();
     return;
   }
   const usedElsewhere = state.pairs.some(p=> p.id!==pairId && (p.p1Id===player.id || p.p2Id===player.id));
   if(usedElsewhere){
-    alert(`${player.name} ya está asignado a otra pareja de este torneo.`);
+    customAlert(`${player.name} ya está asignado a otra pareja de este torneo.`);
     render();
     return;
   }
@@ -3147,24 +3233,24 @@ App.setPairAlias = function(pairId, value){
 
 App.goToCheckin = function(){
   const ready = getReadyPairs();
-  if(ready.length<3){ alert('Necesitás al menos 3 parejas completas (con sus dos jugadores asignados) antes de pasar al check-in.'); return; }
+  if(ready.length<3){ customAlert('Necesitás al menos 3 parejas completas (con sus dos jugadores asignados) antes de pasar al check-in.'); return; }
   if(state.format==='principiantes' && ready.length===5){
-    alert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas no hay forma de repartirlas así. Sumá o quitá una pareja (a 4 o a 6) antes de pasar al check-in.');
+    customAlert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas no hay forma de repartirlas así. Sumá o quitá una pareja (a 4 o a 6) antes de pasar al check-in.');
     return;
   }
   nav.torneoSubTab = 'cancha';
   render();
 };
 
-App.iniciarTorneo = function(){
+App.iniciarTorneo = async function(){
   const present = getReadyPairs().filter(p=>p.present);
-  if(present.length<3){ alert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
+  if(present.length<3){ customAlert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
   if(state.format==='principiantes' && present.length===5){
-    alert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más antes de iniciar.');
+    customAlert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más antes de iniciar.');
     return;
   }
   if(state.zones.length>0){
-    const ok = confirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
+    const ok = await customConfirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
   }
   const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
@@ -3191,15 +3277,15 @@ App.iniciarTorneo = function(){
   nav.torneoSubTab='zonas';
   refreshBracket();
   render();
-  alert('🎾 Torneo iniciado. Asegurate de que las parejas tengan el tubo de pelotas, y recordales que la pareja que perdió se queda en cancha para el próximo partido.');
+  customAlert('🎾 Torneo iniciado. Asegurate de que las parejas tengan el tubo de pelotas, y recordales que la pareja que perdió se queda en cancha para el próximo partido.');
 };
 
-App.reiniciarTorneo = function(){
+App.reiniciarTorneo = async function(){
   const hasResults = getAllActiveMatches().some(m=>m.completed);
   const msg = hasResults
     ? '⚠️ Ya hay resultados cargados (partidos jugados) en este torneo. Si reiniciás, se van a borrar todas las zonas, el repechaje y la llave, junto con esos resultados. Las parejas y su check-in (pago y presente) NO se pierden. ¿Confirmás que querés reiniciar el torneo desde cero?'
     : '¿Reiniciar el torneo? Se van a borrar las zonas sorteadas. Todavía no hay resultados cargados, así que no se pierde nada más.';
-  const ok = confirm(msg);
+  const ok = await customConfirm(msg);
   if(!ok) return;
   state.zones = [];
   state.smallMode = false;
@@ -3236,17 +3322,17 @@ function readSetsFromDOM(matchId){
   return sets;
 }
 
-App.saveMatch = function(matchId){
+App.saveMatch = async function(matchId){
   const loc = locateMatch(matchId);
   if(!loc) return;
   const match = loc.match;
 
   const raw = readSetsFromDOM(matchId).filter(s=> s.a!=='' || s.b!=='');
-  if(raw.length===0){ alert('Cargá el resultado del set.'); return; }
+  if(raw.length===0){ customAlert('Cargá el resultado del set.'); return; }
   for(const s of raw){
-    if(s.a===''||s.b===''){ alert('Completá los dos valores del resultado.'); return; }
-    if(!/^\d+$/.test(s.a) || !/^\d+$/.test(s.b)){ alert('Los games deben ser números.'); return; }
-    if(Number(s.a)===Number(s.b)){ alert('El set no puede terminar empatado.'); return; }
+    if(s.a===''||s.b===''){ customAlert('Completá los dos valores del resultado.'); return; }
+    if(!/^\d+$/.test(s.a) || !/^\d+$/.test(s.b)){ customAlert('Los games deben ser números.'); return; }
+    if(Number(s.a)===Number(s.b)){ customAlert('El set no puede terminar empatado.'); return; }
   }
   let setsA=0, setsB=0;
   raw.forEach(s=>{ Number(s.a)>Number(s.b) ? setsA++ : setsB++; });
@@ -3254,7 +3340,7 @@ App.saveMatch = function(matchId){
   if(loc.type==='zone' && loc.zone.format==='playoff4' && match.round===1){
     const hasRound2 = loc.zone.matches.some(m=>m.round===2);
     if(hasRound2){
-      const ok = confirm('Este resultado ya generó los partidos de definición de la zona. Modificarlo los va a reiniciar. ¿Continuar?');
+      const ok = await customConfirm('Este resultado ya generó los partidos de definición de la zona. Modificarlo los va a reiniciar. ¿Continuar?');
       if(!ok) return;
       loc.zone.matches = loc.zone.matches.filter(m=>m.round!==2);
     }
@@ -3264,14 +3350,14 @@ App.saveMatch = function(matchId){
   if(loc.type==='zone' && isCorrection){
     const downstreamHasProgress = (state.primera && state.primera.matches.some(m=>m.completed)) || (state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed)));
     if(downstreamHasProgress){
-      const ok = confirm('Ya hay partidos jugados en instancias posteriores (repechaje o llave). Corregir este resultado puede invalidar parejas que ya avanzaron. ¿Confirmás igual?');
+      const ok = await customConfirm('Ya hay partidos jugados en instancias posteriores (repechaje o llave). Corregir este resultado puede invalidar parejas que ya avanzaron. ¿Confirmás igual?');
       if(!ok) return;
     }
   }
   if(loc.type==='primera' && isCorrection){
     const segundaHasProgress = state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed));
     if(segundaHasProgress){
-      const ok = confirm('La Segunda Instancia ya tiene partidos jugados. Corregir este resultado del repechaje puede invalidarlos. ¿Confirmás igual?');
+      const ok = await customConfirm('La Segunda Instancia ya tiene partidos jugados. Corregir este resultado del repechaje puede invalidarlos. ¿Confirmás igual?');
       if(!ok) return;
     }
   }
@@ -3279,7 +3365,7 @@ App.saveMatch = function(matchId){
     const hasLaterRounds = state.segunda.rounds.length - 1 > loc.roundIdx;
     const laterHasProgress = hasLaterRounds && state.segunda.rounds.slice(loc.roundIdx+1).some(r=>r.some(m=>m.completed));
     if(laterHasProgress || state.segunda.champion){
-      const ok = confirm('Ya hay rondas posteriores generadas en la Segunda Instancia. Modificar este resultado las reiniciará. ¿Continuar?');
+      const ok = await customConfirm('Ya hay rondas posteriores generadas en la Segunda Instancia. Modificar este resultado las reiniciará. ¿Continuar?');
       if(!ok) return;
       state.segunda.rounds = state.segunda.rounds.slice(0, loc.roundIdx+1);
       state.segunda.champion = null;
@@ -3315,14 +3401,14 @@ function reorderZoneMatchesAfterResult(zone, completedMatch){
   zone.matches = [...done, ...pending];
 }
 
-App.editMatch = function(matchId){
+App.editMatch = async function(matchId){
   const loc = locateMatch(matchId);
   if(!loc) return;
   if(loc.match.bye) return;
   if(loc.type==='zone'){
     const downstreamHasProgress = (state.primera && state.primera.matches.some(m=>m.completed)) || (state.segunda && state.segunda.rounds.some(r=>r.some(m=>m.completed)));
     if(downstreamHasProgress){
-      const ok = confirm('Esta pareja (o su posición en la zona) ya podría haber avanzado a instancias posteriores con partidos jugados. Editar este resultado puede invalidar esos avances. ¿Continuar de todas formas?');
+      const ok = await customConfirm('Esta pareja (o su posición en la zona) ya podría haber avanzado a instancias posteriores con partidos jugados. Editar este resultado puede invalidar esos avances. ¿Continuar de todas formas?');
       if(!ok) return;
     }
   }
@@ -3340,7 +3426,7 @@ App.setMatchCancha = function(matchId, value){
   if(trimmed && trimmed!==current){
     const occupied = getOccupiedCourts();
     if(occupied.has(trimmed)){
-      alert(`La cancha "${trimmed}" ya está ocupada por otro partido en curso. Elegí otra.`);
+      customAlert(`La cancha "${trimmed}" ya está ocupada por otro partido en curso. Elegí otra.`);
       render(); // revierte el desplegable al valor anterior
       return;
     }
@@ -3491,7 +3577,7 @@ function refreshBracket(){
 }
 
 App.generateBracket = function(){
-  alert('📸 Ya estamos en fase de eliminación. Acordate de tomar las fotos a los participantes.');
+  customAlert('📸 Ya estamos en fase de eliminación. Acordate de tomar las fotos a los participantes.');
   refreshBracket();
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'llave';
@@ -3652,15 +3738,15 @@ function advanceSegunda(){
 }
 
 /* ---- cerrar torneo / archivar / sumar puntos ---- */
-App.closeTournament = function(){
+App.closeTournament = async function(){
   const championId = getChampionPairId();
   if(!championId){
-    alert(state.smallMode
+    customAlert(state.smallMode
       ? 'Todavía faltan resultados en el grupo. Completá todos los partidos antes de cerrar el torneo.'
       : 'Todavía no hay un campeón definido. Terminá la llave antes de cerrar el torneo.');
     return;
   }
-  const ok = confirm('Esto archiva el torneo en el Historial, suma el puntaje a cada jugador según la instancia que alcanzó, y lo saca de la lista de torneos activos. ¿Continuar?');
+  const ok = await customConfirm('Esto archiva el torneo en el Historial, suma el puntaje a cada jugador según la instancia que alcanzó, y lo saca de la lista de torneos activos. ¿Continuar?');
   if(!ok) return;
 
   const dateStr = new Date().toISOString();
@@ -3711,9 +3797,9 @@ App.closeTournament = function(){
 };
 
 /* ---- reset / import / export ---- */
-App.resetTournament = function(){
-  if(!state){ alert('No hay ningún torneo abierto para reiniciar.'); return; }
-  const ok = confirm('Esto borra las parejas, zonas, resultados y llave de este torneo (mantiene su nombre y formato). ¿Continuar?');
+App.resetTournament = async function(){
+  if(!state){ customAlert('No hay ningún torneo abierto para reiniciar.'); return; }
+  const ok = await customConfirm('Esto borra las parejas, zonas, resultados y llave de este torneo (mantiene su nombre y formato). ¿Continuar?');
   if(!ok) return;
   state.pairs = [];
   state.zones = [];
@@ -3723,8 +3809,8 @@ App.resetTournament = function(){
   render();
 };
 
-App.wipeEverything = function(){
-  const ok = confirm('⚠️ Esto borra TODO: la base de jugadores, clubes, agenda, su historial de puntos, todos los torneos activos y el historial de torneos archivados. Esta acción no se puede deshacer. ¿Continuar?');
+App.wipeEverything = async function(){
+  const ok = await customConfirm('⚠️ Esto borra TODO: la base de jugadores, clubes, agenda, su historial de puntos, todos los torneos activos y el historial de torneos archivados. Esta acción no se puede deshacer. ¿Continuar?');
   if(!ok) return;
   tournaments.forEach(t=> deleteTournamentDoc(t.tournamentId));
   playersDB = [];
@@ -3775,7 +3861,7 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
       tournaments.forEach(t=> scheduleSaveTournament(t));
       render();
     }catch(err){
-      alert('No se pudo importar el archivo: '+err.message);
+      customAlert('No se pudo importar el archivo: '+err.message);
     }
   };
   reader.readAsText(file);
@@ -3929,9 +4015,9 @@ function renderStatusStrip(){
 App.togglePlayerCoordinador = function(playerId){
   const player = playersDB.find(p=>p.id===playerId);
   if(!player) return;
-  if(!player.email){ alert('Este jugador necesita tener un correo cargado antes de poder asignarlo como coordinador.'); return; }
+  if(!player.email){ customAlert('Este jugador necesita tener un correo cargado antes de poder asignarlo como coordinador.'); return; }
   const email = player.email.trim().toLowerCase();
-  if(email===ADMIN_EMAIL.toLowerCase()){ alert('Ese correo ya es el administrador principal.'); return; }
+  if(email===ADMIN_EMAIL.toLowerCase()){ customAlert('Ese correo ya es el administrador principal.'); return; }
   const existing = coordinadoresDB.find(c=> c.email && c.email.trim().toLowerCase()===email);
   if(existing){
     coordinadoresDB = coordinadoresDB.filter(c=>c.id!==existing.id);
@@ -3942,17 +4028,17 @@ App.togglePlayerCoordinador = function(playerId){
   render();
 };
 
-App.togglePlayerAdmin = function(playerId){
+App.togglePlayerAdmin = async function(playerId){
   const player = playersDB.find(p=>p.id===playerId);
   if(!player) return;
-  if(!player.email){ alert('Este jugador necesita tener un correo cargado antes de poder asignarlo como administrador.'); return; }
+  if(!player.email){ customAlert('Este jugador necesita tener un correo cargado antes de poder asignarlo como administrador.'); return; }
   const email = player.email.trim().toLowerCase();
   if(email===ADMIN_EMAIL.toLowerCase()){ return; } // el admin principal no se puede tocar desde acá
   const idx = adminEmails.findIndex(e=> e && e.trim().toLowerCase()===email);
   if(idx>=0){
     adminEmails.splice(idx,1);
   } else {
-    const ok = confirm(`¿Convertir a ${player.name} en administrador? Va a tener acceso total a la app: todos los torneos, jugadores, clubes y coordinadores.`);
+    const ok = await customConfirm(`¿Convertir a ${player.name} en administrador? Va a tener acceso total a la app: todos los torneos, jugadores, clubes y coordinadores.`);
     if(!ok) return;
     adminEmails.push(player.email.trim());
   }
