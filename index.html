@@ -1025,6 +1025,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">06</span> Coordinadores</button>
     </nav>
     <div class="sidebar-footer">
+      <button class="sb-btn" id="manualSaveBtn" style="background:rgba(155,219,77,0.14); border-color:rgba(155,219,77,0.4); color:var(--accent-bright); font-weight:700;" onclick="App.guardarAhora()">💾 Guardar ahora</button>
       <div class="storage-chip ok" id="sessionChip" style="margin-bottom:2px;"></div>
       <button class="sb-btn" onclick="App.exportState()">Exportar todo (.json)</button>
       <label class="sb-btn" style="display:block;">Importar todo
@@ -1379,26 +1380,35 @@ function getVisibleTournaments(){
 
 let saveMainTimer=null;
 let lastKnownMainUpdatedAt = 0; // evita que un snapshot en vivo "atrasado" pise un guardado propio más reciente
+let pendingSaveCount = 0; // cuántos guardados hay en curso o pendientes ahora mismo (main + torneos)
+let lastSaveError = null;
+
 async function doSaveMain(){
-  if(liveSyncActive && firestoreDocRef){
-    const now = Date.now();
-    try{
-      await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
-      lastKnownMainUpdatedAt = now;
+  pendingSaveCount++;
+  try{
+    if(liveSyncActive && firestoreDocRef){
+      const now = Date.now();
+      try{
+        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
+        lastKnownMainUpdatedAt = now;
+        lastSaveError = null;
+      }catch(e){ console.error('Error guardando en Firebase', e); lastSaveError = e; }
+      return;
     }
-    catch(e){ console.error('Error guardando en Firebase', e); }
-    return;
-  }
-  if(storageAvailable){
-    try{
-      await window.storage.set('players-db', JSON.stringify(playersDB), false);
-      await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
-      await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
-      await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
-      await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
-      await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
-      await window.storage.set('sessions-db', JSON.stringify(sessions), false);
-    }catch(e){ console.error('Error guardando', e); }
+    if(storageAvailable){
+      try{
+        await window.storage.set('players-db', JSON.stringify(playersDB), false);
+        await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
+        await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
+        await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
+        await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
+        await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
+        await window.storage.set('sessions-db', JSON.stringify(sessions), false);
+        lastSaveError = null;
+      }catch(e){ console.error('Error guardando', e); lastSaveError = e; }
+    }
+  } finally {
+    pendingSaveCount = Math.max(0, pendingSaveCount-1);
   }
 }
 function scheduleSaveMain(){
@@ -1412,14 +1422,19 @@ async function doSaveTournament(t){
   if(!t) return;
   t.updatedAt = Date.now(); // se guarda YA en el objeto local: sirve para comparar contra ecos viejos del oyente en vivo
   lastKnownOwnUpdatedAt[t.tournamentId] = t.updatedAt;
-  if(liveSyncActive && tournamentsColRef){
-    try{ await tournamentsColRef.doc(t.tournamentId).set(t); }
-    catch(e){ console.error('Error guardando el torneo', e); }
-    return;
-  }
-  if(storageAvailable){
-    try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); }
-    catch(e){ console.error('Error guardando torneos', e); }
+  pendingSaveCount++;
+  try{
+    if(liveSyncActive && tournamentsColRef){
+      try{ await tournamentsColRef.doc(t.tournamentId).set(t); lastSaveError = null; }
+      catch(e){ console.error('Error guardando el torneo', e); lastSaveError = e; }
+      return;
+    }
+    if(storageAvailable){
+      try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); lastSaveError = null; }
+      catch(e){ console.error('Error guardando torneos', e); lastSaveError = e; }
+    }
+  } finally {
+    pendingSaveCount = Math.max(0, pendingSaveCount-1);
   }
 }
 function scheduleSaveTournament(t){
@@ -1441,11 +1456,36 @@ function flushPendingSaves(){
     if(t) doSaveTournament(t);
   });
 }
+
+// avisar (con el cartel nativo del navegador) si se intenta cerrar/recargar habiendo guardados todavía en curso
+window.addEventListener('beforeunload', (e)=>{
+  flushPendingSaves();
+  if(pendingSaveCount>0){
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+});
+
+App.guardarAhora = async function(){
+  const btn = document.getElementById('manualSaveBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+  try{
+    if(state) await doSaveTournament(state);
+    await doSaveMain();
+    if(lastSaveError){
+      await customAlert('No se pudo guardar: ' + (lastSaveError.message||lastSaveError) + '.\\n\\nRevisá tu conexión a internet e intentá de nuevo.', '⚠️ Error al guardar');
+    } else {
+      await customAlert('✅ Todo guardado correctamente en la base de datos.', 'Guardado');
+    }
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = '💾 Guardar ahora'; }
+  }
+};
 // si la app se va a segundo plano, se minimiza, se cambia de pestaña o se cierra: guardar YA lo pendiente,
 // sin esperar el retraso normal de 350ms (evita perder el último cambio, ej. "iniciar torneo" justo antes de salir)
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushPendingSaves(); });
 window.addEventListener('pagehide', flushPendingSaves);
-window.addEventListener('beforeunload', flushPendingSaves);
 
 function deleteTournamentDoc(tournamentId){
   if(liveSyncActive && tournamentsColRef){
