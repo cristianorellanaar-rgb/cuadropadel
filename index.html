@@ -2692,11 +2692,88 @@ App.setRegistrationFee = function(value){
   render();
 };
 
+function zonesHaveRealProgress(){
+  return state.zones.some(z=> z.matches.some(m=>m.completed));
+}
+
+function rebuildAllZonesFromPresent(){
+  const present = getReadyPairs().filter(p=>p.present);
+  if(present.length<3){
+    state.zones = [];
+    state.primera = null;
+    state.segunda = null;
+    state.smallMode = false;
+    return;
+  }
+  const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
+  const shuffled = shuffle(pairsForDraw);
+  if(state.format==='grupo' || (state.format!=='principiantes' && shuffled.length<6)){
+    state.smallMode = true;
+    state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
+  } else {
+    state.smallMode = false;
+    const sizes = computeZoneSizes(shuffled.length);
+    let idx=0;
+    const zones=[];
+    sizes.forEach((size,i)=>{
+      const zonePairs = shuffled.slice(idx, idx+size); idx+=size;
+      zones.push(makeZone(`Zona ${String.fromCharCode(65+i)}`, zonePairs.map(p=>p.id)));
+    });
+    state.zones = zones;
+  }
+  state.primera = null;
+  state.segunda = null;
+  refreshBracket();
+}
+
+function autoAssignNewPresentPairsSilently(){
+  const assignedIds = new Set();
+  state.zones.forEach(z=>z.pairIds.forEach(id=>assignedIds.add(id)));
+  const unassignedPresent = getReadyPairs().filter(p=>p.present && !assignedIds.has(p.id));
+  if(unassignedPresent.length===0) return;
+  unassignedPresent.forEach(p=>{
+    const eligible = state.zones.filter(z=> z.pairIds.length<4 && !zoneHasAnyResult(z));
+    if(eligible.length===0) return;
+    eligible.sort((a,b)=>a.pairIds.length-b.pairIds.length);
+    const zone = eligible[0];
+    zone.pairIds.push(p.id);
+    rebuildZoneMatches(zone);
+  });
+  const stillUnassigned = getUnassignedPairs().filter(p=>p.present);
+  if(stillUnassigned.length>=3){
+    const sizes = computeZoneSizes(stillUnassigned.length);
+    let idx=0;
+    sizes.forEach((size,i)=>{
+      const zonePairs = stillUnassigned.slice(idx, idx+size); idx+=size;
+      state.zones.push(makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, zonePairs.map(p=>p.id)));
+    });
+  }
+  refreshBracket();
+}
+
+function autoManageZonesOnPresenceChange(){
+  if(!state || !state.formatChosen) return;
+  if(zonesHaveRealProgress() || bracketHasRealProgress()){
+    // ya hay partidos jugados de verdad: no reordenar nada existente, solo sumar a los presentes nuevos sin asignar
+    autoAssignNewPresentPairsSilently();
+  } else {
+    // todavía no se jugó nada: se puede reconstruir libremente en base a quiénes están presentes ahora
+    rebuildAllZonesFromPresent();
+  }
+}
+
 App.togglePresent = function(pairId){
   const pair = findPairById(pairId);
   if(!pair) return;
   pair.present = !pair.present;
   pair.presentAt = pair.present ? new Date().toISOString() : null;
+
+  const presentCount = getReadyPairs().filter(p=>p.present).length;
+  if(pair.present && !state.formatChosen && presentCount>=3){
+    App.openFormatChoiceModal('start');
+  } else {
+    autoManageZonesOnPresenceChange();
+  }
   render();
 };
 
@@ -2892,39 +2969,39 @@ function renderCancha(){
       </div>
     </div>
     <div class="cancha-section">
-      <h3 class="round-label" style="text-align:left;">Iniciar torneo</h3>
+      <h3 class="round-label" style="text-align:left;">Armado de zonas</h3>
       ${iniciarTorneoSectionHtml()}
     </div>`;
 }
 
 function iniciarTorneoSectionHtml(){
-  if(state.zones.length>0){
-    const hasResults = getAllActiveMatches().some(m=>m.completed);
-    const warn = hasResults
-      ? `<div class="hint" style="color:var(--danger);">⚠️ Ya hay resultados cargados en este torneo — reiniciar los va a borrar todos.</div>`
-      : `<div class="hint">Todavía no hay resultados cargados.</div>`;
-    return `
-      <div class="hint">El torneo ya se inició (zonas sorteadas). Andá a la pestaña <b>Zonas</b> para ver los partidos.</div>
-      ${warn}
-      <div class="court-count-row" style="margin-top:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="App.reiniciarTorneo()">↺ Reiniciar torneo</button>
-        <span class="hint" style="margin:0;">Vuelve a dejar las parejas presentes listas para un nuevo sorteo de zonas.</span>
-      </div>`;
-  }
   const presentPairs = getReadyPairs().filter(p=>p.present);
   const n = presentPairs.length;
+  if(state.zones.length>0){
+    const hasResults = zonesHaveRealProgress() || getAllActiveMatches().some(m=>m.completed);
+    const modeText = hasResults
+      ? `<div class="hint">✅ Ya hay resultados jugados — las zonas quedaron fijas. Las nuevas parejas que marques presente se suman a una zona con lugar (o arman una nueva si no hay), sin tocar lo ya jugado.</div>`
+      : `<div class="hint">🔄 Las zonas se están armando y reacomodando solas a medida que marcás y desmarcás presentes. Apenas se cargue el primer resultado, quedan fijas.</div>`;
+    return `
+      <div class="chip on"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'} · zonas armadas</div>
+      ${modeText}
+      <div class="court-count-row" style="margin-top:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="App.reiniciarTorneo()">↺ Reiniciar torneo</button>
+        <span class="hint" style="margin:0;">Borra las zonas y las vuelve a armar desde cero con los presentes actuales.</span>
+      </div>`;
+  }
   let hint;
-  let canStart = true;
   if(n<3){
-    hint = `Faltan ${3-n} pareja(s) presente(s) más para poder iniciar (mínimo 3).`;
-    canStart = false;
+    hint = `Faltan ${3-n} pareja(s) presente(s) más para que las zonas se armen solas (mínimo 3).`;
+  } else if(!state.formatChosen){
+    hint = `Ya tenés 3 o más presentes — elegí el formato del torneo para que las zonas se armen automáticamente.`;
   } else {
-    hint = `Vas a elegir el formato del torneo al presionar "Iniciar torneo".`;
+    hint = `Las zonas se van a armar solas apenas marques presentes a las parejas.`;
   }
   return `
     <div class="court-count-row">
       <div class="chip ${n>=3?'on':''}"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'}</div>
-      <button class="btn btn-primary" ${canStart?'':'disabled'} onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>
+      ${!state.formatChosen ? `<button class="btn btn-primary btn-sm" ${n>=3?'':'disabled'} onclick="App.openFormatChoiceModal('start')">Elegir formato</button>` : ''}
       <span class="hint" style="margin:0;">${hint}</span>
     </div>`;
 }
@@ -3228,7 +3305,12 @@ App.chooseFormat = async function(fmt){
   } else {
     state.format = fmt;
     state.formatChosen = true;
-    await App.iniciarTorneo();
+    pushNavHistory();
+    nav.activeTab = 'torneoActual';
+    nav.torneoSubTab = 'cancha';
+    autoManageZonesOnPresenceChange();
+    render();
+    doSaveTournament(state);
   }
 };
 
@@ -3645,8 +3727,10 @@ App.reiniciarTorneo = async function(){
   state.smallMode = false;
   state.primera = null;
   state.segunda = null;
+  rebuildAllZonesFromPresent();
   nav.torneoSubTab = 'cancha';
   render();
+  doSaveTournament(state);
 };
 
 /* ---- partidos (zonas / primera / segunda) ---- */
