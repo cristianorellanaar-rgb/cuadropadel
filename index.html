@@ -2633,6 +2633,7 @@ App.startMatch = function(matchId){
   m.started = true;
   m.startedAt = new Date().toISOString();
   render();
+  doSaveTournament(state); // guardar YA, sin esperar el debounce normal — es una acción crítica
 };
 
 App.cancelStartMatch = function(matchId){
@@ -2640,6 +2641,7 @@ App.cancelStartMatch = function(matchId){
   if(!loc) return;
   loc.match.started = false;
   render();
+  doSaveTournament(state);
 };
 
 function pairReadySince(pairId){
@@ -3535,6 +3537,7 @@ App.iniciarTorneo = async function(){
   nav.torneoSubTab='zonas';
   refreshBracket();
   render();
+  doSaveTournament(state); // guardar YA: es el momento más crítico para no perder el sorteo de zonas
   customAlert('🎾 Torneo iniciado. Asegurate de que las parejas tengan el tubo de pelotas, y recordales que la pareja que perdió se queda en cancha para el próximo partido.');
 };
 
@@ -3642,6 +3645,7 @@ App.saveMatch = async function(matchId){
   refreshBracket();
   if(loc.type==='segunda') advanceSegunda();
   render();
+  doSaveTournament(state); // guardar YA: cargar un resultado es una acción crítica que no puede perderse
 };
 
 function reorderZoneMatchesAfterResult(zone, completedMatch){
@@ -4053,6 +4057,7 @@ App.closeTournament = async function(){
   nav.torneoSubTab = 'lista';
   nav.activeTab = 'inicio';
   render();
+  doSaveMain(); // guardar YA: el archivo y el puntaje de jugadores no se pueden perder
 };
 
 /* ---- reset / import / export ---- */
