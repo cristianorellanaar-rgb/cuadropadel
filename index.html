@@ -1370,45 +1370,66 @@ function getVisibleTournaments(){
 }
 
 let saveMainTimer=null;
+async function doSaveMain(){
+  if(liveSyncActive && firestoreDocRef){
+    try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() }); }
+    catch(e){ console.error('Error guardando en Firebase', e); }
+    return;
+  }
+  if(storageAvailable){
+    try{
+      await window.storage.set('players-db', JSON.stringify(playersDB), false);
+      await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
+      await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
+      await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
+      await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
+      await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
+      await window.storage.set('sessions-db', JSON.stringify(sessions), false);
+    }catch(e){ console.error('Error guardando', e); }
+  }
+}
 function scheduleSaveMain(){
   if(applyingRemote) return;
   clearTimeout(saveMainTimer);
-  saveMainTimer = setTimeout(async ()=>{
-    if(liveSyncActive && firestoreDocRef){
-      try{ await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() }); }
-      catch(e){ console.error('Error guardando en Firebase', e); }
-      return;
-    }
-    if(storageAvailable){
-      try{
-        await window.storage.set('players-db', JSON.stringify(playersDB), false);
-        await window.storage.set('tournaments-archive', JSON.stringify(archive), false);
-        await window.storage.set('clubs-db', JSON.stringify(clubsDB), false);
-        await window.storage.set('upcoming-tournaments', JSON.stringify(upcomingTournaments), false);
-        await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
-        await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
-        await window.storage.set('sessions-db', JSON.stringify(sessions), false);
-      }catch(e){ console.error('Error guardando', e); }
-    }
-  }, 350);
+  saveMainTimer = setTimeout(doSaveMain, 350);
 }
 
 let saveTournamentTimers = {};
+async function doSaveTournament(t){
+  if(liveSyncActive && tournamentsColRef){
+    try{ await tournamentsColRef.doc(t.tournamentId).set(t); }
+    catch(e){ console.error('Error guardando el torneo', e); }
+    return;
+  }
+  if(storageAvailable){
+    try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); }
+    catch(e){ console.error('Error guardando torneos', e); }
+  }
+}
 function scheduleSaveTournament(t){
   if(applyingRemote || !t) return;
   clearTimeout(saveTournamentTimers[t.tournamentId]);
-  saveTournamentTimers[t.tournamentId] = setTimeout(async ()=>{
-    if(liveSyncActive && tournamentsColRef){
-      try{ await tournamentsColRef.doc(t.tournamentId).set(t); }
-      catch(e){ console.error('Error guardando el torneo', e); }
-      return;
-    }
-    if(storageAvailable){
-      try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); }
-      catch(e){ console.error('Error guardando torneos', e); }
-    }
-  }, 350);
+  saveTournamentTimers[t.tournamentId] = setTimeout(()=>doSaveTournament(t), 350);
 }
+
+function flushPendingSaves(){
+  if(saveMainTimer){
+    clearTimeout(saveMainTimer);
+    saveMainTimer = null;
+    doSaveMain();
+  }
+  Object.keys(saveTournamentTimers).forEach(tid=>{
+    clearTimeout(saveTournamentTimers[tid]);
+    delete saveTournamentTimers[tid];
+    const t = tournaments.find(x=>x.tournamentId===tid) || (state && state.tournamentId===tid ? state : null);
+    if(t) doSaveTournament(t);
+  });
+}
+// si la app se va a segundo plano, se minimiza, se cambia de pestaña o se cierra: guardar YA lo pendiente,
+// sin esperar el retraso normal de 350ms (evita perder el último cambio, ej. "iniciar torneo" justo antes de salir)
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushPendingSaves(); });
+window.addEventListener('pagehide', flushPendingSaves);
+window.addEventListener('beforeunload', flushPendingSaves);
 
 function deleteTournamentDoc(tournamentId){
   if(liveSyncActive && tournamentsColRef){
@@ -1670,8 +1691,38 @@ function tryRestoreSession(){
     currentUser = saved.user;
     mySessionToken = saved.token;
     if(!remoteToken){ sessions[key] = mySessionToken; scheduleSaveMain(); } // no había registro remoto todavía (ej. offline la vez pasada): lo restablece
+    if(saved.nav){
+      nav.activeTab = saved.nav.activeTab || nav.activeTab;
+      nav.torneoSubTab = saved.nav.torneoSubTab || nav.torneoSubTab;
+      nav.openTabs = Array.isArray(saved.nav.openTabs) ? saved.nav.openTabs : [];
+      if(saved.nav.openTournamentId){
+        const t = tournaments.find(x=>x.tournamentId===saved.nav.openTournamentId);
+        if(t && !(currentUser.role==='coordinador' && t.ownerCoordinador!==currentUser.username)){
+          state = t;
+        } else {
+          nav.torneoSubTab = 'lista';
+        }
+      }
+    }
     return true;
   }catch(e){ return false; }
+}
+
+function persistNavState(){
+  if(!currentUser) return;
+  try{
+    const raw = window.localStorage.getItem('cuadropadel_session');
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(!saved) return;
+    saved.nav = {
+      activeTab: nav.activeTab,
+      torneoSubTab: nav.torneoSubTab,
+      openTabs: nav.openTabs,
+      openTournamentId: state ? state.tournamentId : null
+    };
+    window.localStorage.setItem('cuadropadel_session', JSON.stringify(saved));
+  }catch(e){ /* no hay almacenamiento local disponible: no pasa nada, solo no persiste la navegación */ }
 }
 
 function checkSessionStillValid(){
@@ -4129,6 +4180,7 @@ function render(){
   renderUI();
   scheduleSaveMain();
   if(state) scheduleSaveTournament(state);
+  persistNavState();
 }
 
 function renderUI(){
