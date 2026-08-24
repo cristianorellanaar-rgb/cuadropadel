@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>CuadroPádel — Organizador de Torneos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -931,15 +934,23 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <div class="modal-field-row">
         <label>Categoría</label>
         <select id="newTournamentCategoria">
+          <option value="" selected disabled>— Elegí la categoría —</option>
           <option value="9na">9na</option>
           <option value="8va">8va</option>
           <option value="7ma">7ma</option>
           <option value="6ta">6ta</option>
-          <option value="5ta" selected>5ta</option>
+          <option value="5ta">5ta</option>
           <option value="4ta">4ta</option>
           <option value="3ra">3ra</option>
           <option value="2da">2da</option>
           <option value="1ra">1ra</option>
+          <option value="2/3">2/3</option>
+          <option value="3/4">3/4</option>
+          <option value="4/5">4/5</option>
+          <option value="5/6">5/6</option>
+          <option value="6/7">6/7</option>
+          <option value="7/8">7/8</option>
+          <option value="8/9">8/9</option>
           <option value="Suma 4">Suma 4</option>
           <option value="Suma 5">Suma 5</option>
           <option value="Suma 6">Suma 6</option>
@@ -1582,6 +1593,10 @@ async function initApp(){
     try{
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
+      if(db.enablePersistence){
+        try{ await db.enablePersistence({synchronizeTabs:true}); }
+        catch(e){ console.warn('No se pudo activar el modo sin conexión de Firestore (normal si hay otra pestaña abierta con una versión vieja, o el navegador no lo soporta):', e.code||e); }
+      }
       auth = firebase.auth();
       googleProvider = new firebase.auth.GoogleAuthProvider();
       firestoreDocRef = db.collection('cuadropadel').doc('main');
@@ -3284,6 +3299,9 @@ App.setName = function(v){ if(state){ state.name = v; scheduleSaveTournament(sta
 
 App.setFormat = async function(fmt){
   if(state.format===fmt && state.formatChosen) return;
+  const presentCount = getReadyPairs().filter(p=>p.present).length;
+  const formatError = validateFormatForPresentCount(fmt, presentCount);
+  if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   const hadZones = state.zones.length>0;
   if(hadZones){
     const ok = await customConfirm('Ya hay zonas generadas para este torneo. Cambiar el formato las vuelve a sortear con este nuevo formato, usando las parejas presentes actuales (se pierden los resultados y la llave cargados hasta ahora). ¿Continuar?');
@@ -3465,7 +3483,7 @@ App.openNewTournamentModal = function(){
   document.getElementById('newTournamentNewClubRow').style.display = 'none';
   document.getElementById('newTournamentNewClubName').value = '';
   document.getElementById('newTournamentNewClubAddress').value = '';
-  document.getElementById('newTournamentCategoria').value = '5ta';
+  document.getElementById('newTournamentCategoria').value = '';
   document.getElementById('newTournamentTipo').value = 'Caballero';
 
   document.getElementById('newTournamentModalOverlay').style.display = 'flex';
@@ -3496,6 +3514,8 @@ App.confirmCreateTournament = function(){
 
   let clubId = clubSelect.value;
   const courts = Number(courtsSelect.value) || 4;
+
+  if(!catSelect.value){ customAlert('Elegí una categoría para el torneo.'); return; }
 
   if(clubId==='__new__'){
     const nameEl = document.getElementById('newTournamentNewClubName');
@@ -3727,20 +3747,25 @@ App.goToCheckin = function(){
   render();
 };
 
+function validateFormatForPresentCount(fmt, presentCount){
+  // devuelve un mensaje de error si el formato NO es compatible con esta cantidad de presentes, o null si está bien
+  if(fmt==='principiantes' && presentCount===5){
+    return 'Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más.';
+  }
+  if(fmt==='cruce'){
+    const sizesCheck = computeZoneSizes(presentCount);
+    if(!zonesCanCrossCleanly(sizesCheck)){
+      return `Con ${presentCount} parejas presentes, las zonas quedarían [${sizesCheck.join(', ')}] — no se pueden emparejar de a dos del mismo tamaño para cruzar entre ellas. El formato "Cruce entre zonas" necesita una cantidad de zonas par, con cada par del mismo tamaño. Esperá a que cambie la cantidad de presentes, o elegí otro formato.`;
+    }
+  }
+  return null;
+}
+
 App.iniciarTorneo = async function(){
   const present = getReadyPairs().filter(p=>p.present);
   if(present.length<3){ customAlert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
-  if(state.format==='principiantes' && present.length===5){
-    customAlert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más antes de iniciar.');
-    return;
-  }
-  if(state.format==='cruce'){
-    const sizesCheck = computeZoneSizes(present.length);
-    if(!zonesCanCrossCleanly(sizesCheck)){
-      customAlert(`Con ${present.length} parejas presentes, las zonas quedarían [${sizesCheck.join(', ')}] — no se pueden emparejar de a dos del mismo tamaño para cruzar entre ellas. El formato "Cruce entre zonas" necesita una cantidad de zonas par, con cada par del mismo tamaño. Esperá a que cambie la cantidad de presentes, o elegí otro formato.`, 'No se puede usar este formato');
-      return;
-    }
-  }
+  const formatError = validateFormatForPresentCount(state.format, present.length);
+  if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   if(state.zones.length>0){
     const ok = await customConfirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
@@ -4895,13 +4920,17 @@ function renderZonas(){
   if(!state) return;
   const c = document.getElementById('zonasContainer');
   const formatLabel = formatShortLabel(state.format);
+  const iniciarBtn = state.formatChosen
+    ? `<button class="btn btn-primary btn-sm" onclick="App.iniciarTorneo()">▶ Iniciar torneo</button>`
+    : `<button class="btn btn-primary btn-sm" onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>`;
   const formatBar = `
     <div class="actions-row" style="margin-bottom:16px; align-items:center;">
+      ${iniciarBtn}
       <span class="pill">Formato actual: ${formatLabel}</span>
       <button class="btn btn-ghost btn-sm" onclick="App.openFormatChoiceModal('change')">Cambiar formato</button>
     </div>`;
   if(state.zones.length===0){
-    c.innerHTML = formatBar + `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Check In y presioná <b>Iniciar torneo</b>.</div>`;
+    c.innerHTML = formatBar + `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Check In, y presioná <b>Iniciar torneo</b> (acá arriba, o en el Check In).</div>`;
     return;
   }
 
