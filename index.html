@@ -3685,9 +3685,9 @@ App.addPairFromCheckin = async function(){
     }
 
     const p1 = await findOrCreatePlayerByName(p1Name);
-    if(!p1) return;
+    if(!p1){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p1Name}" como jugador nuevo.`); return; }
     const p2 = await findOrCreatePlayerByName(p2Name);
-    if(!p2) return;
+    if(!p2){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p2Name}" como jugador nuevo.`); return; }
     if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
     if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
