@@ -1593,10 +1593,6 @@ async function initApp(){
     try{
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
-      if(db.enablePersistence){
-        try{ await db.enablePersistence({synchronizeTabs:true}); }
-        catch(e){ console.warn('No se pudo activar el modo sin conexión de Firestore (normal si hay otra pestaña abierta con una versión vieja, o el navegador no lo soporta):', e.code||e); }
-      }
       auth = firebase.auth();
       googleProvider = new firebase.auth.GoogleAuthProvider();
       firestoreDocRef = db.collection('cuadropadel').doc('main');
@@ -4920,9 +4916,12 @@ function renderZonas(){
   if(!state) return;
   const c = document.getElementById('zonasContainer');
   const formatLabel = formatShortLabel(state.format);
-  const iniciarBtn = state.formatChosen
-    ? `<button class="btn btn-primary btn-sm" onclick="App.iniciarTorneo()">▶ Iniciar torneo</button>`
-    : `<button class="btn btn-primary btn-sm" onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>`;
+  const yaIniciado = state.zones.length>0;
+  const iniciarBtn = !state.formatChosen
+    ? `<button class="btn btn-primary btn-sm" onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>`
+    : yaIniciado
+      ? `<button class="btn btn-primary btn-sm" onclick="App.iniciarTorneo()">🔀 Volver a sortear</button>`
+      : `<button class="btn btn-primary btn-sm" onclick="App.iniciarTorneo()">▶ Iniciar torneo</button>`;
   const formatBar = `
     <div class="actions-row" style="margin-bottom:16px; align-items:center;">
       ${iniciarBtn}
@@ -4942,6 +4941,7 @@ function renderZonas(){
         <div class="unassigned-row">
           <span>${escapeHtml(pairDisplayName(p))}</span>
           <button class="btn btn-ghost btn-sm" onclick="App.autoAddPairToZone('${p.id}')">+ Agregar a zonas</button>
+          ${p.present ? `<button class="btn btn-ghost btn-sm" onclick="App.togglePresent('${p.id}')">✕ Quitar presente</button>` : ''}
         </div>`).join('')}
       ${unassigned.length>=3 ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="App.createZoneFromUnassigned()">+ Crear zona nueva con estas parejas</button>` : ''}
     </div>`;
