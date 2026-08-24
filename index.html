@@ -3655,8 +3655,12 @@ App.addPairRow = function(){
   render();
 };
 let addingPairFromCheckin = false;
+let addingPairFromCheckinTimer = null;
 App.addPairFromCheckin = async function(){
-  if(addingPairFromCheckin) return; // evita un doble envío si se toca el botón dos veces rápido
+  if(addingPairFromCheckin){
+    customAlert('Ya se está procesando un pedido anterior. Si quedó trabado, esperá unos segundos y volvé a intentar.');
+    return;
+  }
   const p1Input = document.getElementById('checkinNewP1');
   const p2Input = document.getElementById('checkinNewP2');
   const aliasInput = document.getElementById('checkinNewAlias');
@@ -3665,6 +3669,8 @@ App.addPairFromCheckin = async function(){
   const aliasVal = aliasInput.value.trim();
   if(!p1Name || !p2Name){ customAlert('Escribí el nombre de los dos jugadores de la pareja.'); return; }
   addingPairFromCheckin = true;
+  clearTimeout(addingPairFromCheckinTimer);
+  addingPairFromCheckinTimer = setTimeout(()=>{ addingPairFromCheckin = false; }, 20000); // seguro: nunca queda trabado más de 20s
 
   try{
     async function findOrCreatePlayerByName(name){
@@ -3700,6 +3706,7 @@ App.addPairFromCheckin = async function(){
     customAlert('Ocurrió un error inesperado al agregar la pareja: ' + (e && e.message ? e.message : e) + '.\n\nProbá de nuevo — si vuelve a pasar, avisale a Cristian con este mensaje.', 'Error');
   } finally {
     addingPairFromCheckin = false;
+    clearTimeout(addingPairFromCheckinTimer);
   }
 };
 App.removePairRow = async function(id){
