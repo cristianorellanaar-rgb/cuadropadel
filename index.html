@@ -469,7 +469,8 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px;
   box-shadow:var(--shadow-card);
 }
-.checkin-name{flex:1; min-width:160px; font-size:13.5px;}
+.checkin-name{flex:1; min-width:160px; font-size:13.5px; display:flex; flex-direction:column; gap:4px;}
+.checkin-alias-input{font-size:11.5px; padding:4px 8px; max-width:180px;}
 .pending-zone-badge{
   flex-basis:100%; display:flex; align-items:center; gap:10px;
   font-size:12px; color:var(--gold); background:rgba(201,122,0,0.10); border:1px solid rgba(201,122,0,0.35);
@@ -996,6 +997,10 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
           <div class="fc-title">Torneo en Zonas de 3,4 (Reducido)</div>
           <div class="fc-desc">Zonas de 4 juegan 2 partidos. Se arma una tabla general, donde los mejores posicionados pasan directo a llave, y dependiendo la cantidad de parejas, los de menor puntaje juegan un partido repechaje/eliminación para poder avanzar.</div>
         </button>
+        <button class="format-choice-option" onclick="App.chooseFormat('cruce')">
+          <div class="fc-title">Cruce entre zonas</div>
+          <div class="fc-desc">Todos contra todos dentro de cada zona. Las zonas se emparejan de a dos (la 1° con la 2°, la 3° con la 4°, etc.) y se cruzan entre sí: 1° vs 4°, 2° vs 3° (o 1° vs 3°, 2° vs 2° en zonas de 3). Necesita una cantidad de zonas par, con cada par del mismo tamaño — si no da parejo, no se puede usar.</div>
+        </button>
       </div>
       <button class="btn btn-ghost btn-sm" style="margin-top:14px;" onclick="App.closeFormatChoiceModal()">Cancelar</button>
     </div>
@@ -1120,35 +1125,19 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <div id="tournamentUpdateBanner"></div>
       <div class="subnav" id="torneoSubnav">
         <button class="subnav-btn" data-subtab="lista">Lista de torneos</button>
-        <button class="subnav-btn" data-subtab="parejas">Parejas</button>
         <button class="subnav-btn" data-subtab="cancha">Check In</button>
         <button class="subnav-btn" data-subtab="zonas">Zonas</button>
         <button class="subnav-btn" data-subtab="general">Clasificación</button>
         <button class="subnav-btn" data-subtab="llave">Llave</button>
       </div>
+      <div class="tournament-summary-bar" id="tournamentSummaryBar"></div>
+      <datalist id="playersDatalist"></datalist>
 
       <div class="subview" id="subview-lista">
         <div class="actions-row" style="margin-bottom:20px;">
           <button class="btn btn-primary" onclick="App.createTournament()">+ Nuevo torneo</button>
         </div>
         <div id="tournamentsListContainer"></div>
-      </div>
-
-      <div class="subview" id="subview-parejas">
-        <button class="btn btn-ghost btn-sm back-link" onclick="App.backToTournamentList()">← Volver a la lista de torneos</button>
-        <div class="tournament-summary-bar" id="tournamentSummaryBar"></div>
-        <p class="section-sub">Buscá a los dos jugadores de cada pareja (ya cargados en la pestaña Jugadores). Se necesitan como mínimo <b>3 parejas completas</b> para poder iniciar el torneo.</p>
-        <datalist id="playersDatalist"></datalist>
-        <div class="pairs-grid2" id="pairsGrid"></div>
-        <div class="actions-row">
-          <button class="btn btn-ghost btn-sm" onclick="App.addPairRow()">+ Agregar pareja</button>
-        </div>
-        <p class="hint" id="unassignedHint"></p>
-        <div class="actions-row" style="margin-top:22px; align-items:center;">
-          <div class="chip pairs-count-chip" id="pairsCountChip"></div>
-          <button class="btn btn-primary" onclick="App.goToCheckin()">Ir a check-in →</button>
-        </div>
-        <p class="hint" id="setupHint"></p>
       </div>
 
       <div class="subview" id="subview-cancha">
@@ -2371,6 +2360,15 @@ function computeZoneSizes(n){
   return sizes;
 }
 
+function zonesCanCrossCleanly(sizes){
+  // el formato "Cruce entre zonas" necesita poder emparejar las zonas de a dos, y que cada par tenga el mismo tamaño
+  if(sizes.length<2 || sizes.length%2!==0) return false;
+  for(let i=0;i<sizes.length;i+=2){
+    if(sizes[i]!==sizes[i+1]) return false;
+  }
+  return true;
+}
+
 function shuffle(arr){
   const a=[...arr];
   for(let i=a.length-1;i>0;i--){
@@ -2840,7 +2838,7 @@ function renderCancha(){
 
   const pairs = getReadyPairs();
   if(pairs.length===0){
-    c.innerHTML = addPairHtml + `<div class="empty-state">Todavía no hay parejas cargadas. Agregá una arriba, o armalas en la pestaña <b>Parejas</b>.</div>`;
+    c.innerHTML = addPairHtml + `<div class="empty-state">Todavía no hay parejas cargadas. Agregá la primera con el formulario de arriba.</div>`;
     return;
   }
 
@@ -2886,7 +2884,10 @@ function renderCancha(){
     const methodTitle = (paid, method)=> paid ? (method==='efectivo' ? 'Pagó en efectivo (tocá para desmarcar)' : 'Pagó por transferencia (tocá para desmarcar)') : 'Marcar pagado';
     return `
       <div class="checkin-row">
-        <div class="checkin-name">${pairCellHtml(pairDisplayName(pair))}</div>
+        <div class="checkin-name">
+          ${pairCellHtml(pairDisplayName(pair))}
+          <input class="alias-input checkin-alias-input" placeholder="Alias (opcional)" value="${escapeAttr(pair.alias||'')}" onchange="App.setPairAlias('${pair.id}', this.value)">
+        </div>
         <div class="pay-toggles">
           <button class="pay-toggle ${pair.paid1?'on '+(pair.method1||''):''}" title="${methodTitle(pair.paid1,pair.method1)}" onclick="App.togglePaid('${pair.id}','paid1')">${p1?escapeHtml(p1.name.split(' ')[0]):'J1'}</button>
           <button class="pay-toggle ${pair.paid2?'on '+(pair.method2||''):''}" title="${methodTitle(pair.paid2,pair.method2)}" onclick="App.togglePaid('${pair.id}','paid2')">${p2?escapeHtml(p2.name.split(' ')[0]):'J2'}</button>
@@ -2898,6 +2899,7 @@ function renderCancha(){
         <button class="present-toggle ${pair.present?'on':''}" onclick="App.togglePresent('${pair.id}')" ${playing?'disabled title="Está jugando"':''}>
           ${pair.present ? '✓ Presente' : 'Marcar presente'}
         </button>
+        <button class="icon-btn" title="Eliminar pareja del torneo" onclick="App.removePairRow('${pair.id}')">✕</button>
         ${pendingBadge}
       </div>`;
   }).join('');
@@ -3004,6 +3006,7 @@ function iniciarTorneoSectionHtml(){
 function formatShortLabel(fmt){
   if(fmt==='grupo') return '3 a 5 parejas';
   if(fmt==='principiantes') return 'Zonas de 3,4 (Todos contra todos)';
+  if(fmt==='cruce') return 'Cruce entre zonas';
   return 'Zonas de 3,4 (Reducido)'; // avanzado
 }
 
@@ -3045,10 +3048,30 @@ function getUnassignedPairs(){
   return getReadyPairs().filter(p=> !assignedIds.has(p.id));
 }
 
+function pairHasPlayedInZone(pairId, zone){
+  return zone.matches.some(m=> m.completed && (m.aId===pairId || m.bId===pairId));
+}
+
 function rebuildZoneMatches(zone){
   const built = makeZone(zone.name, zone.pairIds);
+  const oldMatches = zone.matches.filter(m=>m.round===1); // solo la ronda 1 es "estructural"; una eventual ronda 2 (definición) se re-genera aparte
+  // reutilizar, para cada enfrentamiento de la estructura nueva, el partido viejo si esas MISMAS dos parejas ya se enfrentaban entre sí:
+  // así se conserva el resultado, la cancha y el estado de "iniciado" de cualquier partido que sigue siendo válido.
+  built.matches.forEach(newM=>{
+    const old = oldMatches.find(om=> (om.aId===newM.aId && om.bId===newM.bId) || (om.aId===newM.bId && om.bId===newM.aId));
+    if(old){
+      newM.id = old.id;
+      newM.sets = old.sets;
+      newM.completed = old.completed;
+      newM.winnerId = old.winnerId;
+      newM.cancha = old.cancha;
+      newM.started = old.started;
+      newM.startedAt = old.startedAt;
+    }
+  });
   zone.format = built.format;
   zone.matches = built.matches;
+  if(zone.format==='playoff4') advanceZonePlayoff(zone); // si la ronda 1 ya está completa de nuevo, arma la definición
 }
 
 function warnIfBracketExists(extra){
@@ -3079,11 +3102,8 @@ App.autoAddPairToZone = async function(pairId){
   }
   eligible.sort((a,b)=> a.pairIds.length - b.pairIds.length);
   const zone = eligible[0];
-  if(zoneHasAnyResult(zone)){
-    const ok = await customConfirm(warnIfBracketExists(`${zone.name} ya tiene resultados cargados. Agregar una pareja reinicia todos los partidos de esa zona (se pierden los resultados ya cargados ahí).`));
-    if(!ok) return;
-  } else if(bracketHasRealProgress()){
-    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+  if(bracketHasRealProgress()){
+    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Agregar esta pareja puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   zone.pairIds.push(pairId);
@@ -3096,8 +3116,8 @@ App.removePairFromZone = async function(pairId, zoneId){
   const zone = state.zones.find(z=>z.id===zoneId);
   if(!zone) return;
   let msg = `¿Sacar a ${getPairName(pairId)} de ${zone.name}? Va a quedar sin asignar a ninguna zona.`;
-  if(zoneHasAnyResult(zone)) msg += ' Esta zona ya tiene resultados cargados — se van a reiniciar todos los partidos de esa zona.';
-  msg = warnIfBracketExists(msg);
+  if(pairHasPlayedInZone(pairId, zone)) msg += ' Esta pareja ya jugó algún partido en esa zona — ese resultado se va a perder. Los resultados de las demás parejas de la zona no se ven afectados.';
+  if(bracketHasRealProgress()) msg += ' Además, ya hay partidos jugados en el repechaje o la llave — esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden).';
   const ok = await customConfirm(msg);
   if(!ok) return;
   zone.pairIds = zone.pairIds.filter(id=>id!==pairId);
@@ -3116,12 +3136,11 @@ App.movePairToZone = async function(pairId, fromZoneId, toZoneId){
   const toZone = state.zones.find(z=>z.id===toZoneId);
   if(!fromZone || !toZone) return;
   if(toZone.pairIds.length>=4){ customAlert('Esa zona ya tiene 4 parejas (el máximo).'); render(); return; }
-  const anyResults = zoneHasAnyResult(fromZone) || zoneHasAnyResult(toZone);
-  if(anyResults){
-    const ok = await customConfirm(warnIfBracketExists('Alguna de las dos zonas ya tiene resultados cargados — se van a reiniciar todos los partidos de ambas zonas al mover esta pareja.'));
+  if(pairHasPlayedInZone(pairId, fromZone)){
+    const ok = await customConfirm(`${getPairName(pairId)} ya jugó algún partido en ${fromZone.name} — ese resultado se va a perder al moverla. Los resultados de las demás parejas no se ven afectados. ¿Continuar?`);
     if(!ok){ render(); return; }
   } else if(bracketHasRealProgress()){
-    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Mover esta pareja puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok){ render(); return; }
   }
   fromZone.pairIds = fromZone.pairIds.filter(id=>id!==pairId);
@@ -3144,7 +3163,7 @@ App.createZoneFromUnassigned = async function(){
     if(!(await ensurePairPresentBeforeZoneAssign(p.id))) return;
   }
   if(bracketHasRealProgress()){
-    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Esto puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
+    const ok = await customConfirm('Ya hay partidos jugados en el repechaje o la llave. Crear esta zona nueva puede reacomodar cupos que todavía no se jugaron (los partidos ya jugados no se pierden). ¿Continuar?');
     if(!ok) return;
   }
   const newZone = makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, chosen.map(p=>p.id));
@@ -3265,8 +3284,9 @@ App.setName = function(v){ if(state){ state.name = v; scheduleSaveTournament(sta
 
 App.setFormat = async function(fmt){
   if(state.format===fmt && state.formatChosen) return;
-  if(state.zones.length>0){
-    const ok = await customConfirm('Ya hay zonas generadas para este torneo. Cambiar el formato borra las zonas, resultados y llave cargados hasta ahora. ¿Continuar?');
+  const hadZones = state.zones.length>0;
+  if(hadZones){
+    const ok = await customConfirm('Ya hay zonas generadas para este torneo. Cambiar el formato las vuelve a sortear con este nuevo formato, usando las parejas presentes actuales (se pierden los resultados y la llave cargados hasta ahora). ¿Continuar?');
     if(!ok) return;
     state.zones = [];
     state.primera = null;
@@ -3275,8 +3295,12 @@ App.setFormat = async function(fmt){
   }
   state.format = fmt;
   state.formatChosen = true;
-  scheduleSaveTournament(state);
-  render();
+  if(hadZones){
+    await App.iniciarTorneo();
+  } else {
+    scheduleSaveTournament(state);
+    render();
+  }
 };
 
 let formatChoiceContext = null; // 'start' (elegir e iniciar el torneo) o 'change' (solo cambiar el formato)
@@ -3511,7 +3535,7 @@ App.confirmCreateTournament = function(){
   state = t;
   if(!nav.openTabs.includes(t.tournamentId)) nav.openTabs.push(t.tournamentId);
   nav.activeTab = 'torneoActual';
-  nav.torneoSubTab = 'parejas';
+  nav.torneoSubTab = 'cancha';
   scheduleSaveTournament(t);
   App.closeNewTournamentModal();
   render();
@@ -3528,7 +3552,7 @@ App.openTournament = function(id){
   state = t;
   if(!nav.openTabs.includes(id)) nav.openTabs.push(id);
   nav.activeTab = 'torneoActual';
-  nav.torneoSubTab = 'parejas';
+  nav.torneoSubTab = 'cancha';
   render();
 };
 
@@ -3544,7 +3568,7 @@ App.switchToOpenTab = function(id){
   pushNavHistory();
   state = t;
   nav.activeTab = 'torneoActual';
-  if(nav.torneoSubTab==='lista') nav.torneoSubTab = 'parejas';
+  if(nav.torneoSubTab==='lista') nav.torneoSubTab = 'cancha';
   render();
 };
 
@@ -3595,44 +3619,69 @@ App.addPairRow = function(){
   state.pairs.push({id:uid(), p1Id:null, p2Id:null, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
   render();
 };
+let addingPairFromCheckin = false;
 App.addPairFromCheckin = async function(){
+  if(addingPairFromCheckin) return; // evita un doble envío si se toca el botón dos veces rápido
   const p1Input = document.getElementById('checkinNewP1');
   const p2Input = document.getElementById('checkinNewP2');
   const aliasInput = document.getElementById('checkinNewAlias');
   const p1Name = p1Input.value.trim();
   const p2Name = p2Input.value.trim();
+  const aliasVal = aliasInput.value.trim();
   if(!p1Name || !p2Name){ customAlert('Escribí el nombre de los dos jugadores de la pareja.'); return; }
+  addingPairFromCheckin = true;
 
-  async function findOrCreatePlayerByName(name){
-    let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
-    if(player) return player;
-    const ok = await customConfirm(`"${name}" no está en la base de jugadores. ¿Agregarlo como jugador nuevo?`);
-    if(!ok) return null;
-    player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
-    playersDB.push(player);
-    scheduleSaveMain();
-    return player;
+  try{
+    async function findOrCreatePlayerByName(name){
+      let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
+      if(player) return player;
+      const ok = await customConfirm(`"${name}" no está en la base de jugadores. ¿Agregarlo como jugador nuevo?`);
+      if(!ok) return null;
+      player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+      playersDB.push(player);
+      scheduleSaveMain();
+      return player;
+    }
+
+    const p1 = await findOrCreatePlayerByName(p1Name);
+    if(!p1) return;
+    const p2 = await findOrCreatePlayerByName(p2Name);
+    if(!p2) return;
+    if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
+    if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
+    if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
+    state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:aliasVal, paid1:false, paid2:false, present:false, presentAt:null});
+    render();
+    // volver a buscar los campos por si el DOM se re-generó mientras esperábamos alguna confirmación
+    const p1InputNow = document.getElementById('checkinNewP1');
+    const p2InputNow = document.getElementById('checkinNewP2');
+    const aliasInputNow = document.getElementById('checkinNewAlias');
+    if(p1InputNow) p1InputNow.value='';
+    if(p2InputNow) p2InputNow.value='';
+    if(aliasInputNow) aliasInputNow.value='';
+    customAlert(`Pareja agregada: ${p1.name} / ${p2.name}.`);
+  } finally {
+    addingPairFromCheckin = false;
   }
-
-  const p1 = await findOrCreatePlayerByName(p1Name);
-  if(!p1) return;
-  const p2 = await findOrCreatePlayerByName(p2Name);
-  if(!p2) return;
-  if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
-  if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
-  if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
-  state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:aliasInput.value.trim(), paid1:false, paid2:false, present:false, presentAt:null});
-  p1Input.value=''; p2Input.value=''; aliasInput.value='';
-  render();
-  customAlert(`Pareja agregada: ${p1.name} / ${p2.name}. Ya la vas a ver también en la pestaña Parejas.`);
 };
 App.removePairRow = async function(id){
-  if(state.zones.length>0){
-    const ok = await customConfirm('Ya hay zonas generadas. Sacar esta pareja no las va a modificar hasta que vuelvas a sortear. ¿Continuar?');
-    if(!ok) return;
+  const zone = state.zones.find(z=>z.pairIds.includes(id));
+  let msg = `¿Eliminar a ${getPairName(id)} del torneo?`;
+  if(zone && pairHasPlayedInZone(id, zone)) msg += ' Ya jugó algún partido en su zona — ese resultado se va a perder. El resto de la zona no se ve afectado.';
+  const ok = await customConfirm(msg);
+  if(!ok) return;
+  if(zone){
+    zone.pairIds = zone.pairIds.filter(pid=>pid!==id);
+    if(zone.pairIds.length===0){
+      state.zones = state.zones.filter(z=>z.id!==zone.id);
+    } else {
+      rebuildZoneMatches(zone);
+    }
+    refreshBracket();
   }
   state.pairs = state.pairs.filter(p=>p.id!==id);
   render();
+  doSaveTournament(state);
 };
 App.setPairSlot = function(pairId, slot, value){
   const pair = state.pairs.find(p=>p.id===pairId);
@@ -3684,6 +3733,13 @@ App.iniciarTorneo = async function(){
   if(state.format==='principiantes' && present.length===5){
     customAlert('Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más antes de iniciar.');
     return;
+  }
+  if(state.format==='cruce'){
+    const sizesCheck = computeZoneSizes(present.length);
+    if(!zonesCanCrossCleanly(sizesCheck)){
+      customAlert(`Con ${present.length} parejas presentes, las zonas quedarían [${sizesCheck.join(', ')}] — no se pueden emparejar de a dos del mismo tamaño para cruzar entre ellas. El formato "Cruce entre zonas" necesita una cantidad de zonas par, con cada par del mismo tamaño. Esperá a que cambie la cantidad de presentes, o elegí otro formato.`, 'No se puede usar este formato');
+      return;
+    }
   }
   if(state.zones.length>0){
     const ok = await customConfirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
@@ -4004,16 +4060,64 @@ function rebuildPrimera(direct, repechaje){
   state.primera = { matches, directRanked: direct, repechajeRanked: repechaje };
 }
 
+function buildBracketCruce(){
+  const zones = state.zones;
+  const matches = [];
+  const existingMatches = state.primera ? state.primera.matches : [];
+  const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
+
+  const pushMatch = (pidX, pidY, descX, descY)=>{
+    if(pidX && pidY){
+      matches.push(findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''});
+    } else {
+      matches.push({
+        id:uid(), aId:pidX||null, bId:pidY||null, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true, cancha:'',
+        pendingDescA: pidX?null:descX, pendingDescB: pidY?null:descY
+      });
+    }
+  };
+
+  for(let i=0;i<zones.length;i+=2){
+    const zoneA = zones[i], zoneB = zones[i+1];
+    if(!zoneB) continue; // zona impar sin pareja: no debería pasar (ya se valida antes de iniciar), por las dudas no rompe nada
+    const lockingA = computeZoneLocking(zoneA).map(r=> r ? r.pairId : null);
+    const lockingB = computeZoneLocking(zoneB).map(r=> r ? r.pairId : null);
+    const n = zoneA.pairIds.length;
+
+    if(n===4){
+      pushMatch(lockingA[0], lockingB[3], `1° de ${zoneA.name}`, `4° de ${zoneB.name}`);
+      pushMatch(lockingA[1], lockingB[2], `2° de ${zoneA.name}`, `3° de ${zoneB.name}`);
+      pushMatch(lockingB[0], lockingA[3], `1° de ${zoneB.name}`, `4° de ${zoneA.name}`);
+      pushMatch(lockingB[1], lockingA[2], `2° de ${zoneB.name}`, `3° de ${zoneA.name}`);
+    } else if(n===3){
+      pushMatch(lockingA[0], lockingB[2], `1° de ${zoneA.name}`, `3° de ${zoneB.name}`);
+      pushMatch(lockingB[0], lockingA[2], `1° de ${zoneB.name}`, `3° de ${zoneA.name}`);
+      pushMatch(lockingA[1], lockingB[1], `2° de ${zoneA.name}`, `2° de ${zoneB.name}`);
+    }
+  }
+
+  state.primera = { matches, directRanked: [], repechajeRanked: [] };
+}
+
 function refreshBracket(){
   if(!state || state.smallMode) return;
   if(state.zones.length===0) return;
   if(state.format==='principiantes'){
     buildBracketPrincipiantes();
+  } else if(state.format==='cruce'){
+    buildBracketCruce();
   } else {
     buildBracketAvanzado();
   }
-  tryGenerateSegunda();
-  advanceSegunda();
+  // en Avanzado/Principiantes el ranking general puede reordenarse mientras falten zonas por terminar
+  // (una pareja puede "correrse" de posición según cómo resuelvan OTRAS zonas). Recién cuando TODAS las
+  // zonas terminaron el orden queda 100% fijo — por eso la llave (ronda 1) se arma solo a partir de ahí.
+  // "Cruce entre zonas" no tiene este problema: cada cruce depende solo de sus dos zonas, nunca del resto.
+  const zonesFullyDone = state.zones.every(z=> z.matches.every(m=>m.completed));
+  if(state.format==='cruce' || zonesFullyDone){
+    tryGenerateSegunda();
+    advanceSegunda();
+  }
 }
 
 App.generateBracket = function(){
@@ -4089,32 +4193,18 @@ function tryGenerateSegunda(){
   const existingMatches = (state.segunda && state.segunda.rounds[0]) ? state.segunda.rounds[0] : [];
   const findExisting = (aId,bId)=> existingMatches.find(m=> !m.bye && !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
 
-  // primero: qué parejas ya quedaron congeladas en alguna posición existente (jugada o no, pero ya resuelta)
-  const frozenPairIds = new Set();
-  for(let i=0;i<slots.length;i+=2){
-    const oldMatch = existingMatches[i/2];
-    if(oldMatch && !oldMatch.pending && (oldMatch.aId || oldMatch.bId || oldMatch.completed)){
-      if(oldMatch.aId) frozenPairIds.add(oldMatch.aId);
-      if(oldMatch.bId) frozenPairIds.add(oldMatch.bId);
-    }
-  }
-
   const round1=[];
   for(let i=0;i<slots.length;i+=2){
     const slotIdx = i/2;
     const oldMatch = existingMatches[slotIdx];
-    // una vez que un cruce de la ronda 1 queda resuelto (jugado o no), se congela para siempre en esa posición:
-    // así, si otra zona termina después y el sembrado "ideal" cambiaría, nunca se pierde un resultado ya jugado
-    // ni se le cambia el rival a una pareja que ya sabía contra quién jugaba.
-    if(oldMatch && !oldMatch.pending && (oldMatch.aId || oldMatch.bId || oldMatch.completed)){
+    // una vez que un cruce de la ronda 1 quedó JUGADO (resultado real, incluye byes), se congela para siempre
+    // en esa posición. Ya no puede haber reacomodos de ranking en esta instancia (ver refreshBracket), así
+    // que esto es solo para preservar el resultado/cancha ya cargados, no para evitar duplicados.
+    if(oldMatch && oldMatch.completed){
       round1.push(oldMatch);
       continue;
     }
-    let a=slots[i], b=slots[i+1];
-    // si el resembrado fresco quiere poner acá a alguien que YA está congelado en otra posición,
-    // se lo trata como "todavía no resuelto" en este lugar — evita que la misma pareja aparezca duplicada.
-    if(a && !a.pending && frozenPairIds.has(a.pairId)) a = {pairId:null, name:null, pending:true, pendingDesc:'Por definir'};
-    if(b && !b.pending && frozenPairIds.has(b.pairId)) b = {pairId:null, name:null, pending:true, pendingDesc:'Por definir'};
+    const a=slots[i], b=slots[i+1];
     if(!a || !b){
       // bye estructural del cuadro (no alcanza la cantidad total de parejas)
       const only = a||b;
@@ -4431,7 +4521,7 @@ function renderUI(){
   renderClubes();
   renderProximos();
   renderTournamentsList();
-  renderParejas();
+  renderTournamentSummaryBar();
   renderCancha();
   renderZonas();
   renderGeneral();
@@ -4785,55 +4875,19 @@ function updatePlayersDatalist(query, datalistId){
   datalist.innerHTML = matches.map(p=>`<option value="${escapeAttr(p.name)}">`).join('');
 }
 
-function renderParejas(){
-  if(!state) return; // sin torneo abierto: esta subvista no está visible (nav.torneoSubTab sería 'lista')
+function renderTournamentSummaryBar(){
   const summaryBar = document.getElementById('tournamentSummaryBar');
-  if(summaryBar){
-    const club = clubsDB.find(c=>c.id===state.clubId);
-    const formatLabel = formatShortLabel(state.format);
-    summaryBar.innerHTML = `
-      <span class="pill">🏟️ ${club ? escapeHtml(club.name) : 'Sin club asignado'}</span>
-      <span class="pill">${state.categoria ? escapeHtml(state.categoria) : 'Sin categoría'}</span>
-      <span class="pill">${escapeHtml(state.tipo || 'Caballero')}</span>
-      <span class="pill">${formatLabel}</span>
-      <span class="pill">🎾 ${state.courtCount||4} cancha${(state.courtCount||4)===1?'':'s'}</span>
-    `;
-  }
-
-  const pairsGrid = document.getElementById('pairsGrid');
-  if(playersDB.length===0){
-    pairsGrid.innerHTML = `<div class="empty-state">Primero cargá jugadores en la pestaña <b>Jugadores</b>.</div>`;
-  } else {
-    pairsGrid.innerHTML = state.pairs.map((pair,i)=>{
-      const p1 = playersDB.find(pl=>pl.id===pair.p1Id);
-      const p2 = playersDB.find(pl=>pl.id===pair.p2Id);
-      return `
-      <div class="pair-row2">
-        <span class="seed">${String(i+1).padStart(2,'0')}</span>
-        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 1..." value="${p1?escapeAttr(p1.name):''}" oninput="updatePlayersDatalist(this.value)" onchange="App.setPairSlot('${pair.id}','p1Id', this.value)">
-        <span class="vs-sep">/</span>
-        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 2..." value="${p2?escapeAttr(p2.name):''}" oninput="updatePlayersDatalist(this.value)" onchange="App.setPairSlot('${pair.id}','p2Id', this.value)">
-        <input class="alias-input" placeholder="Alias (opcional)" value="${escapeAttr(pair.alias||'')}" onchange="App.setPairAlias('${pair.id}', this.value)">
-        <button class="icon-btn" title="Quitar pareja" onclick="App.removePairRow('${pair.id}')">✕</button>
-      </div>`;
-    }).join('');
-  }
-
-  const unassignedHint = document.getElementById('unassignedHint');
-  if(unassignedHint) unassignedHint.innerHTML = '';
-
-  const ready = getReadyPairs();
-  const countChip = document.getElementById('pairsCountChip');
-  const hint = document.getElementById('setupHint');
-  countChip.innerHTML = `<b>${ready.length}</b> pareja${ready.length===1?'':'s'} inscripta${ready.length===1?'':'s'}`;
-
-  if(ready.length<3){
-    hint.textContent = `Faltan ${3-ready.length} pareja(s) más para poder iniciar el torneo (mínimo 3).`;
-  } else if(state.format==='principiantes' && ready.length===5){
-    hint.innerHTML = `Con 5 parejas no se pueden armar zonas de solo 3 o 4. Sumá o quitá una pareja antes del check-in.`;
-  } else {
-    hint.textContent = '';
-  }
+  if(!summaryBar) return;
+  if(!state){ summaryBar.innerHTML = ''; return; }
+  const club = clubsDB.find(c=>c.id===state.clubId);
+  const formatLabel = formatShortLabel(state.format);
+  summaryBar.innerHTML = `
+    <span class="pill">🏟️ ${club ? escapeHtml(club.name) : 'Sin club asignado'}</span>
+    <span class="pill">${state.categoria ? escapeHtml(state.categoria) : 'Sin categoría'}</span>
+    <span class="pill">${escapeHtml(state.tipo || 'Caballero')}</span>
+    <span class="pill">${formatLabel}</span>
+    <span class="pill">🎾 ${state.courtCount||4} cancha${(state.courtCount||4)===1?'':'s'}</span>
+  `;
 }
 
 /* ---- Zonas ---- */
@@ -4847,7 +4901,7 @@ function renderZonas(){
       <button class="btn btn-ghost btn-sm" onclick="App.openFormatChoiceModal('change')">Cambiar formato</button>
     </div>`;
   if(state.zones.length===0){
-    c.innerHTML = formatBar + `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Parejas y hacé clic en <b>Sortear zonas</b>.</div>`;
+    c.innerHTML = formatBar + `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Check In y presioná <b>Iniciar torneo</b>.</div>`;
     return;
   }
 
