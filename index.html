@@ -1035,7 +1035,6 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">06</span> Coordinadores</button>
     </nav>
     <div class="sidebar-footer">
-      <button class="sb-btn" id="manualSaveBtn" style="background:rgba(155,219,77,0.14); border-color:rgba(155,219,77,0.4); color:var(--accent-bright); font-weight:700;" onclick="App.guardarAhora()">💾 Guardar ahora</button>
       <div class="storage-chip ok" id="sessionChip" style="margin-bottom:2px;"></div>
       <button class="sb-btn" onclick="App.exportState()">Exportar todo (.json)</button>
       <label class="sb-btn" style="display:block;">Importar todo
@@ -1393,6 +1392,24 @@ let lastKnownMainUpdatedAt = 0; // evita que un snapshot en vivo "atrasado" pise
 let pendingSaveCount = 0; // cuántos guardados hay en curso o pendientes ahora mismo (main + torneos)
 let lastSaveError = null;
 
+let saveFailureNotified = false;
+
+function reportSaveError(e){
+  lastSaveError = e;
+  if(!saveFailureNotified){
+    saveFailureNotified = true;
+    customAlert('⚠️ No se pudo guardar el último cambio — parece que no hay conexión a internet.\n\nLa app va a seguir intentando guardar solo en segundo plano. Evitá cerrar la página hasta que veas el aviso de que la conexión se recuperó.', 'Sin conexión');
+  }
+}
+
+function reportSaveSuccess(){
+  lastSaveError = null;
+  if(saveFailureNotified){
+    saveFailureNotified = false;
+    showToast('✅ Conexión recuperada — todo se guardó correctamente.');
+  }
+}
+
 async function doSaveMain(){
   pendingSaveCount++;
   try{
@@ -1401,8 +1418,8 @@ async function doSaveMain(){
       try{
         await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
         lastKnownMainUpdatedAt = now;
-        lastSaveError = null;
-      }catch(e){ console.error('Error guardando en Firebase', e); lastSaveError = e; }
+        reportSaveSuccess();
+      }catch(e){ console.error('Error guardando en Firebase', e); reportSaveError(e); }
       return;
     }
     if(storageAvailable){
@@ -1414,8 +1431,8 @@ async function doSaveMain(){
         await window.storage.set('coordinadores-db', JSON.stringify(coordinadoresDB), false);
         await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
         await window.storage.set('sessions-db', JSON.stringify(sessions), false);
-        lastSaveError = null;
-      }catch(e){ console.error('Error guardando', e); lastSaveError = e; }
+        reportSaveSuccess();
+      }catch(e){ console.error('Error guardando', e); reportSaveError(e); }
     }
   } finally {
     pendingSaveCount = Math.max(0, pendingSaveCount-1);
@@ -1435,13 +1452,13 @@ async function doSaveTournament(t){
   pendingSaveCount++;
   try{
     if(liveSyncActive && tournamentsColRef){
-      try{ await tournamentsColRef.doc(t.tournamentId).set(t); lastSaveError = null; }
-      catch(e){ console.error('Error guardando el torneo', e); lastSaveError = e; }
+      try{ await tournamentsColRef.doc(t.tournamentId).set(t); reportSaveSuccess(); }
+      catch(e){ console.error('Error guardando el torneo', e); reportSaveError(e); }
       return;
     }
     if(storageAvailable){
-      try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); lastSaveError = null; }
-      catch(e){ console.error('Error guardando torneos', e); lastSaveError = e; }
+      try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); reportSaveSuccess(); }
+      catch(e){ console.error('Error guardando torneos', e); reportSaveError(e); }
     }
   } finally {
     pendingSaveCount = Math.max(0, pendingSaveCount-1);
@@ -1467,35 +1484,17 @@ function flushPendingSaves(){
   });
 }
 
-// avisar (con el cartel nativo del navegador) si se intenta cerrar/recargar habiendo guardados todavía en curso
-window.addEventListener('beforeunload', (e)=>{
-  flushPendingSaves();
-  if(pendingSaveCount>0){
-    e.preventDefault();
-    e.returnValue = '';
-    return '';
-  }
-});
-
-App.guardarAhora = async function(){
-  const btn = document.getElementById('manualSaveBtn');
-  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
-  try{
-    if(state) await doSaveTournament(state);
-    await doSaveMain();
-    if(lastSaveError){
-      await customAlert('No se pudo guardar: ' + (lastSaveError.message||lastSaveError) + '.\\n\\nRevisá tu conexión a internet e intentá de nuevo.', '⚠️ Error al guardar');
-    } else {
-      await customAlert('✅ Todo guardado correctamente en la base de datos.', 'Guardado');
-    }
-  } finally {
-    if(btn){ btn.disabled = false; btn.textContent = '💾 Guardar ahora'; }
-  }
-};
 // si la app se va a segundo plano, se minimiza, se cambia de pestaña o se cierra: guardar YA lo pendiente,
 // sin esperar el retraso normal de 350ms (evita perder el último cambio, ej. "iniciar torneo" justo antes de salir)
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushPendingSaves(); });
 window.addEventListener('pagehide', flushPendingSaves);
+
+// capa extra de seguridad: guardar solo cada 15 segundos, sin depender de ninguna acción puntual
+setInterval(()=>{
+  if(!currentUser || applyingRemote) return;
+  if(state) doSaveTournament(state);
+  doSaveMain();
+}, 15000);
 
 function deleteTournamentDoc(tournamentId){
   if(liveSyncActive && tournamentsColRef){
@@ -2769,15 +2768,8 @@ App.togglePresent = function(pairId){
   if(!pair) return;
   pair.present = !pair.present;
   pair.presentAt = pair.present ? new Date().toISOString() : null;
-
-  const presentCount = getReadyPairs().filter(p=>p.present).length;
-  if(pair.present && !state.formatChosen && presentCount>=3){
-    App.openFormatChoiceModal('start');
-  } else {
-    autoManageZonesOnPresenceChange();
-  }
   render();
-  doSaveTournament(state); // guardar YA: marcar presente puede disparar el armado automático de zonas
+  doSaveTournament(state);
 };
 
 App.startMatch = function(matchId){
@@ -2972,7 +2964,7 @@ function renderCancha(){
       </div>
     </div>
     <div class="cancha-section">
-      <h3 class="round-label" style="text-align:left;">Armado de zonas</h3>
+      <h3 class="round-label" style="text-align:left;">Iniciar torneo</h3>
       ${iniciarTorneoSectionHtml()}
     </div>`;
 }
@@ -2982,29 +2974,29 @@ function iniciarTorneoSectionHtml(){
   const n = presentPairs.length;
   if(state.zones.length>0){
     const hasResults = zonesHaveRealProgress() || getAllActiveMatches().some(m=>m.completed);
-    const modeText = hasResults
-      ? `<div class="hint">✅ Ya hay resultados jugados — las zonas quedaron fijas. Las nuevas parejas que marques presente se suman a una zona con lugar (o arman una nueva si no hay), sin tocar lo ya jugado.</div>`
-      : `<div class="hint">🔄 Las zonas se están armando y reacomodando solas a medida que marcás y desmarcás presentes. Apenas se cargue el primer resultado, quedan fijas.</div>`;
+    const warn = hasResults
+      ? `<div class="hint" style="color:var(--danger);">⚠️ Ya hay resultados cargados en este torneo — reiniciar los va a borrar todos.</div>`
+      : `<div class="hint">Todavía no hay resultados cargados.</div>`;
     return `
-      <div class="chip on"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'} · zonas armadas</div>
-      ${modeText}
+      <div class="hint">El torneo ya se inició (zonas sorteadas). Andá a la pestaña <b>Zonas</b> para ver los partidos.</div>
+      ${warn}
       <div class="court-count-row" style="margin-top:8px;">
         <button class="btn btn-ghost btn-sm" onclick="App.reiniciarTorneo()">↺ Reiniciar torneo</button>
-        <span class="hint" style="margin:0;">Borra las zonas y las vuelve a armar desde cero con los presentes actuales.</span>
+        <span class="hint" style="margin:0;">Vuelve a dejar las parejas presentes listas para un nuevo sorteo de zonas.</span>
       </div>`;
   }
   let hint;
+  let canStart = true;
   if(n<3){
-    hint = `Faltan ${3-n} pareja(s) presente(s) más para que las zonas se armen solas (mínimo 3).`;
-  } else if(!state.formatChosen){
-    hint = `Ya tenés 3 o más presentes — elegí el formato del torneo para que las zonas se armen automáticamente.`;
+    hint = `Faltan ${3-n} pareja(s) presente(s) más para poder iniciar (mínimo 3).`;
+    canStart = false;
   } else {
-    hint = `Las zonas se van a armar solas apenas marques presentes a las parejas.`;
+    hint = `Vas a elegir el formato del torneo al presionar "Iniciar torneo".`;
   }
   return `
     <div class="court-count-row">
       <div class="chip ${n>=3?'on':''}"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'}</div>
-      ${!state.formatChosen ? `<button class="btn btn-primary btn-sm" ${n>=3?'':'disabled'} onclick="App.openFormatChoiceModal('start')">Elegir formato</button>` : ''}
+      <button class="btn btn-primary" ${canStart?'':'disabled'} onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>
       <span class="hint" style="margin:0;">${hint}</span>
     </div>`;
 }
@@ -3308,12 +3300,7 @@ App.chooseFormat = async function(fmt){
   } else {
     state.format = fmt;
     state.formatChosen = true;
-    pushNavHistory();
-    nav.activeTab = 'torneoActual';
-    nav.torneoSubTab = 'cancha';
-    autoManageZonesOnPresenceChange();
-    render();
-    doSaveTournament(state);
+    await App.iniciarTorneo();
   }
 };
 
@@ -3742,7 +3729,6 @@ App.reiniciarTorneo = async function(){
   state.smallMode = false;
   state.primera = null;
   state.segunda = null;
-  rebuildAllZonesFromPresent();
   nav.torneoSubTab = 'cancha';
   render();
   doSaveTournament(state);
