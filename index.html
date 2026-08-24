@@ -251,11 +251,14 @@ table.ranking tr.leader td{color:var(--gold); font-weight:700;}
 .match-card .btn-sm, .zone-matches-grid .btn-sm{padding:5px 9px; font-size:11px;}
 .actions-row{display:flex; gap:12px; align-items:center; margin-top:6px; flex-wrap:wrap;}
 .hint{font-size:12.5px; color:var(--text-faint); margin-top:10px;}
-.update-banner{
-  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
-  background:rgba(201,122,0,0.10); border:1px solid rgba(201,122,0,0.35); color:var(--gold);
-  padding:10px 16px; border-radius:10px; margin-bottom:16px; font-size:13px;
+.app-toast{
+  position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px);
+  background:var(--sidebar-bg); color:var(--accent-bright); border:1px solid rgba(155,219,77,0.4);
+  padding:11px 20px; border-radius:10px; font-size:13px; font-weight:500;
+  box-shadow:0 4px 20px rgba(0,0,0,0.25); z-index:2000; opacity:0; pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease; max-width:90vw; text-align:center;
 }
+.app-toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 .hint b{color:var(--text-dim);}
 
 /* ---------- inicio (menú principal) ---------- */
@@ -754,6 +757,12 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
   nav{flex-direction:column;}
   .sidebar-footer{display:flex;}
   main{padding:20px; padding-top:74px;}
+  .pair-row2{flex-direction:column; align-items:stretch; gap:8px;}
+  .pair-row2 .seed{width:auto; align-self:flex-start;}
+  .pair-row2 input.player-search{width:100%; font-size:15px; padding:10px 12px;}
+  .pair-row2 .alias-input{width:100%;}
+  .pair-row2 .vs-sep{display:none;}
+  .pair-row2 .icon-btn{align-self:flex-end;}
 }
 </style>
 </head>
@@ -826,6 +835,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
   </div>
 </div>
 
+<div id="appToast" class="app-toast"></div>
 <div class="modal-overlay" id="newPlayerModalOverlay" style="display:none;">
   <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
     <div class="modal-title" style="text-align:center;">Completá tu registro</div>
@@ -1529,12 +1539,11 @@ function applyRemoteTournaments(snap){
       const current = tournaments[idx];
       if((data.updatedAt||0) < (current.updatedAt||0)){
         // eco atrasado del oyente en vivo: se ignora para no pisar un cambio local más reciente
-      } else if(state && state.tournamentId===data.tournamentId && (data.updatedAt||0) > (current.updatedAt||0) && data.updatedAt !== lastKnownOwnUpdatedAt[data.tournamentId]){
-        // es el torneo que tengo abierto ahora mismo, y la novedad NO es un eco de mi propio guardado:
-        // alguien más lo modificó. Avisar en vez de pisarlo en el medio de lo que estoy viendo/editando.
-        pendingTournamentUpdate = data;
       } else {
+        const isForeignUpdateToOpenTournament = state && state.tournamentId===data.tournamentId
+          && (data.updatedAt||0) > (current.updatedAt||0) && data.updatedAt !== lastKnownOwnUpdatedAt[data.tournamentId];
         Object.assign(current, data); // mutar en el lugar: si `state` apunta a este objeto, se actualiza solo
+        if(isForeignUpdateToOpenTournament) showToast('🔄 Este torneo se actualizó con cambios de otro dispositivo.');
       }
     } else {
       tournaments.push(data);
@@ -1544,27 +1553,20 @@ function applyRemoteTournaments(snap){
   applyingRemote = false;
 }
 
-function renderTournamentUpdateBanner(){
-  const el = document.getElementById('tournamentUpdateBanner');
+let toastTimer = null;
+function showToast(message){
+  const el = document.getElementById('appToast');
   if(!el) return;
-  if(pendingTournamentUpdate && state && pendingTournamentUpdate.tournamentId===state.tournamentId){
-    el.innerHTML = `
-      <div class="update-banner">
-        <span>⚠️ Otra persona actualizó este torneo mientras lo tenías abierto.</span>
-        <button class="btn btn-primary btn-sm" onclick="App.applyPendingTournamentUpdate()">🔄 Actualizar</button>
-      </div>`;
-  } else {
-    el.innerHTML = '';
-  }
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.classList.remove('show'); }, 4000);
 }
 
-App.applyPendingTournamentUpdate = function(){
-  if(!pendingTournamentUpdate) return;
-  const idx = tournaments.findIndex(t=>t.tournamentId===pendingTournamentUpdate.tournamentId);
-  if(idx>=0) Object.assign(tournaments[idx], pendingTournamentUpdate);
-  pendingTournamentUpdate = null;
-  render();
-};
+function renderTournamentUpdateBanner(){
+  const el = document.getElementById('tournamentUpdateBanner');
+  if(el) el.innerHTML = ''; // el aviso ahora es un toast que se cierra solo, no un banner que había que confirmar
+}
 
 function isTypingInInput(){
   const el = document.activeElement;
@@ -2835,9 +2837,9 @@ function renderCancha(){
     <div class="cancha-section">
       <h3 class="round-label" style="text-align:left;">Agregar pareja</h3>
       <div class="pair-row2" style="max-width:640px;">
-        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 1..." id="checkinNewP1" oninput="updatePlayersDatalist(this.value)">
+        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Jugador 1 (buscá o escribí uno nuevo)" id="checkinNewP1" oninput="updatePlayersDatalist(this.value)">
         <span class="vs-sep">/</span>
-        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Buscar jugador 2..." id="checkinNewP2" oninput="updatePlayersDatalist(this.value)">
+        <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Jugador 2 (buscá o escribí uno nuevo)" id="checkinNewP2" oninput="updatePlayersDatalist(this.value)">
         <input class="alias-input" placeholder="Alias (opcional)" id="checkinNewAlias">
         <button class="btn btn-primary btn-sm" onclick="App.addPairFromCheckin()">+ Agregar pareja</button>
       </div>
@@ -3605,17 +3607,29 @@ App.addPairRow = function(){
   state.pairs.push({id:uid(), p1Id:null, p2Id:null, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
   render();
 };
-App.addPairFromCheckin = function(){
+App.addPairFromCheckin = async function(){
   const p1Input = document.getElementById('checkinNewP1');
   const p2Input = document.getElementById('checkinNewP2');
   const aliasInput = document.getElementById('checkinNewAlias');
   const p1Name = p1Input.value.trim();
   const p2Name = p2Input.value.trim();
-  if(!p1Name || !p2Name){ customAlert('Buscá y elegí a los dos jugadores de la pareja.'); return; }
-  const p1 = playersDB.find(p=>p.name.toLowerCase()===p1Name.toLowerCase());
-  const p2 = playersDB.find(p=>p.name.toLowerCase()===p2Name.toLowerCase());
-  if(!p1){ customAlert(`"${p1Name}" no está en la base de jugadores. Agregalo primero en la pestaña "Jugadores".`); return; }
-  if(!p2){ customAlert(`"${p2Name}" no está en la base de jugadores. Agregalo primero en la pestaña "Jugadores".`); return; }
+  if(!p1Name || !p2Name){ customAlert('Escribí el nombre de los dos jugadores de la pareja.'); return; }
+
+  async function findOrCreatePlayerByName(name){
+    let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
+    if(player) return player;
+    const ok = await customConfirm(`"${name}" no está en la base de jugadores. ¿Agregarlo como jugador nuevo?`);
+    if(!ok) return null;
+    player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+    playersDB.push(player);
+    scheduleSaveMain();
+    return player;
+  }
+
+  const p1 = await findOrCreatePlayerByName(p1Name);
+  if(!p1) return;
+  const p2 = await findOrCreatePlayerByName(p2Name);
+  if(!p2) return;
   if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
   if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
   if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
@@ -4088,6 +4102,16 @@ function tryGenerateSegunda(){
   const existingMatches = (state.segunda && state.segunda.rounds[0]) ? state.segunda.rounds[0] : [];
   const findExisting = (aId,bId)=> existingMatches.find(m=> !m.bye && !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)) );
 
+  // primero: qué parejas ya quedaron congeladas en alguna posición existente (jugada o no, pero ya resuelta)
+  const frozenPairIds = new Set();
+  for(let i=0;i<slots.length;i+=2){
+    const oldMatch = existingMatches[i/2];
+    if(oldMatch && !oldMatch.pending && (oldMatch.aId || oldMatch.bId || oldMatch.completed)){
+      if(oldMatch.aId) frozenPairIds.add(oldMatch.aId);
+      if(oldMatch.bId) frozenPairIds.add(oldMatch.bId);
+    }
+  }
+
   const round1=[];
   for(let i=0;i<slots.length;i+=2){
     const slotIdx = i/2;
@@ -4099,7 +4123,11 @@ function tryGenerateSegunda(){
       round1.push(oldMatch);
       continue;
     }
-    const a=slots[i], b=slots[i+1];
+    let a=slots[i], b=slots[i+1];
+    // si el resembrado fresco quiere poner acá a alguien que YA está congelado en otra posición,
+    // se lo trata como "todavía no resuelto" en este lugar — evita que la misma pareja aparezca duplicada.
+    if(a && !a.pending && frozenPairIds.has(a.pairId)) a = {pairId:null, name:null, pending:true, pendingDesc:'Por definir'};
+    if(b && !b.pending && frozenPairIds.has(b.pairId)) b = {pairId:null, name:null, pending:true, pendingDesc:'Por definir'};
     if(!a || !b){
       // bye estructural del cuadro (no alcanza la cantidad total de parejas)
       const only = a||b;
