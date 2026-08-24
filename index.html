@@ -2695,7 +2695,7 @@ App.setRegistrationFee = function(value){
 };
 
 function zonesHaveRealProgress(){
-  return state.zones.some(z=> z.matches.some(m=>m.completed));
+  return state.zones.some(z=> z.matches.some(m=>m.completed || m.started));
 }
 
 function rebuildAllZonesFromPresent(){
@@ -2734,7 +2734,7 @@ function autoAssignNewPresentPairsSilently(){
   const unassignedPresent = getReadyPairs().filter(p=>p.present && !assignedIds.has(p.id));
   if(unassignedPresent.length===0) return;
   unassignedPresent.forEach(p=>{
-    const eligible = state.zones.filter(z=> z.pairIds.length<4 && !zoneHasAnyResult(z));
+    const eligible = state.zones.filter(z=> z.pairIds.length<4 && !z.matches.some(m=>m.completed || m.started));
     if(eligible.length===0) return;
     eligible.sort((a,b)=>a.pairIds.length-b.pairIds.length);
     const zone = eligible[0];
@@ -2777,6 +2777,7 @@ App.togglePresent = function(pairId){
     autoManageZonesOnPresenceChange();
   }
   render();
+  doSaveTournament(state); // guardar YA: marcar presente puede disparar el armado automático de zonas
 };
 
 App.startMatch = function(matchId){
