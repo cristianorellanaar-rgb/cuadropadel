@@ -1396,18 +1396,13 @@ let saveFailureNotified = false;
 
 function reportSaveError(e){
   lastSaveError = e;
-  if(!saveFailureNotified){
-    saveFailureNotified = true;
-    customAlert('⚠️ No se pudo guardar el último cambio — parece que no hay conexión a internet.\n\nLa app va a seguir intentando guardar solo en segundo plano. Evitá cerrar la página hasta que veas el aviso de que la conexión se recuperó.', 'Sin conexión');
-  }
+  saveFailureNotified = true;
+  console.error('Error al guardar', e);
 }
 
 function reportSaveSuccess(){
   lastSaveError = null;
-  if(saveFailureNotified){
-    saveFailureNotified = false;
-    showToast('✅ Conexión recuperada — todo se guardó correctamente.');
-  }
+  saveFailureNotified = false;
 }
 
 async function doSaveMain(){
