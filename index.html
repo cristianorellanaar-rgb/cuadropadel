@@ -996,7 +996,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     <div class="modal-box" style="text-align:left; max-width:480px;">
       <div class="modal-title" style="text-align:center;">Elegí el formato del torneo</div>
       <div class="format-choice-list">
-        <button class="format-choice-option" onclick="App.chooseFormat('grupo')">
+        <button class="format-choice-option" id="formatOptionGrupo" onclick="App.chooseFormat('grupo')">
           <div class="fc-title">3 a 5 parejas · Todos contra todos</div>
           <div class="fc-desc">Para grupos chicos. Todas las parejas juegan entre sí una vez; gana quien más puntos suma. No arma zonas ni llave de eliminación.</div>
         </button>
@@ -1564,7 +1564,7 @@ function renderTournamentUpdateBanner(){
 
 function isTypingInInput(){
   const el = document.activeElement;
-  return el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA');
+  return (el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA')) || addingPairFromCheckin;
 }
 
 document.addEventListener('focusout', ()=>{
@@ -1579,7 +1579,7 @@ document.addEventListener('focusout', ()=>{
       pendingRemoteTournaments = null;
       applyRemoteTournaments(snap);
     }
-  }, 50);
+  }, 400); // margen más amplio: en el celular, el toque en un botón puede tardar un poco más en confirmarse
 });
 
 async function initApp(){
@@ -2296,7 +2296,19 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
   }
 
   const llaveEl = document.getElementById(ids.llave);
-  if(state.smallMode || !state.primera){
+  if(state.smallMode && state.format==='grupofinal'){
+    if(!state.finalMatch){
+      llaveEl.innerHTML = `<div class="empty-state">La final se arma sola apenas termine el grupo (todos contra todos).</div>`;
+    } else {
+      llaveEl.innerHTML = `
+        <div class="bracket-section">
+          <h3 class="round-label" style="text-align:left;">Final (1° vs 2° del grupo)</h3>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; max-width:400px;">
+            ${matchCardHtml(state.finalMatch)}
+          </div>
+        </div>`;
+    }
+  } else if(state.smallMode || !state.primera){
     llaveEl.innerHTML = `<div class="empty-state">${state.smallMode ? 'Este torneo no tiene llave: se juega todo en un solo grupo.' : 'La llave todavía no se generó.'}</div>`;
   } else {
     let html = `
@@ -2598,11 +2610,12 @@ function isPairPresent(pairId){
 }
 
 function getAllActiveMatches(){
-  // todos los partidos del torneo (zonas + primera + segunda), en un solo listado plano
+  // todos los partidos del torneo (zonas + primera + segunda + final del modo grupo), en un solo listado plano
   const list = [];
   state.zones.forEach(zone=> zone.matches.forEach(m=> list.push(m)));
   if(state.primera) state.primera.matches.forEach(m=> list.push(m));
   if(state.segunda) state.segunda.rounds.forEach(round=> round.forEach(m=> list.push(m)));
+  if(state.finalMatch) list.push(state.finalMatch);
   return list;
 }
 
@@ -2712,7 +2725,7 @@ function rebuildAllZonesFromPresent(){
   }
   const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
-  if(state.format==='grupo' || (state.format!=='principiantes' && shuffled.length<6)){
+  if(state.format==='grupo' || state.format==='grupofinal' || (state.format!=='principiantes' && shuffled.length<6)){
     state.smallMode = true;
     state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
   } else {
@@ -2865,7 +2878,11 @@ function renderCancha(){
 
   const pairs = getReadyPairs();
   if(pairs.length===0){
-    c.innerHTML = addPairHtml + `<div class="empty-state">Todavía no hay parejas cargadas. Agregá la primera con el formulario de arriba.</div>`;
+    c.innerHTML = addPairHtml + `<div class="empty-state">Todavía no hay parejas cargadas. Agregá la primera con el formulario de arriba.</div>` + `
+      <div class="cancha-section">
+        <h3 class="round-label" style="text-align:left;">Zonas</h3>
+        ${iniciarTorneoSectionHtml()}
+      </div>`;
     return;
   }
 
@@ -2931,29 +2948,7 @@ function renderCancha(){
       </div>`;
   }).join('');
 
-  // ---- 2) cola de listos para jugar, ordenada por orden de llegada ----
-  const readyMatches = getAllActiveMatches()
-    .filter(isMatchReadyToStart)
-    .filter(m=> isPairPresent(m.aId) && isPairPresent(m.bId))
-    .filter(m=> !isPairPlaying(m.aId) && !isPairPlaying(m.bId))
-    .map(m=> ({m, since: matchReadySince(m)}))
-    .sort((x,y)=> (x.since||'').localeCompare(y.since||''));
-
-  const queueHtml = readyMatches.length===0
-    ? `<div class="empty-state">No hay partidos listos para arrancar (faltan resultados anteriores, o faltan parejas por marcar presentes).</div>`
-    : readyMatches.map((row,i)=>{
-        const m = row.m;
-        return `
-        <div class="queue-row">
-          <span class="queue-pos">${i+1}°</span>
-          <div class="queue-teams">${escapeHtml(getPairName(m.aId))} <span class="vs-sep-sm">vs</span> ${escapeHtml(getPairName(m.bId))}</div>
-          ${m.label ? `<span class="pill">${escapeHtml(m.label)}</span>`:''}
-          ${canchaSelectHtml(m)}
-          <button class="btn btn-primary btn-sm" onclick="App.startMatch('${m.id}')">▶ Iniciar partido</button>
-        </div>`;
-      }).join('');
-
-  // ---- 3) partidos en juego ahora mismo ----
+  // ---- 2) partidos en juego ahora mismo ----
   const playingMatches = getAllActiveMatches().filter(m=> m.started && !m.completed);
   const playingHtml = playingMatches.length===0
     ? `<div class="empty-state">Ninguna cancha ocupada ahora mismo.</div>`
@@ -2977,10 +2972,6 @@ function renderCancha(){
       <div class="checkin-list">${checkinRows}</div>
     </div>
     <div class="cancha-section">
-      <h3 class="round-label" style="text-align:left;">Cola de parejas listas para jugar (por orden de llegada)</h3>
-      <div class="queue-list">${queueHtml}</div>
-    </div>
-    <div class="cancha-section">
       <h3 class="round-label" style="text-align:left;">Canchas ocupadas ahora</h3>
       <div class="queue-list">${playingHtml}</div>
     </div>
@@ -2993,7 +2984,7 @@ function renderCancha(){
       </div>
     </div>
     <div class="cancha-section">
-      <h3 class="round-label" style="text-align:left;">Iniciar torneo</h3>
+      <h3 class="round-label" style="text-align:left;">Zonas</h3>
       ${iniciarTorneoSectionHtml()}
     </div>`;
 }
@@ -3001,37 +2992,23 @@ function renderCancha(){
 function iniciarTorneoSectionHtml(){
   const presentPairs = getReadyPairs().filter(p=>p.present);
   const n = presentPairs.length;
-  if(state.zones.length>0){
-    const hasResults = zonesHaveRealProgress() || getAllActiveMatches().some(m=>m.completed);
-    const warn = hasResults
-      ? `<div class="hint" style="color:var(--danger);">⚠️ Ya hay resultados cargados en este torneo — reiniciar los va a borrar todos.</div>`
-      : `<div class="hint">Todavía no hay resultados cargados.</div>`;
-    return `
-      <div class="hint">El torneo ya se inició (zonas sorteadas). Andá a la pestaña <b>Zonas</b> para ver los partidos.</div>
-      ${warn}
-      <div class="court-count-row" style="margin-top:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="App.reiniciarTorneo()">↺ Reiniciar torneo</button>
-        <span class="hint" style="margin:0;">Vuelve a dejar las parejas presentes listas para un nuevo sorteo de zonas.</span>
-      </div>`;
-  }
-  let hint;
-  let canStart = true;
-  if(n<3){
-    hint = `Faltan ${3-n} pareja(s) presente(s) más para poder iniciar (mínimo 3).`;
-    canStart = false;
-  } else {
-    hint = `Vas a elegir el formato del torneo al presionar "Iniciar torneo".`;
-  }
   return `
     <div class="court-count-row">
       <div class="chip ${n>=3?'on':''}"><b>${n}</b> pareja${n===1?'':'s'} presente${n===1?'':'s'}</div>
-      <button class="btn btn-primary" ${canStart?'':'disabled'} onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>
-      <span class="hint" style="margin:0;">${hint}</span>
+      <button class="btn btn-primary" onclick="App.goToZonas()">→ Ir a zonas</button>
+      <span class="hint" style="margin:0;">Desde la pestaña Zonas vas a poder armar los grupos e iniciar el torneo.</span>
     </div>`;
 }
 
+App.goToZonas = function(){
+  pushNavHistory();
+  nav.torneoSubTab = 'zonas';
+  render();
+};
+
 function formatShortLabel(fmt){
-  if(fmt==='grupo') return '3 a 5 parejas';
+  if(fmt==='grupo') return 'Todos contra todos';
+  if(fmt==='grupofinal') return 'Todos contra todos y final';
   if(fmt==='principiantes') return 'Zonas de 3,4 (Todos contra todos)';
   if(fmt==='cruce') return 'Cruce entre zonas';
   return 'Zonas de 3,4 (Reducido)'; // avanzado
@@ -3261,6 +3238,9 @@ function roundLabel(totalRounds, idx, matchCount){
 function getChampionPairId(){
   if(state.smallMode){
     if(state.zones.length===0) return null;
+    if(state.format==='grupofinal'){
+      return (state.finalMatch && state.finalMatch.completed) ? state.finalMatch.winnerId : null;
+    }
     const results = computeZoneResults(state.zones[0]);
     return results ? results[0].pairId : null;
   }
@@ -3273,6 +3253,14 @@ function computeStageForPair(pairId){
     if(!results) return {label:'Participó', points:POINTS.participacion};
     const r = results.find(x=>x.pairId===pairId);
     if(!r) return {label:'Participó', points:POINTS.participacion};
+    if(state.format==='grupofinal'){
+      if(state.finalMatch && state.finalMatch.completed){
+        if(state.finalMatch.winnerId===pairId) return {label:'Campeón', points:POINTS.campeon};
+        const loserId = state.finalMatch.aId===state.finalMatch.winnerId ? state.finalMatch.bId : state.finalMatch.aId;
+        if(loserId===pairId) return {label:'Subcampeón', points:POINTS.finalista};
+      }
+      return {label:'Participó', points:POINTS.participacion};
+    }
     if(r.position===1) return {label:'Campeón', points:POINTS.campeon};
     if(r.position===2) return {label:'Subcampeón', points:POINTS.finalista};
     return {label:'Participó', points:POINTS.participacion};
@@ -3335,8 +3323,10 @@ App.setFormat = async function(fmt){
 
 let formatChoiceContext = null; // 'start' (elegir e iniciar el torneo) o 'change' (solo cambiar el formato)
 
-App.openFormatChoiceModal = function(context){
+App.openFormatChoiceModal = function(context, opts){
   formatChoiceContext = context || 'start';
+  const grupoBtn = document.getElementById('formatOptionGrupo');
+  if(grupoBtn) grupoBtn.style.display = (opts && opts.excludeGrupo) ? 'none' : '';
   document.getElementById('formatChoiceModalOverlay').style.display = 'flex';
 };
 
@@ -3657,8 +3647,6 @@ App.addPairRow = function(){
 let addingPairFromCheckin = false;
 let addingPairFromCheckinTimer = null;
 App.addPairFromCheckin = async function(){
-  showToast('🔧 DIAG 1: función iniciada');
-  await new Promise(r=>setTimeout(r,900));
   if(addingPairFromCheckin){
     customAlert('Ya se está procesando un pedido anterior. Si quedó trabado, esperá unos segundos y volvé a intentar.');
     return;
@@ -3669,8 +3657,6 @@ App.addPairFromCheckin = async function(){
   const p1Name = p1Input.value.trim();
   const p2Name = p2Input.value.trim();
   const aliasVal = aliasInput.value.trim();
-  showToast(`🔧 DIAG 2: leí "${p1Name}" / "${p2Name}"`);
-  await new Promise(r=>setTimeout(r,900));
   if(!p1Name || !p2Name){ customAlert('Escribí el nombre de los dos jugadores de la pareja.'); return; }
   addingPairFromCheckin = true;
   clearTimeout(addingPairFromCheckinTimer);
@@ -3679,8 +3665,6 @@ App.addPairFromCheckin = async function(){
   try{
     async function findOrCreatePlayerByName(name){
       let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
-      showToast(`🔧 DIAG: "${name}" ${player ? 'SI existe en la base' : 'NO existe en la base'}`);
-      await new Promise(r=>setTimeout(r,900));
       if(player) return player;
       const ok = await customConfirm(`"${name}" no está en la base de jugadores. ¿Agregarlo como jugador nuevo?`);
       if(!ok) return null;
@@ -3694,16 +3678,10 @@ App.addPairFromCheckin = async function(){
     if(!p1){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p1Name}" como jugador nuevo.`); return; }
     const p2 = await findOrCreatePlayerByName(p2Name);
     if(!p2){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p2Name}" como jugador nuevo.`); return; }
-    showToast('🔧 DIAG 3: los dos jugadores están resueltos, sigo...');
-    await new Promise(r=>setTimeout(r,900));
     if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
     if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
-    showToast('🔧 DIAG 4: pasé todas las validaciones, voy a crear la pareja...');
-    await new Promise(r=>setTimeout(r,900));
     state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:aliasVal, paid1:false, paid2:false, present:false, presentAt:null});
-    showToast('🔧 DIAG 5: pareja creada en la memoria, renderizando...');
-    await new Promise(r=>setTimeout(r,900));
     render();
     // volver a buscar los campos por si el DOM se re-generó mientras esperábamos alguna confirmación
     const p1InputNow = document.getElementById('checkinNewP1');
@@ -3801,6 +3779,51 @@ function validateFormatForPresentCount(fmt, presentCount){
   return null;
 }
 
+function askGrupoOrGrupoFinal(){
+  return new Promise(resolve=>{
+    document.getElementById('customDialogTitle').textContent = 'Elegí cómo se juega';
+    document.getElementById('customDialogMessage').textContent = 'Con esta cantidad de parejas, ¿cómo querés que se juegue?';
+    const actions = document.getElementById('customDialogActions');
+    actions.innerHTML = '';
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-ghost btn-sm';
+    btnCancel.textContent = 'Cancelar';
+    btnCancel.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display='none'; resolve(null); };
+    const btn1 = document.createElement('button');
+    btn1.className = 'btn btn-ghost btn-sm';
+    btn1.textContent = 'Todos contra todos';
+    btn1.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display='none'; resolve('grupo'); };
+    const btn2 = document.createElement('button');
+    btn2.className = 'btn btn-primary btn-sm';
+    btn2.textContent = 'Todos contra todos y final';
+    btn2.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display='none'; resolve('grupofinal'); };
+    actions.appendChild(btnCancel);
+    actions.appendChild(btn1);
+    actions.appendChild(btn2);
+    document.getElementById('customDialogOverlay').style.display = 'flex';
+  });
+}
+
+App.startTournamentFlow = async function(){
+  const presentCount = getReadyPairs().filter(p=>p.present).length;
+  const extraStr = await customPrompt('¿Hay más parejas que todavía se van a unir al torneo? Ingresá la cantidad (o 0 si ya están todas presentes).', '0', 'Parejas por llegar');
+  if(extraStr===null) return; // cancelado
+  const extra = parseInt(extraStr, 10);
+  const extraCount = (isNaN(extra) || extra<0) ? 0 : extra;
+  const total = presentCount + extraCount;
+
+  if(total<=5){
+    const choice = await askGrupoOrGrupoFinal();
+    if(!choice) return;
+    state.format = choice;
+    state.formatChosen = true;
+    await App.iniciarTorneo();
+  } else {
+    await customAlert(`Con ${total} parejas en total, los grupos (zonas) van a ser de 3 o 4 parejas, dependiendo de cómo termine acomodando la cantidad final. Elegí el formato del torneo.`, 'Formato de zonas');
+    App.openFormatChoiceModal('start', {excludeGrupo:true});
+  }
+};
+
 App.iniciarTorneo = async function(){
   const present = getReadyPairs().filter(p=>p.present);
   if(present.length<3){ customAlert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
@@ -3813,7 +3836,7 @@ App.iniciarTorneo = async function(){
   const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
 
-  if(state.format==='grupo' || (state.format!=='principiantes' && shuffled.length<6)){
+  if(state.format==='grupo' || state.format==='grupofinal' || (state.format!=='principiantes' && shuffled.length<6)){
     // modo grupo único (formato "3 a 5 parejas", o avanzado con pocas parejas): todos contra todos, gana quien más puntos suma
     state.smallMode = true;
     state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
@@ -3860,6 +3883,9 @@ function locateMatch(matchId){
   for(const zone of state.zones){
     const m = zone.matches.find(x=>x.id===matchId);
     if(m) return {match:m, type:'zone', zone};
+  }
+  if(state.finalMatch && state.finalMatch.id===matchId){
+    return {match: state.finalMatch, type:'final'};
   }
   if(state.primera){
     const m = state.primera.matches.find(x=>x.id===matchId);
@@ -4164,8 +4190,25 @@ function buildBracketCruce(){
   state.primera = { matches, directRanked: [], repechajeRanked: [] };
 }
 
+function buildGrupoFinalMatch(){
+  if(!state.zones.length){ state.finalMatch = null; return; }
+  const zone = state.zones[0];
+  if(!zone.matches.every(m=>m.completed)){ return; } // todavía no terminó el grupo: no tocar nada (por si ya hay un final armado antes de tiempo)
+  const results = computeZoneResults(zone);
+  if(!results || results.length<2){ state.finalMatch = null; return; }
+  const id1 = results[0].pairId, id2 = results[1].pairId;
+  if(state.finalMatch && ((state.finalMatch.aId===id1 && state.finalMatch.bId===id2) || (state.finalMatch.aId===id2 && state.finalMatch.bId===id1))){
+    return; // ya está armado con las mismas dos parejas: no lo tocamos (conserva resultado/cancha si ya se jugó)
+  }
+  state.finalMatch = {id:uid(), aId:id1, bId:id2, sets:emptySets(), completed:false, winnerId:null, started:false, cancha:'', label:'Final'};
+}
+
 function refreshBracket(){
-  if(!state || state.smallMode) return;
+  if(!state) return;
+  if(state.smallMode){
+    if(state.format==='grupofinal') buildGrupoFinalMatch();
+    return;
+  }
   if(state.zones.length===0) return;
   if(state.format==='principiantes'){
     buildBracketPrincipiantes();
@@ -4962,7 +5005,7 @@ function renderZonas(){
   const formatLabel = formatShortLabel(state.format);
   const yaIniciado = state.zones.length>0;
   const iniciarBtn = !state.formatChosen
-    ? `<button class="btn btn-primary btn-sm" onclick="App.openFormatChoiceModal('start')">▶ Iniciar torneo</button>`
+    ? `<button class="btn btn-primary btn-sm" onclick="App.startTournamentFlow()">▶ Iniciar torneo</button>`
     : yaIniciado
       ? `<button class="btn btn-primary btn-sm" onclick="App.iniciarTorneo()">🔀 Volver a sortear</button>`
       : `<button class="btn btn-primary btn-sm" onclick="App.iniciarTorneo()">▶ Iniciar torneo</button>`;
@@ -4973,7 +5016,19 @@ function renderZonas(){
       <button class="btn btn-ghost btn-sm" onclick="App.openFormatChoiceModal('change')">Cambiar formato</button>
     </div>`;
   if(state.zones.length===0){
-    c.innerHTML = formatBar + `<div class="empty-state">Todavía no se sortearon las zonas. Armá al menos <b>3 parejas completas</b> en la pestaña Check In, y presioná <b>Iniciar torneo</b> (acá arriba, o en el Check In).</div>`;
+    const allPairs = getReadyPairs();
+    const rosterHtml = allPairs.length===0
+      ? `<div class="empty-state">Todavía no hay parejas cargadas. Agregalas desde la pestaña Check In.</div>`
+      : `
+      <div class="zone-manage-panel">
+        <div class="hint" style="margin:0 0 10px;"><b>Parejas sin grupo asignado</b> (el torneo todavía no se inició):</div>
+        ${allPairs.map(p=>`
+          <div class="unassigned-row">
+            <span>${escapeHtml(pairDisplayName(p))}</span>
+            <span class="chip ${p.present?'on':''}">${p.present?'✓ Presente':'Sin marcar presente'}</span>
+          </div>`).join('')}
+      </div>`;
+    c.innerHTML = formatBar + rosterHtml;
     return;
   }
 
@@ -5326,7 +5381,30 @@ function renderLlave(){
   if(state.smallMode){
     const champId = getChampionPairId();
     if(state.zones.length===0){
-      c.innerHTML = `<div class="empty-state">Este torneo se juega en modo grupo único (3 a 5 parejas), sin llave. Armá las parejas y sorteá para empezar.</div>`;
+      c.innerHTML = `<div class="empty-state">Este torneo se juega en modo grupo único, sin llave. Armá las parejas y sorteá para empezar.</div>`;
+      return;
+    }
+    if(state.format==='grupofinal'){
+      const finalHtml = !state.finalMatch
+        ? `<div class="empty-state">La final (1° vs 2° del grupo) se arma sola apenas termine el todos-contra-todos.</div>`
+        : `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; max-width:400px;">${matchCardHtml(state.finalMatch)}</div>`;
+      c.innerHTML = `
+        <div class="bracket-section">
+          <h3 class="round-label" style="text-align:left;">Final (1° vs 2° del grupo)</h3>
+          <div class="divider-note">Se juega todos contra todos en el grupo, y las dos parejas mejor posicionadas se enfrentan en una final para definir campeón.</div>
+          ${finalHtml}
+          ${champId ? `
+            <div class="champion-banner">
+              <div class="left">
+                <div class="trophy">🏆</div>
+                <div>
+                  <div class="label">Campeón del torneo</div>
+                  <div class="name">${escapeHtml(getPairName(champId))}</div>
+                </div>
+              </div>
+              <button class="btn btn-gold" onclick="App.closeTournament()">Cerrar torneo y sumar puntos</button>
+            </div>` : ''}
+        </div>`;
       return;
     }
     c.innerHTML = `
