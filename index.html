@@ -1419,11 +1419,15 @@ async function doSaveMain(){
   try{
     if(liveSyncActive && firestoreDocRef){
       const now = Date.now();
+      const previousKnown = lastKnownMainUpdatedAt;
+      lastKnownMainUpdatedAt = now; // protege desde YA (no recién al terminar) contra ecos viejos que lleguen mientras se guarda
       try{
         await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
-        lastKnownMainUpdatedAt = now;
         reportSaveSuccess();
-      }catch(e){ console.error('Error guardando en Firebase', e); reportSaveError(e); }
+      }catch(e){
+        console.error('Error guardando en Firebase', e); reportSaveError(e);
+        lastKnownMainUpdatedAt = previousKnown; // no se guardó de verdad: no mantener la protección optimista
+      }
       return;
     }
     if(storageAvailable){
@@ -3067,7 +3071,7 @@ function ensurePlayerCategoria(player){
   if(player.categoria) return; // ya tiene categoría propia: nunca se toca
   if(!state.categoria) return; // este torneo no tiene categoría definida, no hay nada para asignar
   player.categoria = state.categoria;
-  scheduleSaveMain();
+  doSaveMain(); // guardar YA, sin esperar el retraso normal
   if(!Array.isArray(state.autoAssignedCategoriaPlayerIds)) state.autoAssignedCategoriaPlayerIds = [];
   if(!state.autoAssignedCategoriaPlayerIds.includes(player.id)){
     state.autoAssignedCategoriaPlayerIds.push(player.id);
@@ -3683,19 +3687,19 @@ App.addPairFromCheckin = async function(){
   addingPairFromCheckinTimer = setTimeout(()=>{ addingPairFromCheckin = false; }, 20000); // seguro: nunca queda trabado más de 20s
 
   try{
-    function findOrCreatePlayerByName(name){
+    async function findOrCreatePlayerByName(name){
       let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
       if(!player){
         player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
         playersDB.push(player);
-        scheduleSaveMain();
+        await doSaveMain(); // guardar YA: un jugador recién creado es vulnerable hasta que se guarda de verdad
       }
       ensurePlayerCategoria(player); // si no tiene categoría, se le asigna la del torneo (y queda registrado para preguntar al cerrar)
       return player;
     }
 
-    const p1 = findOrCreatePlayerByName(p1Name);
-    const p2 = findOrCreatePlayerByName(p2Name);
+    const p1 = await findOrCreatePlayerByName(p1Name);
+    const p2 = await findOrCreatePlayerByName(p2Name);
     if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
     if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
