@@ -473,6 +473,7 @@ table.clubs input:focus{outline:none; border-color:var(--accent-2); background:v
   box-shadow:var(--shadow-card);
 }
 .checkin-name{flex:1; min-width:160px; font-size:13.5px; display:flex; flex-direction:column; gap:4px;}
+.checkin-categorias{display:flex; gap:6px; flex-wrap:wrap;}
 .checkin-alias-input{font-size:11.5px; padding:4px 8px; max-width:180px;}
 .pending-zone-badge{
   flex-basis:100%; display:flex; align-items:center; gap:10px;
@@ -1320,6 +1321,12 @@ function _customPromptCancel(){
   _customPromptResolve = null;
 }
 const ADMIN_EMAIL = 'cristian.orellana.ar@gmail.com';
+
+const CATEGORIA_OPTIONS = [
+  '9na','8va','7ma','6ta','5ta','4ta','3ra','2da','1ra',
+  '2/3','3/4','4/5','5/6','6/7','7/8','8/9',
+  'Suma 4','Suma 5','Suma 6','Suma 7','Suma 8','Suma 9','Suma 10','Suma 11','Suma 12','Suma 13','Suma 14','Suma 15','Suma 16'
+];
 const PLAYER_PASSWORD = 'torneo';
 let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
 let loginRole = 'admin';
@@ -1350,7 +1357,8 @@ function freshTournament(){
     courtCount: 4,
     registrationFee: 0,
     createdAt: new Date().toISOString(),
-    updatedAt: 0
+    updatedAt: 0,
+    autoAssignedCategoriaPlayerIds: []
   };
 }
 
@@ -1370,6 +1378,7 @@ function sanitizeTournament(t){
   if(t.tipo===undefined) t.tipo = 'Caballero';
   if(t.formatChosen===undefined) t.formatChosen = true; // torneos de antes de este cambio: ya tenían formato elegido
   if(t.updatedAt===undefined) t.updatedAt = 0;
+  if(!Array.isArray(t.autoAssignedCategoriaPlayerIds)) t.autoAssignedCategoriaPlayerIds = [];
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -2871,7 +2880,6 @@ function renderCancha(){
         <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Jugador 1 (buscá o escribí uno nuevo)" id="checkinNewP1" oninput="updatePlayersDatalist(this.value)">
         <span class="vs-sep">/</span>
         <input class="player-search" list="playersDatalist" autocomplete="off" placeholder="Jugador 2 (buscá o escribí uno nuevo)" id="checkinNewP2" oninput="updatePlayersDatalist(this.value)">
-        <input class="alias-input" placeholder="Alias (opcional)" id="checkinNewAlias">
         <button class="btn btn-primary btn-sm" onclick="App.addPairFromCheckin()">+ Agregar pareja</button>
       </div>
     </div>`;
@@ -2930,7 +2938,10 @@ function renderCancha(){
       <div class="checkin-row">
         <div class="checkin-name">
           ${pairCellHtml(pairDisplayName(pair))}
-          <input class="alias-input checkin-alias-input" placeholder="Alias (opcional)" value="${escapeAttr(pair.alias||'')}" onchange="App.setPairAlias('${pair.id}', this.value)">
+          <div class="checkin-categorias">
+            ${p1 ? `<span class="pill" style="font-size:11px;">${escapeHtml(p1.name.split(' ')[0])}: ${p1.categoria?escapeHtml(p1.categoria):'—'}</span>` : ''}
+            ${p2 ? `<span class="pill" style="font-size:11px;">${escapeHtml(p2.name.split(' ')[0])}: ${p2.categoria?escapeHtml(p2.categoria):'—'}</span>` : ''}
+          </div>
         </div>
         <div class="pay-toggles">
           <button class="pay-toggle ${pair.paid1?'on '+(pair.method1||''):''}" title="${methodTitle(pair.paid1,pair.method1)}" onclick="App.togglePaid('${pair.id}','paid1')">${p1?escapeHtml(p1.name.split(' ')[0]):'J1'}</button>
@@ -3050,6 +3061,17 @@ function getUnassignedPairs(){
   const assignedIds = new Set();
   state.zones.forEach(z=> z.pairIds.forEach(id=> assignedIds.add(id)));
   return getReadyPairs().filter(p=> !assignedIds.has(p.id));
+}
+
+function ensurePlayerCategoria(player){
+  if(player.categoria) return; // ya tiene categoría propia: nunca se toca
+  if(!state.categoria) return; // este torneo no tiene categoría definida, no hay nada para asignar
+  player.categoria = state.categoria;
+  scheduleSaveMain();
+  if(!Array.isArray(state.autoAssignedCategoriaPlayerIds)) state.autoAssignedCategoriaPlayerIds = [];
+  if(!state.autoAssignedCategoriaPlayerIds.includes(player.id)){
+    state.autoAssignedCategoriaPlayerIds.push(player.id);
+  }
 }
 
 function pairHasPlayedInZone(pairId, zone){
@@ -3653,43 +3675,37 @@ App.addPairFromCheckin = async function(){
   }
   const p1Input = document.getElementById('checkinNewP1');
   const p2Input = document.getElementById('checkinNewP2');
-  const aliasInput = document.getElementById('checkinNewAlias');
   const p1Name = p1Input.value.trim();
   const p2Name = p2Input.value.trim();
-  const aliasVal = aliasInput.value.trim();
   if(!p1Name || !p2Name){ customAlert('Escribí el nombre de los dos jugadores de la pareja.'); return; }
   addingPairFromCheckin = true;
   clearTimeout(addingPairFromCheckinTimer);
   addingPairFromCheckinTimer = setTimeout(()=>{ addingPairFromCheckin = false; }, 20000); // seguro: nunca queda trabado más de 20s
 
   try{
-    async function findOrCreatePlayerByName(name){
+    function findOrCreatePlayerByName(name){
       let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
-      if(player) return player;
-      const ok = await customConfirm(`"${name}" no está en la base de jugadores. ¿Agregarlo como jugador nuevo?`);
-      if(!ok) return null;
-      player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
-      playersDB.push(player);
-      scheduleSaveMain();
+      if(!player){
+        player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+        playersDB.push(player);
+        scheduleSaveMain();
+      }
+      ensurePlayerCategoria(player); // si no tiene categoría, se le asigna la del torneo (y queda registrado para preguntar al cerrar)
       return player;
     }
 
-    const p1 = await findOrCreatePlayerByName(p1Name);
-    if(!p1){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p1Name}" como jugador nuevo.`); return; }
-    const p2 = await findOrCreatePlayerByName(p2Name);
-    if(!p2){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p2Name}" como jugador nuevo.`); return; }
+    const p1 = findOrCreatePlayerByName(p1Name);
+    const p2 = findOrCreatePlayerByName(p2Name);
     if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
     if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
-    state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:aliasVal, paid1:false, paid2:false, present:false, presentAt:null});
+    state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
     render();
-    // volver a buscar los campos por si el DOM se re-generó mientras esperábamos alguna confirmación
+    // volver a buscar los campos por si el DOM se re-generó mientras tanto
     const p1InputNow = document.getElementById('checkinNewP1');
     const p2InputNow = document.getElementById('checkinNewP2');
-    const aliasInputNow = document.getElementById('checkinNewAlias');
     if(p1InputNow) p1InputNow.value='';
     if(p2InputNow) p2InputNow.value='';
-    if(aliasInputNow) aliasInputNow.value='';
     customAlert(`Pareja agregada: ${p1.name} / ${p2.name}.`);
   } catch(e){
     console.error('Error al agregar pareja desde check-in', e);
@@ -3777,6 +3793,76 @@ function validateFormatForPresentCount(fmt, presentCount){
     }
   }
   return null;
+}
+
+function askYesNo(message, title, yesLabel, noLabel){
+  return new Promise(resolve=>{
+    document.getElementById('customDialogTitle').textContent = title || 'Confirmar';
+    document.getElementById('customDialogMessage').textContent = message;
+    const actions = document.getElementById('customDialogActions');
+    actions.innerHTML = '';
+    const btnNo = document.createElement('button');
+    btnNo.className = 'btn btn-ghost btn-sm';
+    btnNo.textContent = noLabel || 'No';
+    btnNo.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display='none'; resolve(false); };
+    const btnYes = document.createElement('button');
+    btnYes.className = 'btn btn-primary btn-sm';
+    btnYes.textContent = yesLabel || 'Sí';
+    btnYes.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display='none'; resolve(true); };
+    actions.appendChild(btnNo);
+    actions.appendChild(btnYes);
+    document.getElementById('customDialogOverlay').style.display = 'flex';
+  });
+}
+
+function askPickCategoria(currentCategoria){
+  return new Promise(resolve=>{
+    document.getElementById('customDialogTitle').textContent = 'Elegí la categoría correcta';
+    const msgEl = document.getElementById('customDialogMessage');
+    msgEl.innerHTML = `
+      <div style="margin-bottom:10px;">Categoría actual: <b>${escapeHtml(currentCategoria||'—')}</b></div>
+      <select id="categoriaFixSelect" style="width:100%; padding:8px 10px; background:var(--panel-3); border:1px solid var(--line-strong); border-radius:8px; color:var(--text); font-size:13.5px;">
+        ${CATEGORIA_OPTIONS.map(c=>`<option value="${c}" ${c===currentCategoria?'selected':''}>${c}</option>`).join('')}
+      </select>`;
+    const actions = document.getElementById('customDialogActions');
+    actions.innerHTML = '';
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-ghost btn-sm';
+    btnCancel.textContent = 'Cancelar';
+    btnCancel.onclick = ()=>{ document.getElementById('customDialogOverlay').style.display='none'; resolve(null); };
+    const btnOk = document.createElement('button');
+    btnOk.className = 'btn btn-primary btn-sm';
+    btnOk.textContent = 'Confirmar';
+    btnOk.onclick = ()=>{
+      const val = document.getElementById('categoriaFixSelect').value;
+      document.getElementById('customDialogOverlay').style.display='none';
+      resolve(val);
+    };
+    actions.appendChild(btnCancel);
+    actions.appendChild(btnOk);
+    document.getElementById('customDialogOverlay').style.display = 'flex';
+  });
+}
+
+async function reviewAutoAssignedCategorias(){
+  const ids = Array.isArray(state.autoAssignedCategoriaPlayerIds) ? state.autoAssignedCategoriaPlayerIds : [];
+  const players = ids.map(id=>playersDB.find(p=>p.id===id)).filter(Boolean);
+  if(players.length===0) return;
+  const names = players.map(p=>p.name).join(', ');
+  const ok = await askYesNo(
+    `Estas parejas jugaron la categoría "${state.categoria}" por primera vez en este torneo: ${names}. ¿Son realmente de esa categoría?`,
+    'Confirmar categoría', 'Sí, son correctas', 'No, corregir'
+  );
+  if(ok) return;
+  for(const player of players){
+    const esCorrecta = await askYesNo(`¿${player.name} es categoría "${player.categoria}"?`, 'Revisar jugador');
+    if(esCorrecta) continue;
+    const nueva = await askPickCategoria(player.categoria);
+    if(nueva){
+      player.categoria = nueva;
+      scheduleSaveMain();
+    }
+  }
 }
 
 function askGrupoOrGrupoFinal(){
@@ -4401,6 +4487,8 @@ App.closeTournament = async function(){
   }
   const ok = await customConfirm('Esto archiva el torneo en el Historial, suma el puntaje a cada jugador según la instancia que alcanzó, y lo saca de la lista de torneos activos. ¿Continuar?');
   if(!ok) return;
+
+  await reviewAutoAssignedCategorias();
 
   const dateStr = new Date().toISOString();
   const perPairResults = getReadyPairs().map(pair=>{
