@@ -857,19 +857,6 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <option value="3ra">3ra</option>
         <option value="2da">2da</option>
         <option value="1ra">1ra</option>
-        <option value="Suma 4">Suma 4</option>
-        <option value="Suma 5">Suma 5</option>
-        <option value="Suma 6">Suma 6</option>
-        <option value="Suma 7">Suma 7</option>
-        <option value="Suma 8">Suma 8</option>
-        <option value="Suma 9">Suma 9</option>
-        <option value="Suma 10">Suma 10</option>
-        <option value="Suma 11">Suma 11</option>
-        <option value="Suma 12">Suma 12</option>
-        <option value="Suma 13">Suma 13</option>
-        <option value="Suma 14">Suma 14</option>
-        <option value="Suma 15">Suma 15</option>
-        <option value="Suma 16">Suma 16</option>
       </select>
     </div>
     <div class="modal-field-row">
@@ -1309,6 +1296,10 @@ const CATEGORIA_OPTIONS = [
   '2/3','3/4','4/5','5/6','6/7','7/8','8/9',
   'Suma 4','Suma 5','Suma 6','Suma 7','Suma 8','Suma 9','Suma 10','Suma 11','Suma 12','Suma 13','Suma 14','Suma 15','Suma 16'
 ];
+
+// las categorías "Suma X" son exclusivas de la categoría del TORNEO (combinan a los dos integrantes de la pareja);
+// un jugador individual nunca tiene "Suma X" como categoría propia.
+const CATEGORIA_OPTIONS_JUGADOR = CATEGORIA_OPTIONS.filter(c=>!c.startsWith('Suma '));
 const PLAYER_PASSWORD = 'torneo';
 let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
 let loginRole = 'admin';
@@ -2127,7 +2118,7 @@ function renderJugadorInscripcion(){
           <label>Categoría del compañero/a (solo si es nuevo en la base)</label>
           <select id="inscribirPartnerCategoria-${t.tournamentId}">
             <option value="" selected>— Usar la categoría del torneo (${escapeHtml(t.categoria||'sin definir')}) —</option>
-            ${CATEGORIA_OPTIONS.map(c=>`<option value="${c}">${c}</option>`).join('')}
+            ${CATEGORIA_OPTIONS_JUGADOR.map(c=>`<option value="${c}">${c}</option>`).join('')}
           </select>
         </div>
         <div class="actions-row">
@@ -3953,7 +3944,7 @@ function askPickCategoria(currentCategoria){
     msgEl.innerHTML = `
       <div style="margin-bottom:10px;">Categoría actual: <b>${escapeHtml(currentCategoria||'—')}</b></div>
       <select id="categoriaFixSelect" style="width:100%; padding:8px 10px; background:var(--panel-3); border:1px solid var(--line-strong); border-radius:8px; color:var(--text); font-size:13.5px;">
-        ${CATEGORIA_OPTIONS.map(c=>`<option value="${c}" ${c===currentCategoria?'selected':''}>${c}</option>`).join('')}
+        ${CATEGORIA_OPTIONS_JUGADOR.map(c=>`<option value="${c}" ${c===currentCategoria?'selected':''}>${c}</option>`).join('')}
       </select>`;
     const actions = document.getElementById('customDialogActions');
     actions.innerHTML = '';
