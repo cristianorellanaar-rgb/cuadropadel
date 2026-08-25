@@ -834,10 +834,6 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     <div id="jugadorInscripcion"></div>
     <datalist id="playersDatalistJugador"></datalist>
   </div>
-  <div class="jugador-section">
-    <h3>Próximos torneos</h3>
-    <div id="jugadorProximosTorneos"></div>
-  </div>
 </div>
 
 <div id="appToast" class="app-toast"></div>
@@ -1046,10 +1042,9 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <button class="tab" data-tab="inicio"><span class="num">•</span> Inicio</button>
       <button class="tab" data-tab="jugadores"><span class="num">01</span> Jugadores</button>
       <button class="tab" data-tab="clubes"><span class="num">02</span> Clubes</button>
-      <button class="tab" data-tab="torneoActual"><span class="num">03</span> Torneo Actual</button>
-      <button class="tab" data-tab="proximos"><span class="num">04</span> Próximos Torneos</button>
-      <button class="tab" data-tab="finalizados"><span class="num">05</span> Torneos Finalizados</button>
-      <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">06</span> Coordinadores</button>
+      <button class="tab" data-tab="torneoActual"><span class="num">03</span> Torneos</button>
+      <button class="tab" data-tab="finalizados"><span class="num">04</span> Torneos Finalizados</button>
+      <button class="tab" data-tab="coordinadores" id="tabCoordinadores" style="display:none;"><span class="num">05</span> Coordinadores</button>
     </nav>
     <div class="sidebar-footer">
       <div class="storage-chip ok" id="sessionChip" style="margin-bottom:2px;"></div>
@@ -1093,10 +1088,10 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
           <div class="home-card-title">Torneos</div>
           <div class="home-card-sub">Ver y abrir los torneos activos</div>
         </button>
-        <button class="home-card" onclick="switchTab('proximos')">
+        <button class="home-card" onclick="App.backToTournamentList(); switchTab('torneoActual');">
           <div class="home-card-icon">🗓️</div>
-          <div class="home-card-title">Próximos Torneos</div>
-          <div class="home-card-sub">Agenda de torneos programados</div>
+          <div class="home-card-title">Pendientes de confirmar</div>
+          <div class="home-card-sub">Torneos activos que todavía no confirmaste</div>
         </button>
         <button class="home-card" onclick="switchTab('finalizados')">
           <div class="home-card-icon">🏁</div>
@@ -1175,19 +1170,6 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <p class="section-sub">Primera Instancia define quién completa el cuadro. Segunda Instancia se juega por eliminación directa hasta el campeón.</p>
         <div id="llaveContainer"></div>
       </div>
-    </section>
-
-    <section class="view" id="view-proximos">
-      <h2 class="section-title">Próximos torneos</h2>
-      <p class="section-sub">Agenda de torneos programados. Se muestran ordenados por fecha, del más próximo al más lejano.</p>
-      <div class="add-upcoming-row">
-        <input type="date" id="newUpcomingDate">
-        <input type="text" id="newUpcomingClub" list="clubsDatalist" placeholder="Club">
-        <datalist id="clubsDatalist"></datalist>
-        <input type="text" id="newUpcomingCategoria" placeholder="Categoría (ej. 5ta)">
-        <button class="btn btn-ghost btn-sm" onclick="App.addUpcoming()">+ Agregar</button>
-      </div>
-      <div id="proximosContainer"></div>
     </section>
 
     <section class="view" id="view-finalizados">
@@ -1358,7 +1340,8 @@ function freshTournament(){
     registrationFee: 0,
     createdAt: new Date().toISOString(),
     updatedAt: 0,
-    autoAssignedCategoriaPlayerIds: []
+    autoAssignedCategoriaPlayerIds: [],
+    confirmado: false
   };
 }
 
@@ -1379,6 +1362,7 @@ function sanitizeTournament(t){
   if(t.formatChosen===undefined) t.formatChosen = true; // torneos de antes de este cambio: ya tenían formato elegido
   if(t.updatedAt===undefined) t.updatedAt = 0;
   if(!Array.isArray(t.autoAssignedCategoriaPlayerIds)) t.autoAssignedCategoriaPlayerIds = [];
+  if(t.confirmado===undefined) t.confirmado = false;
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -2077,6 +2061,9 @@ function findNextMatchForPair(pairId){
     const m = zone.matches.find(x=> !x.completed && (x.aId===pairId || x.bId===pairId));
     if(m) return {stage: zone.name, opponentId: m.aId===pairId? m.bId : m.aId, cancha:m.cancha};
   }
+  if(state.finalMatch && !state.finalMatch.completed && (state.finalMatch.aId===pairId || state.finalMatch.bId===pairId)){
+    return {stage:'Final', opponentId: state.finalMatch.aId===pairId? state.finalMatch.bId : state.finalMatch.aId, cancha:state.finalMatch.cancha};
+  }
   if(state.primera){
     const m = state.primera.matches.find(x=> !x.bye && !x.completed && (x.aId===pairId || x.bId===pairId));
     if(m) return {stage:'Primera Instancia (repechaje)', opponentId: m.aId===pairId? m.bId : m.aId, cancha:m.cancha};
@@ -2087,30 +2074,6 @@ function findNextMatchForPair(pairId){
     if(m) return {stage:'Llave — Segunda Instancia', opponentId: m.aId===pairId? m.bId : m.aId, cancha:m.cancha};
   }
   return null;
-}
-
-function renderJugadorProximos(){
-  const proxEl = document.getElementById('jugadorProximosTorneos');
-  const todayStr = new Date().toISOString().slice(0,10);
-  const upcoming = [...upcomingTournaments].filter(u=>u.date>=todayStr).sort((a,b)=> a.date.localeCompare(b.date));
-  if(upcoming.length===0){
-    proxEl.innerHTML = `<div class="empty-state">No hay torneos programados por ahora.</div>`;
-  } else {
-    proxEl.innerHTML = upcoming.map(u=>{
-      const d = new Date(u.date+'T00:00:00');
-      const club = clubsDB.find(cl=>cl.id===u.clubId);
-      const clubName = club ? club.name : 'Sin club asignado';
-      const address = club && club.address ? club.address : '';
-      return `
-        <div class="upcoming-card">
-          <div class="upcoming-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="wd">${['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'][d.getDay()]}</div></div>
-          <div class="upcoming-info">
-            <div class="club">${escapeHtml(clubName)}</div>
-            <div class="meta">${u.categoria? escapeHtml(u.categoria)+' · ':''}${escapeHtml(address)}</div>
-          </div>
-        </div>`;
-    }).join('');
-  }
 }
 
 App.selectJugadorTournament = function(id){
@@ -2181,6 +2144,9 @@ function renderJugadorInscripcion(){
           <div class="title">${escapeHtml(t.name || 'Torneo sin nombre')}</div>
           <div class="meta">
             <span class="format-pill ${formatClass}">${formatLabel}</span>
+            ${t.confirmado
+              ? `<span class="status-pill" style="background:rgba(90,154,31,0.15); color:var(--accent);">✓ Confirmado</span>`
+              : `<span class="status-pill" style="background:rgba(201,122,0,0.15); color:var(--gold);">⏳ Pendiente de confirmación</span>`}
             ${club ? `<span>🏟️ ${escapeHtml(club.name)}</span>` : ''}
             ${t.categoria ? `<span>${escapeHtml(t.categoria)}</span>` : ''}
             <span>${pairCount} pareja${pairCount===1?'':'s'}</span>
@@ -2189,6 +2155,49 @@ function renderJugadorInscripcion(){
         </div>
       </div>`;
   }).join('');
+}
+
+function categoriaToNumber(cat){
+  // extrae el número de una categoría estándar (ej "3ra" -> 3, "9na" -> 9)
+  const m = String(cat||'').match(/^(\d+)/);
+  return m ? parseInt(m[1],10) : null;
+}
+
+function checkCategoriaParaInscripcion(playerCategoria, partnerCategoria, tournamentCategoria){
+  // devuelve null si está todo bien, o un mensaje de error si el jugador está "pasado de categoría"
+  if(!tournamentCategoria) return null; // el torneo no tiene categoría definida: no se valida nada
+  const playerNum = categoriaToNumber(playerCategoria);
+  if(playerNum===null) return null; // el jugador no tiene categoría propia cargada: no se puede validar, se deja pasar
+
+  if(tournamentCategoria.startsWith('Suma ')){
+    const sumaRequerida = parseInt(tournamentCategoria.replace('Suma ','').trim(),10);
+    if(!partnerCategoria) return null; // todavía no hay compañero elegido: no se puede validar la suma
+    const partnerNum = categoriaToNumber(partnerCategoria);
+    if(partnerNum===null) return null;
+    const suma = playerNum + partnerNum;
+    if(suma < sumaRequerida){
+      return `La suma de las categorías de la pareja (${playerNum} + ${partnerNum} = ${suma}) tiene que ser ${sumaRequerida} o más para este torneo. Elegí un compañero/a con otra categoría.`;
+    }
+    return null;
+  }
+
+  if(tournamentCategoria.includes('/')){
+    // categoría de rango (ej "2/3"): el torneo admite desde la mejor (número más bajo) del rango hacia abajo
+    const parts = tournamentCategoria.split('/').map(s=>parseInt(s,10)).filter(n=>!isNaN(n));
+    if(parts.length===0) return null;
+    const mejor = Math.min(...parts);
+    if(playerNum < mejor){
+      return `Tu categoría (${playerCategoria}) es más alta que lo que admite este torneo (${tournamentCategoria}). Este torneo es para categorías ${tournamentCategoria} o más bajas.`;
+    }
+    return null;
+  }
+
+  const tournamentNum = categoriaToNumber(tournamentCategoria);
+  if(tournamentNum===null) return null;
+  if(playerNum < tournamentNum){
+    return `Tu categoría (${playerCategoria}) es más alta que la del torneo (${tournamentCategoria}). Este torneo es para categorías ${tournamentCategoria} o más bajas.`;
+  }
+  return null;
 }
 
 App.confirmarInscripcion = async function(tournamentId){
@@ -2201,12 +2210,23 @@ App.confirmarInscripcion = async function(tournamentId){
     renderJugadorInscripcion();
     return;
   }
+  const myPlayer = playersDB.find(p=>p.id===myId);
   const partnerInput = document.getElementById('inscribirPartner-'+tournamentId);
   const partnerCategoriaSelect = document.getElementById('inscribirPartnerCategoria-'+tournamentId);
   const partnerName = partnerInput ? partnerInput.value.trim() : '';
   const partnerCategoriaElegida = partnerCategoriaSelect ? partnerCategoriaSelect.value : '';
   let partnerId = null;
   let mainDbDirty = false;
+
+  // validar la categoría del jugador ANTES de crear nada (para no crear un compañero nuevo si al final no se puede inscribir)
+  const partnerExistente = partnerName ? playersDB.find(p=> p.name.toLowerCase()===partnerName.toLowerCase()) : null;
+  const categoriaParaValidar = partnerExistente ? partnerExistente.categoria : (partnerCategoriaElegida || t.categoria);
+  const errorCategoria = checkCategoriaParaInscripcion(myPlayer ? myPlayer.categoria : '', categoriaParaValidar, t.categoria);
+  if(errorCategoria){ customAlert(errorCategoria, 'No podés inscribirte en esta categoría'); return; }
+  if(partnerExistente && !(t.categoria||'').startsWith('Suma ')){
+    const errorCategoriaCompanero = checkCategoriaParaInscripcion(partnerExistente.categoria, myPlayer ? myPlayer.categoria : '', t.categoria);
+    if(errorCategoriaCompanero){ customAlert(`Tu compañero/a no puede anotarse en esta categoría: ${errorCategoriaCompanero}`, 'No se puede inscribir a tu compañero/a'); return; }
+  }
 
   if(partnerName){
     let partner = playersDB.find(p=> p.name.toLowerCase()===partnerName.toLowerCase());
@@ -2254,7 +2274,6 @@ function renderJugadorView(){
     document.getElementById('jugadorZonas').innerHTML = '';
     document.getElementById('jugadorLlave').innerHTML = '';
     document.getElementById('jugadorTablaPuntos').innerHTML = '';
-    renderJugadorProximos();
     return;
   }
 
@@ -2269,7 +2288,6 @@ function renderJugadorView(){
     document.getElementById('jugadorZonas').innerHTML = '';
     document.getElementById('jugadorLlave').innerHTML = '';
     document.getElementById('jugadorTablaPuntos').innerHTML = '';
-    renderJugadorProximos();
     return;
   }
 
@@ -2281,25 +2299,27 @@ function renderJugadorView(){
   } finally {
     state = savedState;
   }
-  renderJugadorProximos();
 }
 
 function renderJugadorViewBody(pair, showSwitcher, ids){
   ids = ids || {nextMatch:'jugadorProximoPartido', zonas:'jugadorZonas', llave:'jugadorLlave', tabla:'jugadorTablaPuntos'};
   if(ids.nextMatch){
     const switcherHtml = showSwitcher ? `<button class="archive-toggle" onclick="currentUser.selectedTournamentId=null; renderJugadorView();" style="margin-bottom:10px;">Ver otro torneo</button>` : '';
+    const confirmBadgeHtml = state.confirmado
+      ? `<div class="status-pill" style="background:rgba(90,154,31,0.15); color:var(--accent); display:inline-block; margin-bottom:10px;">✓ Torneo confirmado</div>`
+      : `<div class="status-pill" style="background:rgba(201,122,0,0.15); color:var(--gold); display:inline-block; margin-bottom:10px;">⏳ Torneo pendiente de confirmación</div>`;
     const nextMatchEl = document.getElementById(ids.nextMatch);
     const champId = typeof getChampionPairId==='function' ? getChampionPairId() : null;
     if(champId){
-      nextMatchEl.innerHTML = switcherHtml + (pair && champId===pair.id
+      nextMatchEl.innerHTML = switcherHtml + confirmBadgeHtml + (pair && champId===pair.id
         ? `<div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">¡Felicitaciones!</div><div class="name">Fuiste campeón de este torneo</div></div></div></div>`
         : `<div class="empty-state">El torneo ya terminó. ¡Gracias por participar!</div>`);
     } else {
       const next = pair ? findNextMatchForPair(pair.id) : null;
       if(!next){
-        nextMatchEl.innerHTML = switcherHtml + `<div class="empty-state">No tenés partidos pendientes en este momento. Puede que estés esperando el resultado de otro partido, o que hayas quedado eliminado.</div>`;
+        nextMatchEl.innerHTML = switcherHtml + confirmBadgeHtml + `<div class="empty-state">No tenés partidos pendientes en este momento. Puede que estés esperando el resultado de otro partido, o que hayas quedado eliminado.</div>`;
       } else {
-        nextMatchEl.innerHTML = switcherHtml + `
+        nextMatchEl.innerHTML = switcherHtml + confirmBadgeHtml + `
           <div class="next-match-card">
             <div class="stage">${escapeHtml(next.stage)}</div>
             ${next.cancha ? `<div class="cancha-badge">🎾 Cancha ${escapeHtml(next.cancha)}</div>` : `<div class="cancha-badge" style="opacity:0.6;">Cancha a confirmar</div>`}
@@ -2358,7 +2378,7 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
         <div class="bracket-section">
           <h3 class="round-label" style="text-align:left;">Final (1° vs 2° del grupo)</h3>
           <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; max-width:400px;">
-            ${matchCardHtml(state.finalMatch)}
+            ${matchCardReadOnly(state.finalMatch, pair? pair.id: null)}
           </div>
         </div>`;
     }
@@ -3569,35 +3589,6 @@ App.removeClub = async function(id){
 };
 
 /* ---- próximos torneos ---- */
-App.addUpcoming = async function(){
-  const dateEl = document.getElementById('newUpcomingDate');
-  const clubEl = document.getElementById('newUpcomingClub');
-  const catEl = document.getElementById('newUpcomingCategoria');
-  if(!dateEl.value){ customAlert('Elegí una fecha.'); return; }
-  const clubName = clubEl.value.trim();
-  let clubId = null;
-  if(clubName){
-    const club = clubsDB.find(c=>c.name.toLowerCase()===clubName.toLowerCase());
-    if(!club){ customAlert(`"${clubName}" no está cargado en Clubes. Agregalo primero ahí.`); return; }
-    clubId = club.id;
-  }
-  upcomingTournaments.push({
-    id:uid(), date:dateEl.value, clubId, categoria:catEl.value.trim(), createdAt:new Date().toISOString()
-  });
-  dateEl.value=''; clubEl.value=''; catEl.value='';
-  render();
-  const ok = await doSaveMain();
-  if(!ok) customAlert('Se agregó en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
-};
-App.removeUpcoming = async function(id){
-  const ok = await customConfirm('¿Quitar este torneo de la agenda?');
-  if(!ok) return;
-  upcomingTournaments = upcomingTournaments.filter(u=>u.id!==id);
-  render();
-  const saveOk = await doSaveMain();
-  if(!saveOk) customAlert('Se quitó en esta pantalla, pero hubo un problema para guardar el cambio (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
-};
-
 /* ---- navegación desde Inicio ---- */
 App.clickNuevoTorneo = function(){
   App.openNewTournamentModal();
@@ -3764,6 +3755,15 @@ App.reassignTournament = async function(id, newOwner){
   const t = tournaments.find(x=>x.tournamentId===id);
   if(!t) return;
   t.ownerCoordinador = newOwner || null;
+  render();
+  const ok = await doSaveTournament(t);
+  if(!ok) customAlert('El cambio se hizo en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
+};
+
+App.toggleConfirmado = async function(id){
+  const t = tournaments.find(x=>x.tournamentId===id);
+  if(!t) return;
+  t.confirmado = !t.confirmado;
   render();
   const ok = await doSaveTournament(t);
   if(!ok) customAlert('El cambio se hizo en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
@@ -4862,7 +4862,6 @@ function renderUI(){
   renderOpenTabsBar();
   renderJugadores();
   renderClubes();
-  renderProximos();
   renderTournamentsList();
   renderTournamentSummaryBar();
   renderCancha();
@@ -5106,44 +5105,6 @@ function renderClubes(){
 }
 
 /* ---- Próximos torneos ---- */
-function renderProximos(){
-  const datalist = document.getElementById('clubsDatalist');
-  datalist.innerHTML = clubsDB.map(c=>`<option value="${escapeAttr(c.name)}">`).join('');
-
-  const c = document.getElementById('proximosContainer');
-  const todayStr = new Date().toISOString().slice(0,10);
-  const upcoming = [...upcomingTournaments].filter(u=>u.date>=todayStr).sort((a,b)=> a.date.localeCompare(b.date));
-  if(upcoming.length===0){
-    c.innerHTML = `<div class="empty-state">No hay torneos programados. Agregá uno arriba con fecha, club y categoría.</div>`;
-    return;
-  }
-  const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const weekdayNames = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
-  let lastMonthKey = null;
-  let html = '';
-  upcoming.forEach(u=>{
-    const d = new Date(u.date+'T00:00:00');
-    const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
-    if(monthKey!==lastMonthKey){
-      html += `<div class="month-heading">${monthNames[d.getMonth()]} ${d.getFullYear()}</div>`;
-      lastMonthKey = monthKey;
-    }
-    const club = clubsDB.find(cl=>cl.id===u.clubId);
-    const clubName = club ? club.name : (u.clubId ? 'Club eliminado' : 'Sin club asignado');
-    const address = club && club.address ? club.address : '';
-    html += `
-      <div class="upcoming-card">
-        <div class="upcoming-date"><div class="day">${String(d.getDate()).padStart(2,'0')}</div><div class="wd">${weekdayNames[d.getDay()]}</div></div>
-        <div class="upcoming-info">
-          <div class="club">${escapeHtml(clubName)}</div>
-          <div class="meta">${u.categoria? escapeHtml(u.categoria)+' · ':''}${escapeHtml(address)}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="App.removeUpcoming('${u.id}')">Quitar</button>
-      </div>`;
-  });
-  c.innerHTML = html;
-}
-
 /* ---- Parejas del torneo activo ---- */
 function tournamentStatusLabel(t){
   const savedState = state;
@@ -5188,6 +5149,9 @@ function renderTournamentsList(){
     const formatClass = isGrupo ? 'grupo' : (isPrincipiantes ? 'principiantes' : 'avanzado');
     const club = clubsDB.find(c=>c.id===t.clubId);
     const pairCount = t.pairs ? t.pairs.filter(p=>p.p1Id && p.p2Id).length : 0;
+    const confirmPill = t.confirmado
+      ? `<span class="status-pill" style="background:rgba(90,154,31,0.15); color:var(--accent);">✓ Confirmado</span>`
+      : `<span class="status-pill" style="background:rgba(201,122,0,0.15); color:var(--gold);">⏳ Pendiente de confirmar</span>`;
     return `
       <div class="tournament-card" style="border-left-color:${status.color};">
         <div class="tournament-icon" style="background:${isPrincipiantes?'rgba(18,122,148,0.12)':'rgba(90,154,31,0.12)'}; color:${isPrincipiantes?'var(--accent-2)':'var(--accent)'};">🎾</div>
@@ -5196,6 +5160,7 @@ function renderTournamentsList(){
           <div class="meta">
             <span class="format-pill ${formatClass}">${formatLabel}</span>
             <span class="status-pill"><span class="status-dot" style="background:${status.color};"></span>${escapeHtml(status.label)}</span>
+            ${confirmPill}
             ${club ? `<span>🏟️ ${escapeHtml(club.name)}</span>` : ''}
             ${t.categoria ? `<span>${escapeHtml(t.categoria)}</span>` : ''}
             <span>${pairCount} pareja${pairCount===1?'':'s'}</span>
@@ -5204,6 +5169,7 @@ function renderTournamentsList(){
         </div>
         <div class="actions">
           <button class="btn btn-primary btn-sm" onclick="App.openTournament('${t.tournamentId}')">Abrir</button>
+          <button class="btn btn-ghost btn-sm" onclick="App.toggleConfirmado('${t.tournamentId}')">${t.confirmado?'Marcar sin confirmar':'✓ Confirmar torneo'}</button>
           ${isAdmin ? `<button class="icon-btn" title="Eliminar sin archivar" onclick="App.deleteTournamentActive('${t.tournamentId}')">✕</button>` : ''}
         </div>
       </div>`;
@@ -5226,12 +5192,17 @@ function renderTournamentSummaryBar(){
   if(!state){ summaryBar.innerHTML = ''; return; }
   const club = clubsDB.find(c=>c.id===state.clubId);
   const formatLabel = formatShortLabel(state.format);
+  const confirmPill = state.confirmado
+    ? `<span class="pill" style="background:rgba(90,154,31,0.15); color:var(--accent);">✓ Confirmado</span>`
+    : `<span class="pill" style="background:rgba(201,122,0,0.15); color:var(--gold);">⏳ Pendiente de confirmar</span>`;
   summaryBar.innerHTML = `
     <span class="pill">🏟️ ${club ? escapeHtml(club.name) : 'Sin club asignado'}</span>
     <span class="pill">${state.categoria ? escapeHtml(state.categoria) : 'Sin categoría'}</span>
     <span class="pill">${escapeHtml(state.tipo || 'Caballero')}</span>
     <span class="pill">${formatLabel}</span>
     <span class="pill">🎾 ${state.courtCount||4} cancha${(state.courtCount||4)===1?'':'s'}</span>
+    ${confirmPill}
+    <button class="btn btn-ghost btn-sm" onclick="App.toggleConfirmado('${state.tournamentId}')">${state.confirmado?'Marcar sin confirmar':'✓ Confirmar torneo'}</button>
   `;
 }
 
