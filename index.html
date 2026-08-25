@@ -3701,12 +3701,17 @@ App.addPairFromCheckin = async function(){
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
     state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
     render();
+    await doSaveTournament(state); // guardar YA: agregar una pareja es una acción crítica que no puede perderse
     // volver a buscar los campos por si el DOM se re-generó mientras tanto
     const p1InputNow = document.getElementById('checkinNewP1');
     const p2InputNow = document.getElementById('checkinNewP2');
     if(p1InputNow) p1InputNow.value='';
     if(p2InputNow) p2InputNow.value='';
-    customAlert(`Pareja agregada: ${p1.name} / ${p2.name}.`);
+    if(lastSaveError){
+      customAlert(`La pareja "${p1.name} / ${p2.name}" se agregó en esta pantalla, pero hubo un problema para guardarla en la base (revisá tu conexión). La app va a seguir intentando guardarla sola — no cierres la página todavía.`, '⚠️ Atención');
+    } else {
+      customAlert(`Pareja agregada: ${p1.name} / ${p2.name}.`);
+    }
   } catch(e){
     console.error('Error al agregar pareja desde check-in', e);
     customAlert('Ocurrió un error inesperado al agregar la pareja: ' + (e && e.message ? e.message : e) + '.\n\nProbá de nuevo — si vuelve a pasar, avisale a Cristian con este mensaje.', 'Error');
