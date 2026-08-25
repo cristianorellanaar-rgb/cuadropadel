@@ -3657,6 +3657,8 @@ App.addPairRow = function(){
 let addingPairFromCheckin = false;
 let addingPairFromCheckinTimer = null;
 App.addPairFromCheckin = async function(){
+  showToast('🔧 DIAG 1: función iniciada');
+  await new Promise(r=>setTimeout(r,900));
   if(addingPairFromCheckin){
     customAlert('Ya se está procesando un pedido anterior. Si quedó trabado, esperá unos segundos y volvé a intentar.');
     return;
@@ -3667,6 +3669,8 @@ App.addPairFromCheckin = async function(){
   const p1Name = p1Input.value.trim();
   const p2Name = p2Input.value.trim();
   const aliasVal = aliasInput.value.trim();
+  showToast(`🔧 DIAG 2: leí "${p1Name}" / "${p2Name}"`);
+  await new Promise(r=>setTimeout(r,900));
   if(!p1Name || !p2Name){ customAlert('Escribí el nombre de los dos jugadores de la pareja.'); return; }
   addingPairFromCheckin = true;
   clearTimeout(addingPairFromCheckinTimer);
@@ -3675,6 +3679,8 @@ App.addPairFromCheckin = async function(){
   try{
     async function findOrCreatePlayerByName(name){
       let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
+      showToast(`🔧 DIAG: "${name}" ${player ? 'SI existe en la base' : 'NO existe en la base'}`);
+      await new Promise(r=>setTimeout(r,900));
       if(player) return player;
       const ok = await customConfirm(`"${name}" no está en la base de jugadores. ¿Agregarlo como jugador nuevo?`);
       if(!ok) return null;
@@ -3688,10 +3694,16 @@ App.addPairFromCheckin = async function(){
     if(!p1){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p1Name}" como jugador nuevo.`); return; }
     const p2 = await findOrCreatePlayerByName(p2Name);
     if(!p2){ customAlert(`No se agregó la pareja: cancelaste la creación de "${p2Name}" como jugador nuevo.`); return; }
+    showToast('🔧 DIAG 3: los dos jugadores están resueltos, sigo...');
+    await new Promise(r=>setTimeout(r,900));
     if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
     if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
+    showToast('🔧 DIAG 4: pasé todas las validaciones, voy a crear la pareja...');
+    await new Promise(r=>setTimeout(r,900));
     state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:aliasVal, paid1:false, paid2:false, present:false, presentAt:null});
+    showToast('🔧 DIAG 5: pareja creada en la memoria, renderizando...');
+    await new Promise(r=>setTimeout(r,900));
     render();
     // volver a buscar los campos por si el DOM se re-generó mientras esperábamos alguna confirmación
     const p1InputNow = document.getElementById('checkinNewP1');
