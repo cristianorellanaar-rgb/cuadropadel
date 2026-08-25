@@ -643,6 +643,12 @@ th.num[title], th[title]{cursor:help;}
 .jugador-header .who{font-family:var(--font-display); font-size:18px;}
 .jugador-header .who span{color:var(--accent);}
 .jugador-section{max-width:640px; margin:0 auto 30px;}
+.puntos-destacados{
+  text-align:center; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px; box-shadow:var(--shadow-card); margin-bottom:14px;
+}
+.puntos-label{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); font-family:var(--font-mono);}
+.puntos-numero{font-family:var(--font-display); font-size:44px; font-weight:700; color:var(--accent); line-height:1.1;}
 .profile-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow-card);}
 .profile-item{display:flex; flex-direction:column; gap:4px;}
 .profile-label{font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.5px;}
@@ -2046,6 +2052,15 @@ function findPlayerTournaments(playerId){
   return matches;
 }
 
+function findPlayerArchivedTournaments(playerId){
+  const matches = [];
+  archive.forEach(a=>{
+    const res = a.results.find(r=> r.p1Id===playerId || r.p2Id===playerId);
+    if(res) matches.push({archived:a, result:res});
+  });
+  return matches.slice(0,5); // el archivo ya está ordenado del más reciente al más viejo
+}
+
 function findNextMatchForPair(pairId){
   if(!pairId) return null;
   for(const zone of state.zones){
@@ -2078,6 +2093,10 @@ function renderJugadorPerfil(){
   const player = playersDB.find(p=>p.id===currentUser.playerId);
   if(!player){ el.innerHTML = ''; return; }
   el.innerHTML = `
+    <div class="puntos-destacados">
+      <div class="puntos-label">Puntos totales</div>
+      <div class="puntos-numero">${player.stats.puntos}</div>
+    </div>
     <div class="profile-grid">
       <div class="profile-item"><span class="profile-label">Nombre y apellido</span><span class="profile-value">${escapeHtml(player.name)}</span></div>
       <div class="profile-item"><span class="profile-label">DNI</span><span class="profile-value">${escapeHtml(player.dni||'—')}</span></div>
@@ -2261,7 +2280,23 @@ function renderJugadorView(){
   const matches = findPlayerTournaments(currentUser.playerId);
 
   if(matches.length===0){
-    document.getElementById('jugadorProximoPartido').innerHTML = `<div class="empty-state">Todavía no estás anotado en ningún torneo activo.</div>`;
+    const archived = findPlayerArchivedTournaments(currentUser.playerId);
+    if(archived.length===0){
+      document.getElementById('jugadorProximoPartido').innerHTML = `<div class="empty-state">Todavía no estás anotado en ningún torneo activo.</div>`;
+    } else {
+      document.getElementById('jugadorProximoPartido').innerHTML = `
+        <div class="hint" style="margin-bottom:10px;">No estás anotado en ningún torneo activo por ahora. Estos son tus resultados más recientes:</div>
+        ${archived.map(({archived:a, result:res})=>`
+          <div class="champion-banner" style="margin-bottom:10px;">
+            <div class="left">
+              <div class="trophy">${res.stageLabel==='Campeón' ? '🏆' : '🎾'}</div>
+              <div>
+                <div class="label">${escapeHtml(a.name)} — ${escapeHtml(res.stageLabel)}</div>
+                <div class="name" style="font-size:18px;">Campeón: ${escapeHtml(a.championName)}</div>
+              </div>
+            </div>
+          </div>`).join('')}`;
+    }
     document.getElementById('jugadorZonas').innerHTML = '';
     document.getElementById('jugadorLlave').innerHTML = '';
     document.getElementById('jugadorTablaPuntos').innerHTML = '';
@@ -2304,7 +2339,7 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
     if(champId){
       nextMatchEl.innerHTML = switcherHtml + confirmBadgeHtml + (pair && champId===pair.id
         ? `<div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">¡Felicitaciones!</div><div class="name">Fuiste campeón de este torneo</div></div></div></div>`
-        : `<div class="empty-state">El torneo ya terminó. ¡Gracias por participar!</div>`);
+        : `<div class="champion-banner"><div class="left"><div class="trophy">🏆</div><div><div class="label">Campeón del torneo</div><div class="name">${escapeHtml(getPairName(champId))}</div></div></div></div>`);
     } else {
       const next = pair ? findNextMatchForPair(pair.id) : null;
       if(!next){
