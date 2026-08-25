@@ -1416,7 +1416,6 @@ function reportSaveSuccess(){
 
 async function doSaveMain(){
   pendingSaveCount++;
-  let ok = true;
   try{
     if(liveSyncActive && firestoreDocRef){
       const now = Date.now();
@@ -1428,9 +1427,8 @@ async function doSaveMain(){
       }catch(e){
         console.error('Error guardando en Firebase', e); reportSaveError(e);
         lastKnownMainUpdatedAt = previousKnown; // no se guardó de verdad: no mantener la protección optimista
-        ok = false;
       }
-      return ok;
+      return;
     }
     if(storageAvailable){
       try{
@@ -1442,9 +1440,8 @@ async function doSaveMain(){
         await window.storage.set('admin-emails', JSON.stringify(adminEmails), false);
         await window.storage.set('sessions-db', JSON.stringify(sessions), false);
         reportSaveSuccess();
-      }catch(e){ console.error('Error guardando', e); reportSaveError(e); ok = false; }
+      }catch(e){ console.error('Error guardando', e); reportSaveError(e); }
     }
-    return ok;
   } finally {
     pendingSaveCount = Math.max(0, pendingSaveCount-1);
   }
@@ -1457,22 +1454,20 @@ function scheduleSaveMain(){
 
 let saveTournamentTimers = {};
 async function doSaveTournament(t){
-  if(!t) return true;
+  if(!t) return;
   t.updatedAt = Date.now(); // se guarda YA en el objeto local: sirve para comparar contra ecos viejos del oyente en vivo
   lastKnownOwnUpdatedAt[t.tournamentId] = t.updatedAt;
   pendingSaveCount++;
-  let ok = true;
   try{
     if(liveSyncActive && tournamentsColRef){
       try{ await tournamentsColRef.doc(t.tournamentId).set(t); reportSaveSuccess(); }
-      catch(e){ console.error('Error guardando el torneo', e); reportSaveError(e); ok = false; }
-      return ok;
+      catch(e){ console.error('Error guardando el torneo', e); reportSaveError(e); }
+      return;
     }
     if(storageAvailable){
       try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); reportSaveSuccess(); }
-      catch(e){ console.error('Error guardando torneos', e); reportSaveError(e); ok = false; }
+      catch(e){ console.error('Error guardando torneos', e); reportSaveError(e); }
     }
-    return ok;
   } finally {
     pendingSaveCount = Math.max(0, pendingSaveCount-1);
   }
@@ -1889,7 +1884,7 @@ function openNewPlayerRegistrationModal(displayName){
   document.getElementById('newPlayerModalOverlay').style.display = 'flex';
 }
 
-App.confirmNewPlayerRegistration = async function(){
+App.confirmNewPlayerRegistration = function(){
   const errEl = document.getElementById('newPlayerError');
   errEl.textContent = '';
   const name = document.getElementById('newPlayerName').value.trim();
@@ -1910,7 +1905,7 @@ App.confirmNewPlayerRegistration = async function(){
     createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
   };
   playersDB.push(player);
-  await doSaveMain(); // guardar YA: un jugador nuevo no puede depender solo del guardado automático
+  scheduleSaveMain();
   pendingNewPlayerAuth = null;
   document.getElementById('newPlayerModalOverlay').style.display = 'none';
   currentUser = {role:'jugador', playerId:player.id, name:player.name, email:player.email.trim().toLowerCase()};
@@ -1926,7 +1921,7 @@ function openSetPasswordModal(){
   document.getElementById('setPasswordModalOverlay').style.display = 'flex';
 }
 
-App.confirmSetPassword = async function(){
+App.confirmSetPassword = function(){
   const errEl = document.getElementById('setPasswordError');
   const p1 = document.getElementById('setPasswordNew').value;
   const p2 = document.getElementById('setPasswordConfirm').value;
@@ -1934,7 +1929,7 @@ App.confirmSetPassword = async function(){
   if(p1 !== p2){ errEl.textContent = 'Las contraseñas no coinciden.'; return; }
   if(!pendingSetPasswordPlayer) return;
   pendingSetPasswordPlayer.customPassword = p1;
-  await doSaveMain(); // guardar YA: la contraseña no puede depender solo del guardado automático
+  scheduleSaveMain();
   currentUser = {role:'jugador', playerId:pendingSetPasswordPlayer.id, name:pendingSetPasswordPlayer.name, email:(pendingSetPasswordPlayer.email||'').trim().toLowerCase()};
   pendingSetPasswordPlayer = null;
   document.getElementById('setPasswordModalOverlay').style.display = 'none';
@@ -2029,7 +2024,7 @@ App.logout = function(){
 };
 
 /* ---- coordinadores (solo admin) ---- */
-App.addCoordinador = async function(){
+App.addCoordinador = function(){
   const emailEl = document.getElementById('newCoordEmail');
   const passEl = document.getElementById('newCoordPass');
   const email = emailEl.value.trim();
@@ -2040,25 +2035,20 @@ App.addCoordinador = async function(){
   if(existing){
     // ya es coordinador: si mandaron una contraseña nueva, la actualiza; si no, no hace falta nada más
     if(password) existing.password = password;
+    customAlert(`${email} ya es coordinador.`);
     emailEl.value=''; passEl.value='';
     render();
-    const ok = await doSaveMain();
-    customAlert(ok ? `${email} ya es coordinador.` : `${email} ya es coordinador, pero hubo un problema para guardar el cambio de contraseña (revisá tu conexión).`);
     return;
   }
   coordinadoresDB.push({id:uid(), email, password: password||'', createdAt:new Date().toISOString()});
   emailEl.value=''; passEl.value='';
   render();
-  const ok = await doSaveMain();
-  if(!ok) customAlert(`${email} se agregó en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.`, '⚠️ Atención');
 };
 App.removeCoordinador = async function(id){
   const ok = await customConfirm('¿Eliminar este coordinador? Va a dejar de poder ingresar como coordinador (si también es jugador, eso no se toca).');
   if(!ok) return;
   coordinadoresDB = coordinadoresDB.filter(c=>c.id!==id);
   render();
-  const saveOk = await doSaveMain();
-  if(!saveOk) customAlert('El coordinador se eliminó en esta pantalla, pero hubo un problema para guardar el cambio (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 /* ---- vista simplificada de jugador ---- */
@@ -2157,15 +2147,8 @@ function renderJugadorInscripcion(){
     } else if(jugadorInscribiendoId===t.tournamentId){
       actionHtml = `
         <div class="modal-field-row" style="margin-top:8px;">
-          <label>Tu compañero/a (opcional, buscá por nombre o escribí uno nuevo)</label>
-          <input type="text" id="inscribirPartner-${t.tournamentId}" list="playersDatalistJugador" autocomplete="off" oninput="updatePlayersDatalist(this.value, 'playersDatalistJugador')" placeholder="Buscar o escribir jugador nuevo...">
-        </div>
-        <div class="modal-field-row" style="margin-top:8px;">
-          <label>Categoría del compañero/a (solo si es nuevo en la base)</label>
-          <select id="inscribirPartnerCategoria-${t.tournamentId}">
-            <option value="" selected>— Usar la categoría del torneo (${escapeHtml(t.categoria||'sin definir')}) —</option>
-            ${CATEGORIA_OPTIONS.map(c=>`<option value="${c}">${c}</option>`).join('')}
-          </select>
+          <label>Tu compañero/a (opcional, buscá por nombre)</label>
+          <input type="text" id="inscribirPartner-${t.tournamentId}" list="playersDatalistJugador" autocomplete="off" oninput="updatePlayersDatalist(this.value, 'playersDatalistJugador')" placeholder="Buscar jugador...">
         </div>
         <div class="actions-row">
           <button class="btn btn-primary btn-sm" onclick="App.confirmarInscripcion('${t.tournamentId}')">Confirmar inscripción</button>
@@ -2191,7 +2174,7 @@ function renderJugadorInscripcion(){
   }).join('');
 }
 
-App.confirmarInscripcion = async function(tournamentId){
+App.confirmarInscripcion = function(tournamentId){
   const t = tournaments.find(x=>x.tournamentId===tournamentId);
   if(!t) return;
   const myId = currentUser.playerId;
@@ -2202,43 +2185,19 @@ App.confirmarInscripcion = async function(tournamentId){
     return;
   }
   const partnerInput = document.getElementById('inscribirPartner-'+tournamentId);
-  const partnerCategoriaSelect = document.getElementById('inscribirPartnerCategoria-'+tournamentId);
   const partnerName = partnerInput ? partnerInput.value.trim() : '';
-  const partnerCategoriaElegida = partnerCategoriaSelect ? partnerCategoriaSelect.value : '';
   let partnerId = null;
-  let mainDbDirty = false;
-
   if(partnerName){
-    let partner = playersDB.find(p=> p.name.toLowerCase()===partnerName.toLowerCase());
-    if(partner && partner.id===myId){ customAlert('No podés ponerte a vos mismo como compañero.'); return; }
-    if(partner && t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ customAlert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
-    if(!partner){
-      // el compañero no está en la base: se crea automáticamente con el nombre escrito
-      partner = {id:uid(), name:partnerName, dni:'', phone:'', email:'', categoria: partnerCategoriaElegida || '', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
-      playersDB.push(partner);
-      mainDbDirty = true;
-    }
-    // si el torneo tiene categoría y el compañero todavía no tiene una propia, se le asigna la del torneo (salvo que ya se haya elegido una puntual arriba)
-    const tempState = state; state = t; // ensurePlayerCategoria usa `state` (el torneo actual) para leer la categoría
-    if(ensurePlayerCategoria(partner)) mainDbDirty = true;
-    state = tempState;
+    const partner = playersDB.find(p=> p.name.toLowerCase()===partnerName.toLowerCase());
+    if(!partner){ customAlert(`"${partnerName}" no está en la base de jugadores. Dejalo en blanco si todavía no tiene compañero.`); return; }
+    if(partner.id===myId){ customAlert('No podés ponerte a vos mismo como compañero.'); return; }
+    if(t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ customAlert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
     partnerId = partner.id;
   }
-
-  let mainSaveFailed = false;
-  if(mainDbDirty){
-    mainSaveFailed = !(await doSaveMain());
-  }
-
   t.pairs.push({id:uid(), p1Id:myId, p2Id:partnerId, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
-  const tournamentSaveOk = await doSaveTournament(t);
+  scheduleSaveTournament(t);
   jugadorInscribiendoId = null;
-
-  if(mainSaveFailed || !tournamentSaveOk){
-    customAlert('Quedaste anotado en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola — no cierres la página todavía.', '⚠️ Atención');
-  } else {
-    customAlert(partnerId ? '¡Listo! Ya están inscriptos en el torneo.' : '¡Listo! Quedaste inscripto — todavía falta sumar a tu compañero/a.');
-  }
+  customAlert(partnerId ? '¡Listo! Ya están inscriptos en el torneo.' : '¡Listo! Quedaste inscripto — todavía falta sumar a tu compañero/a.');
   renderJugadorInscripcion();
 };
 
@@ -2811,7 +2770,7 @@ function autoAssignNewPresentPairsSilently(){
     zone.pairIds.push(p.id);
     rebuildZoneMatches(zone);
   });
-  const stillUnassigned = getUnassignedPairs();
+  const stillUnassigned = getUnassignedPairs().filter(p=>p.present);
   if(stillUnassigned.length>=3){
     const sizes = computeZoneSizes(stillUnassigned.length);
     let idx=0;
@@ -2832,35 +2791,6 @@ function autoManageZonesOnPresenceChange(){
     // todavía no se jugó nada: se puede reconstruir libremente en base a quiénes están presentes ahora
     rebuildAllZonesFromPresent();
   }
-}
-
-function autoAssignPresentPairToPreviewZone(pairId){
-  if(state.formatChosen) return; // el torneo ya arrancó de verdad (formato elegido): no tocar las zonas reales
-  let zoneA = state.zones.find(z=>z.name==='Zona A');
-  let zoneB = state.zones.find(z=>z.name==='Zona B');
-
-  let target = null;
-  if(!zoneA){
-    zoneA = makeZone('Zona A', []);
-    state.zones.push(zoneA);
-    target = zoneA;
-  } else if(zoneA.pairIds.length<2){
-    target = zoneA;
-  } else if(!zoneB){
-    zoneB = makeZone('Zona B', []);
-    state.zones.push(zoneB);
-    target = zoneB;
-  } else if(zoneB.pairIds.length<2){
-    target = zoneB;
-  } else if(zoneA.pairIds.length<3 && zoneA.pairIds.length<=zoneB.pairIds.length){
-    target = zoneA;
-  } else if(zoneB.pairIds.length<3){
-    target = zoneB;
-  }
-  // si ambas zonas ya llegaron a 3, no hay lugar: la pareja se queda pendiente de asignación (nada que hacer acá)
-  if(!target) return;
-  target.pairIds.push(pairId);
-  rebuildZoneMatches(target);
 }
 
 App.togglePresent = async function(pairId){
@@ -2889,7 +2819,6 @@ App.togglePresent = async function(pairId){
 
   pair.present = willBePresent;
   pair.presentAt = willBePresent ? new Date().toISOString() : null;
-  if(willBePresent) autoAssignPresentPairToPreviewZone(pairId);
   render();
   doSaveTournament(state);
 };
@@ -3135,7 +3064,7 @@ function bracketHasRealProgress(){
 function getUnassignedPairs(){
   const assignedIds = new Set();
   state.zones.forEach(z=> z.pairIds.forEach(id=> assignedIds.add(id)));
-  return getReadyPairs().filter(p=> p.present && !assignedIds.has(p.id));
+  return getReadyPairs().filter(p=> !assignedIds.has(p.id));
 }
 
 function ensurePlayerCategoria(player){
@@ -3413,8 +3342,8 @@ App.setFormat = async function(fmt){
   if(hadZones){
     await App.iniciarTorneo();
   } else {
+    scheduleSaveTournament(state);
     render();
-    await doSaveTournament(state);
   }
 };
 
@@ -3449,37 +3378,29 @@ App.chooseFormat = async function(fmt){
 };
 
 /* ---- jugadores (persistente) ---- */
-App.addPlayerFromInput = async function(){
+App.addPlayerFromInput = function(){
   const input = document.getElementById('newPlayerInput');
   const raw = input.value;
   if(!raw.trim()) return;
   const names = raw.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
   let skipped = [];
-  let added = false;
   names.forEach(n=>{
     if(playersDB.some(p=>p.name.toLowerCase()===n.toLowerCase())){ skipped.push(n); return; }
     playersDB.push({
       id:uid(), name:n, dni:'', email:'', categoria:'', createdAt:new Date().toISOString(),
       stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
     });
-    added = true;
   });
   input.value='';
   render();
   document.getElementById('newPlayerInput').focus();
-  let saveOk = true;
-  if(added) saveOk = await doSaveMain(); // guardar YA: jugadores nuevos no pueden depender solo del guardado automático
-  if(!saveOk){
-    customAlert('Se agregaron en esta pantalla, pero hubo un problema para guardarlos en la base (revisá tu conexión). La app va a seguir intentando guardarlos sola.', '⚠️ Atención');
-  } else if(skipped.length){
-    customAlert(`Ya existía en la base: ${skipped.join(', ')}`);
-  }
+  if(skipped.length){ customAlert(`Ya existía en la base: ${skipped.join(', ')}`); }
 };
 
 App.setPlayerField = function(id, field, value){
   const player = playersDB.find(p=>p.id===id);
   if(player) player[field] = value;
-  doSaveMain(); // guardar YA en vez de esperar el retraso normal
+  scheduleSaveMain();
 };
 
 App.removePlayer = async function(id){
@@ -3494,12 +3415,10 @@ App.removePlayer = async function(id){
   if(!ok) return;
   inUseTournaments.forEach(t=>{
     t.pairs.forEach(p=>{ if(p.p1Id===id) p.p1Id=null; if(p.p2Id===id) p.p2Id=null; });
-    doSaveTournament(t);
+    scheduleSaveTournament(t);
   });
   playersDB = playersDB.filter(p=>p.id!==id);
   render();
-  const saveOk = await doSaveMain();
-  if(!saveOk) customAlert('El jugador se eliminó en esta pantalla, pero hubo un problema para guardar el cambio (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 let expandedPlayers = new Set();
@@ -3509,7 +3428,7 @@ App.togglePlayerHistory = function(id){
 };
 
 /* ---- clubes ---- */
-App.addClub = async function(){
+App.addClub = function(){
   const nameEl = document.getElementById('newClubName');
   const courtsEl = document.getElementById('newClubCourts');
   const addressEl = document.getElementById('newClubAddress');
@@ -3521,14 +3440,12 @@ App.addClub = async function(){
   });
   nameEl.value=''; courtsEl.value=''; addressEl.value='';
   render();
-  const ok = await doSaveMain(); // guardar YA: un club nuevo no puede depender solo del guardado automático de cada 15s
-  if(!ok) customAlert(`El club "${name}" se agregó en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola — no cierres la página todavía.`, '⚠️ Atención');
 };
 App.setClubField = function(id, field, value){
   const club = clubsDB.find(c=>c.id===id);
   if(!club) return;
   club[field] = (field==='courts') ? (value? Number(value): null) : value;
-  doSaveMain(); // guardar YA en vez de esperar el retraso normal
+  scheduleSaveMain();
 };
 App.removeClub = async function(id){
   const inUse = upcomingTournaments.some(u=>u.clubId===id);
@@ -3538,12 +3455,10 @@ App.removeClub = async function(id){
   if(!ok) return;
   clubsDB = clubsDB.filter(c=>c.id!==id);
   render();
-  const saveOk = await doSaveMain();
-  if(!saveOk) customAlert('El club se eliminó en esta pantalla, pero hubo un problema para guardar el cambio (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 /* ---- próximos torneos ---- */
-App.addUpcoming = async function(){
+App.addUpcoming = function(){
   const dateEl = document.getElementById('newUpcomingDate');
   const clubEl = document.getElementById('newUpcomingClub');
   const catEl = document.getElementById('newUpcomingCategoria');
@@ -3560,16 +3475,12 @@ App.addUpcoming = async function(){
   });
   dateEl.value=''; clubEl.value=''; catEl.value='';
   render();
-  const ok = await doSaveMain();
-  if(!ok) customAlert('Se agregó en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 App.removeUpcoming = async function(id){
   const ok = await customConfirm('¿Quitar este torneo de la agenda?');
   if(!ok) return;
   upcomingTournaments = upcomingTournaments.filter(u=>u.id!==id);
   render();
-  const saveOk = await doSaveMain();
-  if(!saveOk) customAlert('Se quitó en esta pantalla, pero hubo un problema para guardar el cambio (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 /* ---- navegación desde Inicio ---- */
@@ -3627,7 +3538,7 @@ App.onNewTournamentClubChange = function(value){
   }
 };
 
-App.confirmCreateTournament = async function(){
+App.confirmCreateTournament = function(){
   const clubSelect = document.getElementById('newTournamentClub');
   const catSelect = document.getElementById('newTournamentCategoria');
   const courtsSelect = document.getElementById('newTournamentCourts');
@@ -3676,10 +3587,9 @@ App.confirmCreateTournament = async function(){
   if(!nav.openTabs.includes(t.tournamentId)) nav.openTabs.push(t.tournamentId);
   nav.activeTab = 'torneoActual';
   nav.torneoSubTab = 'cancha';
+  scheduleSaveTournament(t);
   App.closeNewTournamentModal();
   render();
-  const ok = await doSaveTournament(t); // guardar YA: un torneo nuevo no puede depender solo del guardado automático
-  if(!ok) customAlert('El torneo se creó en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola — no cierres la página todavía.', '⚠️ Atención');
 };
 
 App.openTournament = function(id){
@@ -3734,13 +3644,12 @@ App.backToTournamentList = function(){
   render();
 };
 
-App.reassignTournament = async function(id, newOwner){
+App.reassignTournament = function(id, newOwner){
   const t = tournaments.find(x=>x.tournamentId===id);
   if(!t) return;
   t.ownerCoordinador = newOwner || null;
+  scheduleSaveTournament(t);
   render();
-  const ok = await doSaveTournament(t);
-  if(!ok) customAlert('El cambio se hizo en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 App.deleteTournamentActive = async function(id){
@@ -3794,20 +3703,21 @@ App.addPairFromCheckin = async function(){
     const p2 = findOrCreatePlayerByName(p2Name);
     let mainSaveFailed = false;
     if(mainDbDirty){
-      mainSaveFailed = !(await doSaveMain()); // un solo guardado de jugadores para toda la operación, en vez de uno por cada uno
+      await doSaveMain(); // un solo guardado de jugadores para toda la operación, en vez de uno por cada uno
+      if(lastSaveError) mainSaveFailed = true;
     }
     if(p1.id===p2.id){ customAlert('Elegí dos jugadores distintos.'); return; }
     if(state.pairs.some(p=>p.p1Id===p1.id||p.p2Id===p1.id)){ customAlert(`${p1.name} ya está en otra pareja de este torneo.`); return; }
     if(state.pairs.some(p=>p.p1Id===p2.id||p.p2Id===p2.id)){ customAlert(`${p2.name} ya está en otra pareja de este torneo.`); return; }
     state.pairs.push({id:uid(), p1Id:p1.id, p2Id:p2.id, alias:'', paid1:false, paid2:false, present:false, presentAt:null});
     render();
-    const tournamentSaveOk = await doSaveTournament(state); // guardar YA: agregar una pareja es una acción crítica que no puede perderse
+    await doSaveTournament(state); // guardar YA: agregar una pareja es una acción crítica que no puede perderse
     // volver a buscar los campos por si el DOM se re-generó mientras tanto
     const p1InputNow = document.getElementById('checkinNewP1');
     const p2InputNow = document.getElementById('checkinNewP2');
     if(p1InputNow) p1InputNow.value='';
     if(p2InputNow) p2InputNow.value='';
-    if(mainSaveFailed || !tournamentSaveOk){
+    if(mainSaveFailed || lastSaveError){
       customAlert(`La pareja "${p1.name} / ${p2.name}" se agregó en esta pantalla, pero hubo un problema para guardarla en la base (revisá tu conexión). La app va a seguir intentando guardarla sola — no cierres la página todavía.`, '⚠️ Atención');
     } else {
       customAlert(`Pareja agregada: ${p1.name} / ${p2.name}.`);
@@ -3965,7 +3875,7 @@ async function reviewAutoAssignedCategorias(){
     const nueva = await askPickCategoria(player.categoria);
     if(nueva){
       player.categoria = nueva;
-      await doSaveMain(); // guardar YA: la corrección de categoría no puede depender solo del guardado automático
+      scheduleSaveMain();
     }
   }
 }
@@ -4020,7 +3930,7 @@ App.iniciarTorneo = async function(){
   if(present.length<3){ customAlert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
   const formatError = validateFormatForPresentCount(state.format, present.length);
   if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
-  if(state.zones.length>0 && zonesHaveRealProgress()){
+  if(state.zones.length>0){
     const ok = await customConfirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
   }
@@ -4893,7 +4803,7 @@ function renderStatusStrip(){
 }
 
 /* ---- Jugadores + ranking ---- */
-App.togglePlayerCoordinador = async function(playerId){
+App.togglePlayerCoordinador = function(playerId){
   const player = playersDB.find(p=>p.id===playerId);
   if(!player) return;
   if(!player.email){ customAlert('Este jugador necesita tener un correo cargado antes de poder asignarlo como coordinador.'); return; }
@@ -4905,9 +4815,8 @@ App.togglePlayerCoordinador = async function(playerId){
   } else {
     coordinadoresDB.push({id:uid(), email:player.email.trim(), password:'', createdAt:new Date().toISOString()});
   }
+  scheduleSaveMain();
   render();
-  const ok = await doSaveMain(); // guardar YA: los permisos de coordinador no pueden depender solo del guardado automático
-  if(!ok) customAlert('El cambio se hizo en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 App.togglePlayerAdmin = async function(playerId){
@@ -4924,9 +4833,8 @@ App.togglePlayerAdmin = async function(playerId){
     if(!ok) return;
     adminEmails.push(player.email.trim());
   }
+  scheduleSaveMain();
   render();
-  const ok = await doSaveMain(); // guardar YA: los permisos de admin no pueden depender solo del guardado automático
-  if(!ok) customAlert('El cambio se hizo en esta pantalla, pero hubo un problema para guardarlo en la base (revisá tu conexión). La app va a seguir intentando guardarlo sola.', '⚠️ Atención');
 };
 
 function renderJugadores(){
@@ -5037,7 +4945,7 @@ function renderCoordinadores(){
 App.setCoordField = function(id, field, value){
   const co = coordinadoresDB.find(c=>c.id===id);
   if(co) co[field] = value;
-  doSaveMain(); // guardar YA en vez de esperar el retraso normal
+  scheduleSaveMain();
 };
 
 /* ---- Clubes ---- */
