@@ -2783,14 +2783,55 @@ function autoAssignNewPresentPairsSilently(){
 }
 
 function autoManageZonesOnPresenceChange(){
-  if(!state || !state.formatChosen) return;
-  if(zonesHaveRealProgress() || bracketHasRealProgress()){
-    // ya hay partidos jugados de verdad: no reordenar nada existente, solo sumar a los presentes nuevos sin asignar
-    autoAssignNewPresentPairsSilently();
-  } else {
-    // todavía no se jugó nada: se puede reconstruir libremente en base a quiénes están presentes ahora
-    rebuildAllZonesFromPresent();
+  if(!state) return;
+
+  // Asignación automática por orden de llegada:
+  // 1° y 2° -> Zona A
+  // 3° y 4° -> Zona B
+  // 5° -> Zona A
+  // 6° -> Zona B
+  // 7° en adelante -> quedan pendientes de asignación.
+  // No se reordenan las parejas que ya están jugando o ya fueron asignadas.
+  const assignedIds = new Set();
+  state.zones.forEach(z=>z.pairIds.forEach(id=>assignedIds.add(id)));
+
+  const pending = getReadyPairs()
+    .filter(p=>p.present && !assignedIds.has(p.id))
+    .sort((a,b)=> String(a.presentAt||'').localeCompare(String(b.presentAt||'')));
+
+  if(pending.length===0) return;
+
+  // Aseguramos solamente las dos zonas iniciales.
+  let zoneA = state.zones.find(z=>z.name==='Zona A');
+  let zoneB = state.zones.find(z=>z.name==='Zona B');
+
+  if(!zoneA){
+    zoneA = makeZone('Zona A', []);
+    state.zones.push(zoneA);
   }
+  if(!zoneB){
+    zoneB = makeZone('Zona B', []);
+    state.zones.push(zoneB);
+  }
+
+  pending.forEach(pair=>{
+    const totalAssigned = zoneA.pairIds.length + zoneB.pairIds.length;
+    if(totalAssigned >= 6) return; // desde la 7° pareja queda pendiente
+
+    // Patrón solicitado: A, A, B, B, A, B.
+    let target;
+    if(totalAssigned < 2) target = zoneA;
+    else if(totalAssigned < 4) target = zoneB;
+    else if(totalAssigned === 4) target = zoneA;
+    else target = zoneB;
+
+    if(target.pairIds.length < 4){
+      target.pairIds.push(pair.id);
+      rebuildZoneMatches(target);
+    }
+  });
+
+  refreshBracket();
 }
 
 App.togglePresent = async function(pairId){
@@ -2819,6 +2860,13 @@ App.togglePresent = async function(pairId){
 
   pair.present = willBePresent;
   pair.presentAt = willBePresent ? new Date().toISOString() : null;
+
+  // Al marcar presente, la pareja entra automáticamente en la zona
+  // correspondiente según su orden de llegada.
+  if(willBePresent){
+    autoManageZonesOnPresenceChange();
+  }
+
   render();
   doSaveTournament(state);
 };
