@@ -2462,6 +2462,7 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
    ALGORITMOS DE TORNEO
    ========================================================= */
 function computeZoneSizes(n){
+  if(n<3) return [n]; // muy pocas parejas todavía (torneo recién arrancando): una sola zona chica, que se termina de armar cuando lleguen más
   let numZones = Math.ceil(n/4);
   while(true){
     const base = Math.floor(n/numZones);
@@ -3476,13 +3477,37 @@ App.setFormat = async function(fmt){
   const formatError = validateFormatForPresentCount(fmt, presentCount);
   if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   const hadZones = state.zones.length>0;
+  const zoneBasedFormats = ['avanzado','principiantes','cruce'];
+
+  if(hadZones && zoneBasedFormats.includes(fmt) && !state.smallMode){
+    // ¿las zonas que ya arma (con los presentes que llegaron) tambien sirven para el formato nuevo?
+    // si es asi, no hace falta re-sortear ni perder los resultados de zona ya jugados.
+    const currentSizes = state.zones.map(z=>z.pairIds.length);
+    const sizesOk = currentSizes.every(s=>s>=2 && s<=4);
+    const zonesCompatible = sizesOk && (fmt==='cruce' ? zonesCanCrossCleanly(currentSizes) : true);
+    if(zonesCompatible){
+      const ok = await customConfirm('Las zonas que ya armaste también sirven para este formato — se mantienen los resultados de zona ya jugados. Se reinicia el repechaje/llave, que dependen del formato anterior. ¿Continuar?');
+      if(!ok) return;
+      state.primera = null;
+      state.segunda = null;
+      state.finalMatch = null;
+      state.format = fmt;
+      state.formatChosen = true;
+      refreshBracket();
+      render();
+      await doSaveTournament(state);
+      return;
+    }
+  }
+
   if(hadZones){
-    const ok = await customConfirm('Ya hay zonas generadas para este torneo. Cambiar el formato las vuelve a sortear con este nuevo formato, usando las parejas presentes actuales (se pierden los resultados y la llave cargados hasta ahora). ¿Continuar?');
+    const ok = await customConfirm('Ya hay zonas generadas para este torneo, y no son compatibles con este formato. Cambiar el formato las vuelve a sortear desde cero con las parejas presentes actuales (se pierden los resultados y la llave cargados hasta ahora). ¿Continuar?');
     if(!ok) return;
     state.zones = [];
     state.primera = null;
     state.segunda = null;
     state.smallMode = false;
+    state.finalMatch = null;
   }
   state.format = fmt;
   state.formatChosen = true;
@@ -3495,6 +3520,7 @@ App.setFormat = async function(fmt){
 };
 
 let formatChoiceContext = null; // 'start' (elegir e iniciar el torneo) o 'change' (solo cambiar el formato)
+let plannedTotalPairsForFormat = null; // si se planeó un total mayor al presente actual, se valida el formato contra ese total
 
 App.openFormatChoiceModal = function(context, opts){
   formatChoiceContext = context || 'start';
@@ -3516,11 +3542,14 @@ App.chooseFormat = async function(fmt){
     await App.setFormat(fmt);
   } else {
     const presentCount = getReadyPairs().filter(p=>p.present).length;
-    const formatError = validateFormatForPresentCount(fmt, presentCount);
+    const wasPlanned = !!plannedTotalPairsForFormat;
+    const countForValidation = wasPlanned ? plannedTotalPairsForFormat : presentCount;
+    plannedTotalPairsForFormat = null;
+    const formatError = validateFormatForPresentCount(fmt, countForValidation);
     if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
     state.format = fmt;
     state.formatChosen = true;
-    await App.iniciarTorneo();
+    await App.iniciarTorneo(wasPlanned); // si se validó contra un total planeado, no volver a exigir esa cantidad ahora mismo
   }
 };
 
@@ -4067,6 +4096,7 @@ App.startTournamentFlow = async function(){
     await App.iniciarTorneo();
   } else {
     await customAlert(`Con ${total} parejas en total, los grupos (zonas) van a ser de 3 o 4 parejas, dependiendo de cómo termine acomodando la cantidad final. Elegí el formato del torneo.`, 'Formato de zonas');
+    plannedTotalPairsForFormat = total; // se valida el formato contra este total, aunque todavía no hayan llegado todas
     App.openFormatChoiceModal('start', {excludeGrupo:true});
   }
 };
@@ -4087,12 +4117,14 @@ App.desarmarZonas = async function(){
   await doSaveTournament(state);
 };
 
-App.iniciarTorneo = async function(){
+App.iniciarTorneo = async function(skipFormatValidation){
   const present = getReadyPairs().filter(p=>p.present);
   const minPairs = (state.format==='grupo' || state.format==='grupofinal') ? 2 : 3;
   if(present.length<minPairs){ customAlert(`Necesitás al menos ${minPairs} parejas marcadas como presentes para iniciar el torneo.`); return; }
-  const formatError = validateFormatForPresentCount(state.format, present.length);
-  if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
+  if(!skipFormatValidation){
+    const formatError = validateFormatForPresentCount(state.format, present.length);
+    if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
+  }
   if(state.zones.length>0 && zonesHaveRealProgress()){
     const ok = await customConfirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
