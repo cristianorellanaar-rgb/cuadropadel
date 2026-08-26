@@ -3474,7 +3474,10 @@ App.setName = function(v){ if(state){ state.name = v; scheduleSaveTournament(sta
 App.setFormat = async function(fmt){
   if(state.format===fmt && state.formatChosen) return;
   const presentCount = getReadyPairs().filter(p=>p.present).length;
-  const formatError = validateFormatForPresentCount(fmt, presentCount);
+  const wasPlanned = plannedTotalPairsForFormat !== null;
+  const countForValidation = wasPlanned ? plannedTotalPairsForFormat : presentCount;
+  plannedTotalPairsForFormat = null;
+  const formatError = validateFormatForPresentCount(fmt, countForValidation);
   if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   const hadZones = state.zones.length>0;
   const zoneBasedFormats = ['avanzado','principiantes','cruce'];
@@ -3512,7 +3515,7 @@ App.setFormat = async function(fmt){
   state.format = fmt;
   state.formatChosen = true;
   if(hadZones){
-    await App.iniciarTorneo();
+    await App.iniciarTorneo(wasPlanned);
   } else {
     render();
     await doSaveTournament(state);
@@ -3542,7 +3545,7 @@ App.chooseFormat = async function(fmt){
     await App.setFormat(fmt);
   } else {
     const presentCount = getReadyPairs().filter(p=>p.present).length;
-    const wasPlanned = !!plannedTotalPairsForFormat;
+    const wasPlanned = plannedTotalPairsForFormat !== null;
     const countForValidation = wasPlanned ? plannedTotalPairsForFormat : presentCount;
     plannedTotalPairsForFormat = null;
     const formatError = validateFormatForPresentCount(fmt, countForValidation);
@@ -4080,25 +4083,32 @@ function askGrupoOrGrupoFinal(){
   });
 }
 
-App.startTournamentFlow = async function(){
+async function askExpectedTotalAndOpenFormatFlow(context){
   const presentCount = getReadyPairs().filter(p=>p.present).length;
-  const extraStr = await customPrompt('¿Hay más parejas que todavía se van a unir al torneo? Ingresá la cantidad (o 0 si ya están todas presentes).', '0', 'Parejas por llegar');
+  const extraStr = await customPrompt('¿Cuántas parejas más se esperan en total (además de las presentes)? Ingresá la cantidad (o 0 si ya están todas).', '0', 'Parejas esperadas');
   if(extraStr===null) return; // cancelado
   const extra = parseInt(extraStr, 10);
   const extraCount = (isNaN(extra) || extra<0) ? 0 : extra;
   const total = presentCount + extraCount;
+  plannedTotalPairsForFormat = total; // todos los formatos se validan contra este total, no contra los presentes reales
 
   if(total<=5){
     const choice = await askGrupoOrGrupoFinal();
-    if(!choice) return;
-    state.format = choice;
-    state.formatChosen = true;
-    await App.iniciarTorneo();
+    if(!choice){ plannedTotalPairsForFormat = null; return; }
+    formatChoiceContext = context;
+    await App.chooseFormat(choice);
   } else {
     await customAlert(`Con ${total} parejas en total, los grupos (zonas) van a ser de 3 o 4 parejas, dependiendo de cómo termine acomodando la cantidad final. Elegí el formato del torneo.`, 'Formato de zonas');
-    plannedTotalPairsForFormat = total; // se valida el formato contra este total, aunque todavía no hayan llegado todas
-    App.openFormatChoiceModal('start', {excludeGrupo:true});
+    App.openFormatChoiceModal(context, {excludeGrupo:true});
   }
+}
+
+App.startTournamentFlow = async function(){
+  await askExpectedTotalAndOpenFormatFlow('start');
+};
+
+App.changeFormatFlow = async function(){
+  await askExpectedTotalAndOpenFormatFlow('change');
 };
 
 App.desarmarZonas = async function(){
@@ -5288,7 +5298,7 @@ function renderZonas(){
     <div class="actions-row" style="margin-bottom:16px; align-items:center;">
       ${iniciarBtn}
       <span class="pill">Formato actual: ${formatLabel}</span>
-      <button class="btn btn-ghost btn-sm" onclick="App.openFormatChoiceModal('change')">Cambiar formato</button>
+      <button class="btn btn-ghost btn-sm" onclick="App.changeFormatFlow()">Cambiar formato</button>
       ${yaIniciado ? `<button class="btn btn-ghost btn-sm" onclick="App.desarmarZonas()">✕ Desarmar zonas</button>` : ''}
     </div>`;
   if(state.zones.length===0){
