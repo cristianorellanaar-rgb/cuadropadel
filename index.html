@@ -4129,7 +4129,7 @@ App.desarmarZonas = async function(){
 
 App.iniciarTorneo = async function(skipFormatValidation){
   const present = getReadyPairs().filter(p=>p.present);
-  const minPairs = (state.format==='grupo' || state.format==='grupofinal') ? 2 : 3;
+  const minPairs = (skipFormatValidation || state.format==='grupo' || state.format==='grupofinal') ? 2 : 3;
   if(present.length<minPairs){ customAlert(`Necesitás al menos ${minPairs} parejas marcadas como presentes para iniciar el torneo.`); return; }
   if(!skipFormatValidation){
     const formatError = validateFormatForPresentCount(state.format, present.length);
