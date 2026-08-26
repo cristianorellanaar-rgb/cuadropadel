@@ -987,7 +987,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
       <div class="modal-title" style="text-align:center;">Elegí el formato del torneo</div>
       <div class="format-choice-list">
         <button class="format-choice-option" id="formatOptionGrupo" onclick="App.chooseFormat('grupo')">
-          <div class="fc-title">3 a 5 parejas · Todos contra todos</div>
+          <div class="fc-title">Todos contra todos</div>
           <div class="fc-desc">Para grupos chicos. Todas las parejas juegan entre sí una vez; gana quien más puntos suma. No arma zonas ni llave de eliminación.</div>
         </button>
         <button class="format-choice-option" onclick="App.chooseFormat('principiantes')">
@@ -3938,7 +3938,7 @@ App.goToCheckin = function(){
 function validateFormatForPresentCount(fmt, presentCount){
   // devuelve un mensaje de error si el formato NO es compatible con esta cantidad de presentes, o null si está bien
   if(fmt==='avanzado' && presentCount<=5){
-    return 'El formato "Reducido" está pensado para zonas de 4 parejas que juegan un enfrentamiento corto — con 5 parejas o menos no aporta nada distinto de jugar todos contra todos. Elegí otro formato (por ejemplo "3 a 5 parejas" o "Zonas de 3,4").';
+    return 'El formato "Reducido" está pensado para zonas de 4 parejas que juegan un enfrentamiento corto — con 5 parejas o menos no aporta nada distinto de jugar todos contra todos. Elegí otro formato (por ejemplo "Todos contra todos" o "Zonas de 3,4").';
   }
   if(fmt==='principiantes' && presentCount===5){
     return 'Con el formato Principiantes las zonas son siempre de 3 o 4 parejas, y con 5 parejas presentes no hay forma de repartirlas así. Esperá a que llegue o quede afuera una pareja más.';
@@ -4085,7 +4085,8 @@ App.desarmarZonas = async function(){
 
 App.iniciarTorneo = async function(){
   const present = getReadyPairs().filter(p=>p.present);
-  if(present.length<3){ customAlert('Necesitás al menos 3 parejas marcadas como presentes para iniciar el torneo.'); return; }
+  const minPairs = (state.format==='grupo' || state.format==='grupofinal') ? 2 : 3;
+  if(present.length<minPairs){ customAlert(`Necesitás al menos ${minPairs} parejas marcadas como presentes para iniciar el torneo.`); return; }
   const formatError = validateFormatForPresentCount(state.format, present.length);
   if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   if(state.zones.length>0 && zonesHaveRealProgress()){
