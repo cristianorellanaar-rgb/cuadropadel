@@ -3514,12 +3514,7 @@ App.setFormat = async function(fmt){
   }
   state.format = fmt;
   state.formatChosen = true;
-  if(hadZones){
-    await App.iniciarTorneo(wasPlanned);
-  } else {
-    render();
-    await doSaveTournament(state);
-  }
+  await App.iniciarTorneo(wasPlanned);
 };
 
 let formatChoiceContext = null; // 'start' (elegir e iniciar el torneo) o 'change' (solo cambiar el formato)
