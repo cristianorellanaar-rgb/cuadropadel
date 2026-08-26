@@ -2941,6 +2941,10 @@ App.togglePresent = async function(pairId){
 };
 
 App.startMatch = function(matchId){
+  if(!state.formatChosen){
+    customAlert('Todavía no se eligió el formato del torneo — hay que iniciarlo antes de poder arrancar un partido.', 'Falta iniciar el torneo').then(()=> App.startTournamentFlow());
+    return;
+  }
   const loc = locateMatch(matchId);
   if(!loc) return;
   const m = loc.match;
@@ -4169,6 +4173,10 @@ function readSetsFromDOM(matchId){
 }
 
 App.saveMatch = async function(matchId){
+  if(!state.formatChosen){
+    customAlert('Todavía no se eligió el formato del torneo — hay que iniciarlo antes de poder cargar un resultado.', 'Falta iniciar el torneo').then(()=> App.startTournamentFlow());
+    return;
+  }
   const loc = locateMatch(matchId);
   if(!loc) return;
   const match = loc.match;
