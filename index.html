@@ -2914,11 +2914,12 @@ function autoManageZonesOnPresenceChange(){
   if(!state || !state.formatChosen) return;
   if(zonesHaveRealProgress() || bracketHasRealProgress()){
     // ya hay partidos jugados de verdad: no reordenar nada existente, solo sumar a los presentes nuevos sin asignar
-    autoAssignNewPresentPairsSilently();
+    assignAllPresentPairsToZones();
   } else {
     // todavía no se jugó nada: se puede reconstruir libremente en base a quiénes están presentes ahora
     rebuildAllZonesFromPresent();
   }
+  refreshBracket();
 }
 
 function autoAssignPresentPairToPreviewZone(pairId){
@@ -2995,7 +2996,13 @@ App.togglePresent = async function(pairId){
 
   pair.present = willBePresent;
   pair.presentAt = willBePresent ? new Date().toISOString() : null;
-  if(willBePresent) autoAssignPresentPairToPreviewZone(pairId);
+  if(willBePresent){
+    if(state.formatChosen){
+      autoManageZonesOnPresenceChange();
+    } else {
+      autoAssignPresentPairToPreviewZone(pairId);
+    }
+  }
   render();
   doSaveTournament(state);
 };
@@ -3568,36 +3575,21 @@ App.setFormat = async function(fmt){
   const hadZones = state.zones.length>0;
   const zoneBasedFormats = ['avanzado','principiantes','cruce','formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4'];
 
-  if(hadZones && zoneBasedFormats.includes(fmt) && !state.smallMode){
-    // ¿las zonas que ya arma (con los presentes que llegaron) tambien sirven para el formato nuevo?
-    // si es asi, no hace falta re-sortear ni perder los resultados de zona ya jugados.
-    const currentSizes = state.zones.map(z=>z.pairIds.length);
-    const sizesOk = currentSizes.every(s=>s>=2 && s<=4);
-    const sortedSizes = [...currentSizes].sort();
-    const zonesCompatible = sizesOk && (
-      fmt==='cruce' ? zonesCanCrossCleanly(currentSizes) :
-      fmt==='formato6' ? (currentSizes.length===2 && sortedSizes.join(',')==='3,3') :
-      fmt==='formato7' ? (currentSizes.length===2 && sortedSizes.join(',')==='3,4') :
-      fmt==='formato9' ? (currentSizes.length===3 && sortedSizes.join(',')==='3,3,3') :
-      fmt==='formato10' ? (currentSizes.length===3 && sortedSizes.join(',')==='3,3,4') :
-      fmt==='formato11' ? (currentSizes.length===3 && sortedSizes.join(',')==='3,4,4') :
-      fmt==='formato12g3' ? (currentSizes.length===4 && sortedSizes.join(',')==='3,3,3,3') :
-      fmt==='formato12g4' ? (currentSizes.length===3 && sortedSizes.join(',')==='4,4,4') :
-      true
-    );
-    if(zonesCompatible){
-      const ok = await customConfirm('Las zonas que ya armaste también sirven para este formato — se mantienen los resultados de zona ya jugados. Se reinicia el repechaje/llave, que dependen del formato anterior. ¿Continuar?');
-      if(!ok) return;
-      state.primera = null;
-      state.segunda = null;
-      state.finalMatch = null;
-      state.format = fmt;
-      state.formatChosen = true;
-      refreshBracket();
-      render();
-      await doSaveTournament(state);
-      return;
-    }
+  if(hadZones && zoneBasedFormats.includes(fmt) && !state.smallMode && zonesCurrentlyFitFormat(fmt)){
+    // las zonas que ya existen (aunque tengan que crecer sumando alguna pareja nueva) sirven para el formato nuevo:
+    // no hace falta re-sortear ni perder los resultados de zona ya jugados.
+    const ok = await customConfirm('Las zonas que ya armaste también sirven para este formato — se mantienen los resultados de zona ya jugados. Se reinicia el repechaje/llave, que dependen del formato anterior. ¿Continuar?');
+    if(!ok) return;
+    state.primera = null;
+    state.segunda = null;
+    state.finalMatch = null;
+    state.format = fmt;
+    state.formatChosen = true;
+    assignAllPresentPairsToZones();
+    refreshBracket();
+    render();
+    await doSaveTournament(state);
+    return;
   }
 
   if(hadZones){
@@ -4287,13 +4279,17 @@ function assignAllPresentPairsToZones(){
   state.zones.forEach(z=>z.pairIds.forEach(id=>assignedIds.add(id)));
   const unassigned = getReadyPairs().filter(p=>p.present && !assignedIds.has(p.id));
   unassigned.forEach(p=>{
-    const eligible = state.zones.filter(z=> z.pairIds.length<4 && !z.matches.some(m=>m.completed || m.started));
-    if(eligible.length===0){
-      if(!targetZoneCount || state.zones.length<targetZoneCount){
-        state.zones.push(makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, [p.id]));
-      }
+    let eligible = state.zones.filter(z=> z.pairIds.length<4 && !z.matches.some(m=>m.completed || m.started));
+    if(eligible.length===0 && (!targetZoneCount || state.zones.length<targetZoneCount)){
+      state.zones.push(makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, [p.id]));
       return;
     }
+    if(eligible.length===0){
+      // ya se llegó a la cantidad máxima de zonas del formato, y todas tienen progreso:
+      // igual hay que sumarla a alguna — rebuildZoneMatches preserva los resultados ya cargados
+      eligible = state.zones.filter(z=> z.pairIds.length<4);
+    }
+    if(eligible.length===0) return;
     eligible.sort((a,b)=>a.pairIds.length-b.pairIds.length);
     const zone = eligible[0];
     zone.pairIds.push(p.id);
@@ -5012,6 +5008,7 @@ function buildBracketFormato9(){
 
 function buildBracketFormato6(){
   const [zoneA, zoneB] = state.zones; // exactamente 2 zonas de 3 parejas
+  if(!zoneA || !zoneB) return; // todavía no llegaron suficientes parejas para tener las 2 zonas armadas
   const lockingA = computeZoneLocking(zoneA).map(r=> r?r.pairId:null);
   const lockingB = computeZoneLocking(zoneB).map(r=> r?r.pairId:null);
 
