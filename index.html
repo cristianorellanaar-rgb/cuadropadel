@@ -2483,6 +2483,21 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
 /* =========================================================
    ALGORITMOS DE TORNEO
    ========================================================= */
+const EXACT_COUNT_FORMATS = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4'];
+function isExactCountFormat(fmt){ return EXACT_COUNT_FORMATS.includes(fmt); }
+
+const EXACT_COUNT_FORMAT_ZONES = {formato6:2, formato7:2, formato9:3, formato10:3, formato11:3, formato12g3:4, formato12g4:3};
+function distributeEvenlyIntoZones(n, targetZoneCount){
+  // reparte n parejas en como mucho targetZoneCount zonas, sin dejar ninguna zona con menos de 2
+  // (si todavía no llegaron todas las planeadas, se arman menos zonas de las finales, y se van completando después)
+  const zoneCount = Math.max(1, Math.min(targetZoneCount, Math.floor(n/2)));
+  const base = Math.floor(n/zoneCount);
+  const rem = n % zoneCount;
+  const sizes = [];
+  for(let i=0;i<zoneCount;i++){ sizes.push(base + (i<rem?1:0)); }
+  return sizes;
+}
+
 function computeZoneSizes(n){
   if(n<3) return [n]; // muy pocas parejas todavía (torneo recién arrancando): una sola zona chica, que se termina de armar cuando lleguen más
   let numZones = Math.ceil(n/4);
@@ -2851,12 +2866,12 @@ function rebuildAllZonesFromPresent(){
   }
   const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
-  if(state.format==='grupo' || state.format==='grupofinal' || (state.format!=='principiantes' && shuffled.length<6)){
+  if(state.format==='grupo' || state.format==='grupofinal' || (state.format!=='principiantes' && !isExactCountFormat(state.format) && shuffled.length<6)){
     state.smallMode = true;
     state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
   } else {
     state.smallMode = false;
-    const sizes = state.format==='formato12g3' ? [3,3,3,3] : computeZoneSizes(shuffled.length);
+    const sizes = isExactCountFormat(state.format) ? distributeEvenlyIntoZones(shuffled.length, EXACT_COUNT_FORMAT_ZONES[state.format]) : computeZoneSizes(shuffled.length);
     let idx=0;
     const zones=[];
     sizes.forEach((size,i)=>{
@@ -4246,13 +4261,13 @@ App.iniciarTorneo = async function(skipFormatValidation){
   const pairsForDraw = present.map(p=>({id:p.id, name: pairDisplayName(p)}));
   const shuffled = shuffle(pairsForDraw);
 
-  if(state.format==='grupo' || state.format==='grupofinal' || (state.format!=='principiantes' && shuffled.length<6)){
+  if(state.format==='grupo' || state.format==='grupofinal' || (state.format!=='principiantes' && !isExactCountFormat(state.format) && shuffled.length<6)){
     // modo grupo único (formato "3 a 5 parejas", o avanzado con pocas parejas): todos contra todos, gana quien más puntos suma
     state.smallMode = true;
     state.zones = [ makeZone('Todos contra todos', shuffled.map(p=>p.id)) ];
   } else {
     state.smallMode = false;
-    const sizes = state.format==='formato12g3' ? [3,3,3,3] : computeZoneSizes(shuffled.length);
+    const sizes = isExactCountFormat(state.format) ? distributeEvenlyIntoZones(shuffled.length, EXACT_COUNT_FORMAT_ZONES[state.format]) : computeZoneSizes(shuffled.length);
     let idx=0;
     const zones=[];
     sizes.forEach((size,i)=>{
