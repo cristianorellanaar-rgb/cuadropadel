@@ -2950,11 +2950,30 @@ function autoAssignPresentPairToPreviewZone(pairId){
   rebuildZoneMatches(target);
 }
 
+const EXACT_COUNT_FORMAT_TOTAL = {formato6:6, formato7:7, formato9:9, formato10:10, formato11:11, formato12g3:12, formato12g4:12};
+function exceedsExactFormatCount(extra){
+  // true si sumar "extra" parejas presentes más superaría el total exacto que pide el formato ya elegido
+  if(!state.formatChosen) return false;
+  const total = EXACT_COUNT_FORMAT_TOTAL[state.format];
+  if(!total) return false;
+  const presentesActuales = getReadyPairs().filter(p=>p.present).length;
+  return (presentesActuales + extra) > total;
+}
+function alertFormatoCantidadFija(){
+  const total = EXACT_COUNT_FORMAT_TOTAL[state.format];
+  customAlert(`El formato elegido ("${formatShortLabel(state.format)}") es para exactamente ${total} parejas, y ya están las ${total} presentes. Para agregar otra, primero cambiá el formato del torneo (botón "Cambiar formato").`, 'No se puede agregar otra pareja');
+}
+
 App.togglePresent = async function(pairId){
   const pair = findPairById(pairId);
   if(!pair) return;
   const wasPresent = pair.present;
   const willBePresent = !wasPresent;
+
+  if(willBePresent && exceedsExactFormatCount(1)){
+    alertFormatoCantidadFija();
+    return;
+  }
 
   if(wasPresent && !willBePresent){
     // se le está por sacar el presente: si está en una zona, sale de ahí también
@@ -3285,6 +3304,10 @@ async function ensurePairPresentBeforeZoneAssign(pairId){
   const pair = findPairById(pairId);
   if(!pair) return true;
   if(pair.present) return true;
+  if(exceedsExactFormatCount(1)){
+    alertFormatoCantidadFija();
+    return false;
+  }
   const ok = await customConfirm(`${pairDisplayName(pair)} todavía no está marcada como presente en el check-in. ¿Ya llegó y está presente en el club?`);
   if(!ok) return false;
   pair.present = true;
