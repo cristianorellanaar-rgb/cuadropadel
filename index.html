@@ -4269,6 +4269,38 @@ App.desarmarZonas = async function(){
   await doSaveTournament(state);
 };
 
+function zonesCurrentlyFitFormat(fmt){
+  // chequeo mas laxo que el de "cambiar formato": sirve para la primera vez que se elige un formato,
+  // cuando las zonas de vista previa todavia pueden no estar completas (les puede faltar gente por llegar)
+  if(state.zones.length===0) return false;
+  if(!state.zones.every(z=>z.pairIds.length>=2 && z.pairIds.length<=4)) return false;
+  const targetZoneCount = EXACT_COUNT_FORMAT_ZONES[fmt];
+  if(targetZoneCount) return state.zones.length<=targetZoneCount;
+  if(fmt==='cruce') return zonesCanCrossCleanly(state.zones.map(z=>z.pairIds.length));
+  if(fmt==='avanzado' || fmt==='principiantes') return true;
+  return false;
+}
+
+function assignAllPresentPairsToZones(){
+  const targetZoneCount = EXACT_COUNT_FORMAT_ZONES[state.format];
+  const assignedIds = new Set();
+  state.zones.forEach(z=>z.pairIds.forEach(id=>assignedIds.add(id)));
+  const unassigned = getReadyPairs().filter(p=>p.present && !assignedIds.has(p.id));
+  unassigned.forEach(p=>{
+    const eligible = state.zones.filter(z=> z.pairIds.length<4 && !z.matches.some(m=>m.completed || m.started));
+    if(eligible.length===0){
+      if(!targetZoneCount || state.zones.length<targetZoneCount){
+        state.zones.push(makeZone(`Zona ${String.fromCharCode(65+state.zones.length)}`, [p.id]));
+      }
+      return;
+    }
+    eligible.sort((a,b)=>a.pairIds.length-b.pairIds.length);
+    const zone = eligible[0];
+    zone.pairIds.push(p.id);
+    rebuildZoneMatches(zone);
+  });
+}
+
 App.iniciarTorneo = async function(skipFormatValidation){
   const present = getReadyPairs().filter(p=>p.present);
   const minPairs = (skipFormatValidation || state.format==='grupo' || state.format==='grupofinal') ? 2 : 3;
@@ -4277,6 +4309,22 @@ App.iniciarTorneo = async function(skipFormatValidation){
     const formatError = validateFormatForPresentCount(state.format, present.length);
     if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   }
+
+  if(zonesCurrentlyFitFormat(state.format)){
+    // las zonas que ya existen (de la vista previa, o de un intento anterior) sirven para este formato:
+    // no hace falta re-sortear, se preservan los resultados y partidos ya cargados
+    assignAllPresentPairsToZones();
+    state.smallMode = false;
+    pushNavHistory();
+    nav.activeTab='torneoActual';
+    nav.torneoSubTab='zonas';
+    refreshBracket();
+    render();
+    doSaveTournament(state);
+    customAlert('🎾 Torneo iniciado. Asegurate de que las parejas tengan el tubo de pelotas, y recordales que la pareja que perdió se queda en cancha para el próximo partido.');
+    return;
+  }
+
   if(state.zones.length>0 && zonesHaveRealProgress()){
     const ok = await customConfirm('Ya existen zonas generadas. Volver a sortear borrará los resultados de zonas, repechaje y llave cargados hasta ahora. ¿Continuar?');
     if(!ok) return;
