@@ -997,6 +997,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <option value="formato11">11 parejas (zonas de 4, 4 y 3)</option>
         <option value="formato12g3">12 parejas en grupos de 3</option>
         <option value="formato12g4">12 parejas en grupos de 4</option>
+        <option value="formato13">13 parejas → repechaje → 12 en grupos de 3</option>
       </select>
       <div id="formatChoiceDescription" class="fc-desc" style="margin-top:12px; min-height:60px;"></div>
       <div style="display:flex; gap:10px; margin-top:16px;">
@@ -1337,7 +1338,9 @@ function freshTournament(){
     createdAt: new Date().toISOString(),
     updatedAt: 0,
     autoAssignedCategoriaPlayerIds: [],
-    confirmado: false
+    confirmado: false,
+    formato13Phase2: false,
+    formato13InitialZones: null
   };
 }
 
@@ -1359,6 +1362,9 @@ function sanitizeTournament(t){
   if(t.updatedAt===undefined) t.updatedAt = 0;
   if(!Array.isArray(t.autoAssignedCategoriaPlayerIds)) t.autoAssignedCategoriaPlayerIds = [];
   if(t.confirmado===undefined) t.confirmado = false;
+  if(t.formato13Phase2===undefined) t.formato13Phase2 = false;
+  if(t.formato13InitialZones===undefined) t.formato13InitialZones = null;
+  if(t.pairs) t.pairs.forEach(p=>{ if(p.formato13Eliminada===undefined) p.formato13Eliminada = false; });
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -2431,7 +2437,7 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
       </div>` : '';
     let html = repechajeHtml + decisorHtml + repechajesCruceHtml + `
       <div class="bracket-section">
-        <h3 class="round-label" style="text-align:left;">Primera instancia (repechaje)</h3>
+        <h3 class="round-label" style="text-align:left;">${state.format==='formato13' && state.formato13Phase2 ? 'Cruce de las 12 parejas' : 'Primera instancia (repechaje)'}</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px;">
           ${state.primera.matches.map(m=> matchCardReadOnly(m, pair? pair.id: null)).join('')}
         </div>
@@ -2479,10 +2485,10 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
 /* =========================================================
    ALGORITMOS DE TORNEO
    ========================================================= */
-const EXACT_COUNT_FORMATS = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4'];
+const EXACT_COUNT_FORMATS = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4','formato13'];
 function isExactCountFormat(fmt){ return EXACT_COUNT_FORMATS.includes(fmt); }
 
-const EXACT_COUNT_FORMAT_ZONES = {formato6:2, formato7:2, formato9:3, formato10:3, formato11:3, formato12g3:4, formato12g4:3};
+const EXACT_COUNT_FORMAT_ZONES = {formato6:2, formato7:2, formato9:3, formato10:3, formato11:3, formato12g3:4, formato12g4:3, formato13:4};
 function distributeEvenlyIntoZones(n, targetZoneCount){
   // reparte n parejas en como mucho targetZoneCount zonas, sin dejar ninguna zona con menos de 2
   // (si todavía no llegaron todas las planeadas, se arman menos zonas de las finales, y se van completando después)
@@ -2550,7 +2556,7 @@ function nextPow2(n){ let p=1; while(p<n) p*=2; return p; }
 
 /* ---- construcción de zonas con formato reducido ---- */
 function makeZone(name, pairIds){
-  if(pairIds.length===4 && (state.format==='avanzado' || state.format==='formato7' || state.format==='formato10' || state.format==='formato11' || state.format==='formato12g4')){
+  if(pairIds.length===4 && (state.format==='avanzado' || state.format==='formato7' || state.format==='formato10' || state.format==='formato11' || state.format==='formato12g4' || state.format==='formato13')){
     const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     return { id:uid(), name, pairIds, format:'playoff4', matches:[m1,m2] };
@@ -2947,7 +2953,7 @@ function autoAssignPresentPairToPreviewZone(pairId){
   rebuildZoneMatches(target);
 }
 
-const EXACT_COUNT_FORMAT_TOTAL = {formato6:6, formato7:7, formato9:9, formato10:10, formato11:11, formato12g3:12, formato12g4:12};
+const EXACT_COUNT_FORMAT_TOTAL = {formato6:6, formato7:7, formato9:9, formato10:10, formato11:11, formato12g3:12, formato12g4:12, formato13:13};
 function exceedsExactFormatCount(extra){
   // true si sumar "extra" parejas presentes más superaría el total exacto que pide el formato ya elegido
   if(!state.formatChosen) return false;
@@ -2966,6 +2972,11 @@ App.togglePresent = async function(pairId){
   if(!pair) return;
   const wasPresent = pair.present;
   const willBePresent = !wasPresent;
+
+  if(willBePresent && state.format==='formato13' && state.formato13Phase2){
+    customAlert('El formato de 13 parejas ya pasó a la etapa de 12. No se pueden agregar nuevas parejas.', 'Etapa de 12 parejas');
+    return;
+  }
 
   if(willBePresent && exceedsExactFormatCount(1)){
     alertFormatoCantidadFija();
@@ -3217,6 +3228,7 @@ function formatShortLabel(fmt){
   if(fmt==='formato11') return '11 parejas (zonas de 4, 4 y 3)';
   if(fmt==='formato12g3') return '12 parejas en grupos de 3';
   if(fmt==='formato12g4') return '12 parejas en grupos de 4';
+  if(fmt==='formato13') return '13 parejas → repechaje → 12 en grupos de 3';
   return 'Zonas de 3,4 (Reducido)'; // avanzado
 }
 
@@ -3616,7 +3628,8 @@ const FORMAT_DESCRIPTIONS = {
   formato10: 'Solo para exactamente 10 parejas. El 1° y 2° de cada zona pasan directo a cuartos (6 parejas). Las 4 restantes (3° y 4° de la zona de 4, y el 3° de cada zona de 3) juegan 2 repechajes; los ganadores completan los últimos 2 lugares de cuartos, mientras los otros 2 cruces ya se pueden jugar.',
   formato11: 'Solo para exactamente 11 parejas. El 1° y 2° de cada zona pasan directo (6 parejas). De las 5 restantes, las 2 de menor puntaje juegan un partido decisor (queda 1 eliminada); con las 4 que quedan, sigue igual que el formato de 10 parejas: 2 repechajes para completar los últimos 2 lugares de cuartos.',
   formato12g3: 'Solo para exactamente 12 parejas. 4 zonas de 3, todos contra todos. Se cruzan entre sí la Zona A con la Zona C, y la Zona B con la Zona D (no zonas consecutivas).',
-  formato12g4: 'Solo para exactamente 12 parejas. 3 zonas de 4, todas juegan el formato reducido (2 partidos). Las 4 mejores parejas del ranking general pasan directo a cuartos; las otras 8 juegan 4 repechajes, y los ganadores completan los cuartos.'
+  formato12g4: 'Solo para exactamente 12 parejas. 3 zonas de 4, todas juegan el formato reducido (2 partidos). Las 4 mejores parejas del ranking general pasan directo a cuartos; las otras 8 juegan 4 repechajes, y los ganadores completan los cuartos.',
+  formato13: 'Solo para exactamente 13 parejas. 4 zonas: una de 4 y tres de 3. La zona de 4 juega 2 partidos por pareja, igual que las demás. Se arma el ranking general; las 2 últimas parejas juegan un partido decisor. La ganadora continúa y se reorganizan las 12 parejas en 4 zonas de 3 para continuar con el formato de 12 (A vs C y B vs D).'
 };
 
 App.previewFormatChoice = function(fmt){
@@ -4109,6 +4122,9 @@ function validateFormatForPresentCount(fmt, presentCount){
   if(fmt==='formato11' && presentCount!==11){
     return `Este formato está pensado específicamente para 11 parejas (zonas de 4, 4 y 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 11, o elegí otro formato.`;
   }
+  if(fmt==='formato13' && presentCount!==13){
+    return `Este formato está pensado específicamente para 13 parejas (una zona de 4 y tres zonas de 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 13, o elegí otro formato.`;
+  }
   if(fmt==='formato12g3' && presentCount!==12){
     return `Este formato está pensado específicamente para 12 parejas (4 zonas de 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 12, o elegí otro formato.`;
   }
@@ -4252,6 +4268,8 @@ App.desarmarZonas = async function(){
   state.segunda = null;
   state.smallMode = false;
   state.finalMatch = null;
+  state.formato13Phase2 = false;
+  state.formato13InitialZones = null;
   state.formatChosen = false;
   render();
   await doSaveTournament(state);
@@ -4839,6 +4857,71 @@ function buildBracketFormato10(){
   buildRepechajesYCuartosDesde10(directos, sueltos, zones, primerosDeZona);
 }
 
+function buildBracketFormato13(){
+  // Etapa 1: 13 parejas en 4 zonas (4,3,3,3). La zona de 4 juega formato reducido: 2 partidos por pareja.
+  // Al terminar todas las zonas, las 2 últimas del ranking general juegan un decisor.
+  // La ganadora permanece y las 12 restantes pasan al formato de 12 grupos de 3.
+  if(state.formato13Phase2){
+    buildBracketFormato12Grupos3();
+    tryGenerateSegunda();
+    advanceSegunda();
+    return;
+  }
+
+  const zones = state.zones;
+  const sizes = zones.map(z=>z.pairIds.length).sort((a,b)=>b-a);
+  if(zones.length!==4 || sizes.join(',')!=='4,3,3,3') return;
+  if(!allZoneMatchesComplete()) return;
+
+  const ranking = computeGeneralRanking();
+  if(ranking.length!==13) return;
+  const dosPeores = ranking.slice(-2).map(s=>s.pairId);
+
+  const prev = state.decisorQuinta;
+  const samePairing = prev && ((prev.aId===dosPeores[0] && prev.bId===dosPeores[1]) || (prev.aId===dosPeores[1] && prev.bId===dosPeores[0]));
+  const decisor = samePairing ? prev : {
+    id:uid(), aId:dosPeores[0], bId:dosPeores[1], sets:emptySets(), completed:false,
+    winnerId:null, started:false, bye:false, pending:false, cancha:'', label:'Decisor (últimas dos del ranking)'
+  };
+  state.decisorQuinta = decisor;
+  state.primera = {matches:[], directRanked:ranking.slice(0,-2).map(s=>s.pairId), repechajeRanked:dosPeores};
+  state.repechajesCruce = null;
+  state.segunda = null;
+
+  if(!decisor.completed) return;
+
+  const winnerId = decisor.winnerId;
+  if(!winnerId) return;
+
+  // Guardamos la etapa inicial para conservar los resultados originales del torneo.
+  if(!state.formato13InitialZones){
+    state.formato13InitialZones = JSON.parse(JSON.stringify(state.zones));
+  }
+
+  const loserId = decisor.aId===winnerId ? decisor.bId : decisor.aId;
+  const loserPair = state.pairs.find(p=>p.id===loserId);
+  if(loserPair){ loserPair.present = false; loserPair.formato13Eliminada = true; }
+
+  // Reorganizar las 12 sobrevivientes en 4 zonas de 3. Se conserva el orden actual de las parejas
+  // (orden de llegada/asignación), simplemente quitando la eliminada.
+  const survivors = [];
+  state.zones.forEach(z=> z.pairIds.forEach(pid=> { if(pid!== (decisor.aId===winnerId?decisor.bId:decisor.aId)) survivors.push(pid); }));
+  if(survivors.length!==12) return;
+
+  state.zones = [];
+  for(let i=0;i<4;i++){
+    state.zones.push(makeZone(`Zona ${String.fromCharCode(65+i)}`, survivors.slice(i*3, i*3+3)));
+  }
+  state.formato13Phase2 = true;
+  state.primera = null;
+  state.repechajesCruce = null;
+  state.segunda = null;
+  // La próxima ejecución arma exactamente el cruce del formato 12: A-C y B-D.
+  buildBracketFormato12Grupos3();
+  tryGenerateSegunda();
+  advanceSegunda();
+}
+
 function buildBracketFormato12Grupos3(){
   // 4 zonas de 3 parejas (A,B,C,D). Cruce: A contra C, B contra D (no A-B, C-D como el cruce genérico)
   const zones = state.zones;
@@ -5123,6 +5206,10 @@ function refreshBracket(){
   }
   if(state.format==='formato11'){
     buildBracketFormato11();
+    return;
+  }
+  if(state.format==='formato13'){
+    buildBracketFormato13();
     return;
   }
   if(state.format==='formato12g3'){
