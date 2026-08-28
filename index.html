@@ -848,7 +848,6 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     <div class="modal-title" style="text-align:center;">Completá tu registro</div>
     <p class="hint" style="margin:0 0 16px; text-align:center;">Es la primera vez que entrás — necesitamos estos datos para anotarte en los torneos.</p>
     <div class="modal-field-row"><label>Nombre y apellido</label><input type="text" id="newPlayerName"></div>
-    <div class="modal-field-row"><label>DNI</label><input type="text" id="newPlayerDni" inputmode="numeric"></div>
     <div class="modal-field-row"><label>Celular</label><input type="tel" id="newPlayerPhone" inputmode="tel" placeholder="Ej. 11 2345 6789"></div>
     <div class="modal-field-row">
       <label>Categoría</label>
@@ -871,7 +870,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
     </div>
     <label class="privacy-check-row">
       <input type="checkbox" id="newPlayerPrivacyCheck">
-      <span>Entiendo que mi <b>nombre</b> y mi <b>categoría</b> van a poder verse en la página (por ejemplo, en tablas de torneos y rankings). Mis otros datos — DNI, celular y correo — son privados: solo los ve el organizador.</span>
+      <span>Entiendo que mi <b>nombre</b> y mi <b>categoría</b> van a poder verse en la página (por ejemplo, en tablas de torneos y rankings). Mis otros datos — celular y correo — son privados: solo los ve el organizador.</span>
     </label>
     <div class="login-error" id="newPlayerError"></div>
     <div class="modal-actions" style="margin-top:16px;">
@@ -1069,7 +1068,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <button class="home-card" onclick="switchTab('jugadores')">
           <div class="home-card-icon">🧑‍🤝‍🧑</div>
           <div class="home-card-title">Jugadores</div>
-          <div class="home-card-sub">Base de jugadores, DNI, categoría y ranking</div>
+          <div class="home-card-sub">Base de jugadores, categoría y ranking</div>
         </button>
         <button class="home-card" onclick="switchTab('clubes')">
           <div class="home-card-icon">🏟️</div>
@@ -1219,7 +1218,7 @@ let googleProvider = null;
    ========================================================= */
 let storageAvailable = false;   // storage personal de Claude (window.storage)
 let liveSyncActive = false;     // sincronización en vivo vía Firebase
-let playersDB = [];   // [{id,name,dni,categoria,createdAt,stats:{puntos,torneos,titulos,finalista,semifinal,historial:[]}}]
+let playersDB = [];   // [{id,name,categoria,createdAt,stats:{puntos,torneos,titulos,finalista,semifinal,historial:[]}}]
 let archive = [];     // [{id,name,date,championName,totalPairs,results:[],snapshot:{...}}]
 let clubsDB = [];     // [{id,name,courts,address,createdAt}]
 let upcomingTournaments = []; // [{id,date,clubId,categoria,createdAt}]
@@ -1861,7 +1860,6 @@ function findPlayerByEmail(email){
 
 function openNewPlayerRegistrationModal(displayName){
   document.getElementById('newPlayerName').value = displayName || '';
-  document.getElementById('newPlayerDni').value = '';
   document.getElementById('newPlayerPhone').value = '';
   document.getElementById('newPlayerCategoria').value = '';
   document.getElementById('newPlayerPassword').value = '';
@@ -1874,12 +1872,10 @@ App.confirmNewPlayerRegistration = async function(){
   const errEl = document.getElementById('newPlayerError');
   errEl.textContent = '';
   const name = document.getElementById('newPlayerName').value.trim();
-  const dni = document.getElementById('newPlayerDni').value.trim();
   const phone = document.getElementById('newPlayerPhone').value.trim();
   const categoria = document.getElementById('newPlayerCategoria').value;
   const password = document.getElementById('newPlayerPassword').value;
   if(!name){ errEl.textContent = 'Ingresá tu nombre y apellido.'; return; }
-  if(!dni){ errEl.textContent = 'Ingresá tu DNI.'; return; }
   if(!phone){ errEl.textContent = 'Ingresá tu número de celular.'; return; }
   if(!categoria){ errEl.textContent = 'Elegí tu categoría.'; return; }
   if(password && password.length<4){ errEl.textContent = 'La contraseña tiene que tener al menos 4 caracteres.'; return; }
@@ -1887,7 +1883,7 @@ App.confirmNewPlayerRegistration = async function(){
   if(!pendingNewPlayerAuth) return;
   const {email, authUid} = pendingNewPlayerAuth;
   const player = {
-    id:uid(), name, dni, phone, email: email.trim(), authUid: authUid||null, categoria, customPassword: password||null,
+    id:uid(), name, phone, email: email.trim(), authUid: authUid||null, categoria, customPassword: password||null,
     createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
   };
   playersDB.push(player);
@@ -1941,7 +1937,7 @@ function handleAuthSuccess(email, displayName, authUid){
     onLoginSuccess();
     return;
   }
-  // primera vez de este correo: pedir nombre, DNI y categoría antes de crear la ficha
+  // primera vez de este correo: pedir nombre y categoría antes de crear la ficha
   pendingNewPlayerAuth = {email, authUid};
   openNewPlayerRegistrationModal(displayName);
 }
@@ -1981,12 +1977,13 @@ App.sendEmailLoginLink = function(){
 async function checkEmailLinkOnLoad(){
   if(!auth) return;
   if(auth.isSignInWithEmailLink(window.location.href)){
+    const linkUrl = window.location.href; // guardar ANTES de limpiar la URL, porque la limpieza borra el código que hace falta para validar el enlace
     let email = window.localStorage.getItem('cuadropadel_email_link');
     if(!email){ email = await customPrompt('Confirmá tu correo electrónico para completar el ingreso:'); }
     // se limpia la URL siempre, haya salido bien o mal — así un enlace vencido/ya usado no se reintenta solo en cada recarga
     history.replaceState(null, '', window.location.pathname);
     if(!email) return;
-    auth.signInWithEmailLink(email, window.location.href).then(result=>{
+    auth.signInWithEmailLink(email, linkUrl).then(result=>{
       window.localStorage.removeItem('cuadropadel_email_link');
       handleAuthSuccess(result.user.email || email, result.user.displayName, result.user.uid);
     }).catch(err=>{
@@ -2100,7 +2097,6 @@ function renderJugadorPerfil(){
     </div>
     <div class="profile-grid">
       <div class="profile-item"><span class="profile-label">Nombre y apellido</span><span class="profile-value">${escapeHtml(player.name)}</span></div>
-      <div class="profile-item"><span class="profile-label">DNI</span><span class="profile-value">${escapeHtml(player.dni||'—')}</span></div>
       <div class="profile-item"><span class="profile-label">Celular</span><span class="profile-value">${escapeHtml(player.phone||'—')}</span></div>
       <div class="profile-item"><span class="profile-label">Categoría</span><span class="profile-value">${escapeHtml(player.categoria||'—')}</span></div>
       <div class="profile-item"><span class="profile-label">Correo</span><span class="profile-value">${escapeHtml(player.email||'—')}</span></div>
@@ -2245,7 +2241,7 @@ App.confirmarInscripcion = async function(tournamentId){
     if(partner && t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ customAlert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
     if(!partner){
       // el compañero no está en la base: se crea automáticamente con el nombre escrito
-      partner = {id:uid(), name:partnerName, dni:'', phone:'', email:'', categoria: partnerCategoriaElegida || '', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+      partner = {id:uid(), name:partnerName, phone:'', email:'', categoria: partnerCategoriaElegida || '', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
       playersDB.push(partner);
       mainDbDirty = true;
     }
@@ -3680,7 +3676,7 @@ App.addPlayerFromInput = async function(){
   names.forEach(n=>{
     if(playersDB.some(p=>p.name.toLowerCase()===n.toLowerCase())){ skipped.push(n); return; }
     playersDB.push({
-      id:uid(), name:n, dni:'', email:'', categoria:'', createdAt:new Date().toISOString(),
+      id:uid(), name:n, email:'', categoria:'', createdAt:new Date().toISOString(),
       stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
     });
     added = true;
@@ -3983,7 +3979,7 @@ App.addPairFromCheckin = async function(){
     function findOrCreatePlayerByName(name){
       let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
       if(!player){
-        player = {id:uid(), name, dni:'', phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+        player = {id:uid(), name, phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
         playersDB.push(player);
         mainDbDirty = true;
       }
@@ -5705,7 +5701,6 @@ function renderJugadores(){
           ${escapeHtml(p.name)}
           <button onclick="App.togglePlayerHistory('${p.id}')">${expanded?'ocultar':'ver historial'}</button>
         </td>
-        <td><input class="inline-edit" placeholder="DNI" value="${escapeAttr(p.dni||'')}" onchange="App.setPlayerField('${p.id}','dni',this.value)"></td>
         <td><input class="inline-edit" type="tel" placeholder="Celular" value="${escapeAttr(p.phone||'')}" onchange="App.setPlayerField('${p.id}','phone',this.value)"></td>
         <td><input class="inline-edit" type="email" placeholder="Correo (para iniciar sesión)" value="${escapeAttr(p.email||'')}" onchange="App.setPlayerField('${p.id}','email',this.value)"></td>
         <td><input class="inline-edit" placeholder="Categoría" value="${escapeAttr(p.categoria||'')}" onchange="App.setPlayerField('${p.id}','categoria',this.value)"></td>
@@ -5729,7 +5724,7 @@ function renderJugadores(){
     <div class="ranking-wrap">
       <table class="ranking">
         <thead><tr>
-          <th>#</th><th>Jugador</th><th>DNI</th><th>Celular</th><th>Correo</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
+          <th>#</th><th>Jugador</th><th>Celular</th><th>Correo</th><th>Categoría</th><th class="num">Torneos</th><th class="num">Títulos</th>
           <th class="num">Finales</th><th class="num">Semis</th><th class="num">Puntos</th><th>Coord.</th><th>Admin</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -6060,9 +6055,9 @@ function matchCardHtml(m){
   const setsInputs = `
       <div class="set-input-pair">
         <span>Games</span>
-        <input id="set-${m.id}-0-a" type="text" inputmode="numeric" maxlength="2" value="${m.completed ? valSet.a : (valSet.a||'')}">
+        <input id="set-${m.id}-0-a" type="text" inputmode="numeric" maxlength="1" value="${m.completed ? valSet.a : (valSet.a||'')}">
         <span class="set-sep">-</span>
-        <input id="set-${m.id}-0-b" type="text" inputmode="numeric" maxlength="2" value="${m.completed ? valSet.b : (valSet.b||'')}">
+        <input id="set-${m.id}-0-b" type="text" inputmode="numeric" maxlength="1" value="${m.completed ? valSet.b : (valSet.b||'')}">
       </div>`;
 
   let resultBanner = '';
@@ -6549,9 +6544,9 @@ function bracketMatchHtml(m){
   const setsInputs = `
       <div class="set-input-pair">
         <span>Games</span>
-        <input id="set-${m.id}-0-a" type="text" inputmode="numeric" maxlength="2" value="">
+        <input id="set-${m.id}-0-a" type="text" inputmode="numeric" maxlength="1" value="">
         <span class="set-sep">-</span>
-        <input id="set-${m.id}-0-b" type="text" inputmode="numeric" maxlength="2" value="">
+        <input id="set-${m.id}-0-b" type="text" inputmode="numeric" maxlength="1" value="">
       </div>`;
   let startRow;
   if(m.started){
