@@ -997,7 +997,8 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
         <option value="formato11">11 parejas (zonas de 4, 4 y 3)</option>
         <option value="formato12g3">12 parejas en grupos de 3</option>
         <option value="formato12g4">12 parejas en grupos de 4</option>
-        <option value="formato13">13 parejas → repechaje → 12 en grupos de 3</option>
+        <option value="formato13">13 parejas</option>
+        <option value="formato14">14 parejas</option>
       </select>
       <div id="formatChoiceDescription" class="fc-desc" style="margin-top:12px; min-height:60px;"></div>
       <div style="display:flex; gap:10px; margin-top:16px;">
@@ -1306,6 +1307,8 @@ const CATEGORIA_OPTIONS = [
 // las categorías "Suma X" son exclusivas de la categoría del TORNEO (combinan a los dos integrantes de la pareja);
 // un jugador individual nunca tiene "Suma X" como categoría propia.
 const CATEGORIA_OPTIONS_JUGADOR = CATEGORIA_OPTIONS.filter(c=>!c.startsWith('Suma '));
+const CATEGORIA_STANDARD_ORDER = ['9na','8va','7ma','6ta','5ta','4ta','3ra','2da','1ra']; // de la más baja a la más alta
+const RACHA_PARA_ASCENDER = 5;
 const PLAYER_PASSWORD = 'torneo';
 let currentUser = null; // {role:'admin'} | {role:'coordinador', username} | {role:'jugador', playerId, name}
 let loginRole = 'admin';
@@ -1338,9 +1341,7 @@ function freshTournament(){
     createdAt: new Date().toISOString(),
     updatedAt: 0,
     autoAssignedCategoriaPlayerIds: [],
-    confirmado: false,
-    formato13Phase2: false,
-    formato13InitialZones: null
+    confirmado: false
   };
 }
 
@@ -1362,9 +1363,6 @@ function sanitizeTournament(t){
   if(t.updatedAt===undefined) t.updatedAt = 0;
   if(!Array.isArray(t.autoAssignedCategoriaPlayerIds)) t.autoAssignedCategoriaPlayerIds = [];
   if(t.confirmado===undefined) t.confirmado = false;
-  if(t.formato13Phase2===undefined) t.formato13Phase2 = false;
-  if(t.formato13InitialZones===undefined) t.formato13InitialZones = null;
-  if(t.pairs) t.pairs.forEach(p=>{ if(p.formato13Eliminada===undefined) p.formato13Eliminada = false; });
   if(t.ownerCoordinador===undefined) t.ownerCoordinador = null;
   if(!t.createdAt) t.createdAt = new Date().toISOString();
   if(!t.courtCount) t.courtCount = 4;
@@ -1890,7 +1888,7 @@ App.confirmNewPlayerRegistration = async function(){
   const {email, authUid} = pendingNewPlayerAuth;
   const player = {
     id:uid(), name, phone, email: email.trim(), authUid: authUid||null, categoria, customPassword: password||null,
-    createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
+    createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, rachaCampeon:0, historial:[]}
   };
   playersDB.push(player);
   await doSaveMain(); // guardar YA: un jugador nuevo no puede depender solo del guardado automático
@@ -2096,6 +2094,10 @@ function renderJugadorPerfil(){
   if(!el) return;
   const player = playersDB.find(p=>p.id===currentUser.playerId);
   if(!player){ el.innerHTML = ''; return; }
+  const racha = player.stats.rachaCampeon || 0;
+  const llamasHtml = Array.from({length:5}, (_,i)=>
+    `<span style="font-size:20px; ${i<racha ? '' : 'opacity:0.18; filter:grayscale(1);'}">🔥</span>`
+  ).join('');
   el.innerHTML = `
     <div class="puntos-destacados">
       <div class="puntos-label">Puntos totales</div>
@@ -2104,7 +2106,11 @@ function renderJugadorPerfil(){
     <div class="profile-grid">
       <div class="profile-item"><span class="profile-label">Nombre y apellido</span><span class="profile-value">${escapeHtml(player.name)}</span></div>
       <div class="profile-item"><span class="profile-label">Celular</span><span class="profile-value">${escapeHtml(player.phone||'—')}</span></div>
-      <div class="profile-item"><span class="profile-label">Categoría</span><span class="profile-value">${escapeHtml(player.categoria||'—')}</span></div>
+      <div class="profile-item">
+        <span class="profile-label">Categoría</span>
+        <span class="profile-value">${escapeHtml(player.categoria||'—')}</span>
+        <div style="margin-top:4px; display:flex; gap:2px; align-items:center;">${llamasHtml} <span style="font-size:11px; color:var(--text-dim); margin-left:4px;">${racha}/${RACHA_PARA_ASCENDER} para ascender</span></div>
+      </div>
       <div class="profile-item"><span class="profile-label">Correo</span><span class="profile-value">${escapeHtml(player.email||'—')}</span></div>
     </div>
     <div class="hint" style="margin-top:8px;">Estos datos los carga el organizador — si hay algún error, pedile que lo corrija.</div>`;
@@ -2247,7 +2253,7 @@ App.confirmarInscripcion = async function(tournamentId){
     if(partner && t.pairs.some(p=>p.p1Id===partner.id || p.p2Id===partner.id)){ customAlert(`${partner.name} ya está inscripto en este torneo con otra pareja.`); return; }
     if(!partner){
       // el compañero no está en la base: se crea automáticamente con el nombre escrito
-      partner = {id:uid(), name:partnerName, phone:'', email:'', categoria: partnerCategoriaElegida || '', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+      partner = {id:uid(), name:partnerName, phone:'', email:'', categoria: partnerCategoriaElegida || '', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, rachaCampeon:0, historial:[]}};
       playersDB.push(partner);
       mainDbDirty = true;
     }
@@ -2437,7 +2443,7 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
       </div>` : '';
     let html = repechajeHtml + decisorHtml + repechajesCruceHtml + `
       <div class="bracket-section">
-        <h3 class="round-label" style="text-align:left;">${state.format==='formato13' && state.formato13Phase2 ? 'Cruce de las 12 parejas' : 'Primera instancia (repechaje)'}</h3>
+        <h3 class="round-label" style="text-align:left;">Primera instancia (repechaje)</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px;">
           ${state.primera.matches.map(m=> matchCardReadOnly(m, pair? pair.id: null)).join('')}
         </div>
@@ -2485,10 +2491,10 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
 /* =========================================================
    ALGORITMOS DE TORNEO
    ========================================================= */
-const EXACT_COUNT_FORMATS = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4','formato13'];
+const EXACT_COUNT_FORMATS = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4','formato13','formato14'];
 function isExactCountFormat(fmt){ return EXACT_COUNT_FORMATS.includes(fmt); }
 
-const EXACT_COUNT_FORMAT_ZONES = {formato6:2, formato7:2, formato9:3, formato10:3, formato11:3, formato12g3:4, formato12g4:3, formato13:4};
+const EXACT_COUNT_FORMAT_ZONES = {formato6:2, formato7:2, formato9:3, formato10:3, formato11:3, formato12g3:4, formato12g4:3, formato13:4, formato14:4};
 function distributeEvenlyIntoZones(n, targetZoneCount){
   // reparte n parejas en como mucho targetZoneCount zonas, sin dejar ninguna zona con menos de 2
   // (si todavía no llegaron todas las planeadas, se arman menos zonas de las finales, y se van completando después)
@@ -2556,7 +2562,7 @@ function nextPow2(n){ let p=1; while(p<n) p*=2; return p; }
 
 /* ---- construcción de zonas con formato reducido ---- */
 function makeZone(name, pairIds){
-  if(pairIds.length===4 && (state.format==='avanzado' || state.format==='formato7' || state.format==='formato10' || state.format==='formato11' || state.format==='formato12g4' || state.format==='formato13')){
+  if(pairIds.length===4 && (state.format==='avanzado' || state.format==='formato7' || state.format==='formato10' || state.format==='formato11' || state.format==='formato12g4' || state.format==='formato13' || state.format==='formato14')){
     const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
     return { id:uid(), name, pairIds, format:'playoff4', matches:[m1,m2] };
@@ -2953,7 +2959,7 @@ function autoAssignPresentPairToPreviewZone(pairId){
   rebuildZoneMatches(target);
 }
 
-const EXACT_COUNT_FORMAT_TOTAL = {formato6:6, formato7:7, formato9:9, formato10:10, formato11:11, formato12g3:12, formato12g4:12, formato13:13};
+const EXACT_COUNT_FORMAT_TOTAL = {formato6:6, formato7:7, formato9:9, formato10:10, formato11:11, formato12g3:12, formato12g4:12, formato13:13, formato14:14};
 function exceedsExactFormatCount(extra){
   // true si sumar "extra" parejas presentes más superaría el total exacto que pide el formato ya elegido
   if(!state.formatChosen) return false;
@@ -2972,11 +2978,6 @@ App.togglePresent = async function(pairId){
   if(!pair) return;
   const wasPresent = pair.present;
   const willBePresent = !wasPresent;
-
-  if(willBePresent && state.format==='formato13' && state.formato13Phase2){
-    customAlert('El formato de 13 parejas ya pasó a la etapa de 12. No se pueden agregar nuevas parejas.', 'Etapa de 12 parejas');
-    return;
-  }
 
   if(willBePresent && exceedsExactFormatCount(1)){
     alertFormatoCantidadFija();
@@ -3228,7 +3229,8 @@ function formatShortLabel(fmt){
   if(fmt==='formato11') return '11 parejas (zonas de 4, 4 y 3)';
   if(fmt==='formato12g3') return '12 parejas en grupos de 3';
   if(fmt==='formato12g4') return '12 parejas en grupos de 4';
-  if(fmt==='formato13') return '13 parejas → repechaje → 12 en grupos de 3';
+  if(fmt==='formato13') return '13 parejas';
+  if(fmt==='formato14') return '14 parejas';
   return 'Zonas de 3,4 (Reducido)'; // avanzado
 }
 
@@ -3581,7 +3583,7 @@ App.setFormat = async function(fmt){
   const formatError = validateFormatForPresentCount(fmt, countForValidation);
   if(formatError){ customAlert(formatError, 'No se puede usar este formato'); return; }
   const hadZones = state.zones.length>0;
-  const zoneBasedFormats = ['avanzado','principiantes','cruce','formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4'];
+  const zoneBasedFormats = ['avanzado','principiantes','cruce','formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4','formato13','formato14'];
 
   if(hadZones && zoneBasedFormats.includes(fmt) && !state.smallMode && zonesCurrentlyFitFormat(fmt)){
     // las zonas que ya existen (aunque tengan que crecer sumando alguna pareja nueva) sirven para el formato nuevo:
@@ -3627,9 +3629,10 @@ const FORMAT_DESCRIPTIONS = {
   formato9: 'Solo para exactamente 9 parejas. Los 2 mejores de cada zona pasan directo a cuartos de final. De los 3 terceros, el de mejor puntaje también pasa directo; los otros 2 juegan un repechaje entre sí, y el ganador completa el último lugar de cuartos (mientras tanto, ya se pueden jugar los otros 3 cruces de cuartos).',
   formato10: 'Solo para exactamente 10 parejas. El 1° y 2° de cada zona pasan directo a cuartos (6 parejas). Las 4 restantes (3° y 4° de la zona de 4, y el 3° de cada zona de 3) juegan 2 repechajes; los ganadores completan los últimos 2 lugares de cuartos, mientras los otros 2 cruces ya se pueden jugar.',
   formato11: 'Solo para exactamente 11 parejas. El 1° y 2° de cada zona pasan directo (6 parejas). De las 5 restantes, las 2 de menor puntaje juegan un partido decisor (queda 1 eliminada); con las 4 que quedan, sigue igual que el formato de 10 parejas: 2 repechajes para completar los últimos 2 lugares de cuartos.',
-  formato12g3: 'Solo para exactamente 12 parejas. 4 zonas de 3, todos contra todos. Se cruzan entre sí la Zona A con la Zona C, y la Zona B con la Zona D (no zonas consecutivas).',
+  formato12g3: 'Solo para exactamente 12 parejas. 4 zonas de 3, todos contra todos. Los 4 mejores (1° de cada zona) pasan directo a cuartos de final. Los otros 8 (2° y 3° de cada zona) juegan octavos cruzados (2° de una zona contra 3° de otra), y los 4 ganadores completan los cuartos.',
   formato12g4: 'Solo para exactamente 12 parejas. 3 zonas de 4, todas juegan el formato reducido (2 partidos). Las 4 mejores parejas del ranking general pasan directo a cuartos; las otras 8 juegan 4 repechajes, y los ganadores completan los cuartos.',
-  formato13: 'Solo para exactamente 13 parejas. 4 zonas: una de 4 y tres de 3. La zona de 4 juega 2 partidos por pareja, igual que las demás. Se arma el ranking general; las 2 últimas parejas juegan un partido decisor. La ganadora continúa y se reorganizan las 12 parejas en 4 zonas de 3 para continuar con el formato de 12 (A vs C y B vs D).'
+  formato13: 'Solo para exactamente 13 parejas. Una zona de 4 y tres de 3. El 1° de la zona de 4 pasa directo siempre. De los 3 ganadores de las zonas de 3, los 2 mejores (por tabla general) también pasan directo; la zona del que queda afuera se suma entera a octavos. Los 10 restantes juegan 5 octavos cruzados, y los ganadores completan los cuartos junto a los 3 directos.',
+  formato14: 'Solo para exactamente 14 parejas. Dos zonas de 4 y dos de 3. El mejor de las dos zonas de 4 pasa directo (la otra zona de 4 entera va a octavos); el mejor de las dos zonas de 3 pasa directo (la otra zona de 3 entera va a octavos). Los 12 restantes juegan 6 octavos, buscando siempre la combinación con menos repetidos de zona. Los 6 ganadores completan los cuartos junto a los 2 directos.'
 };
 
 App.previewFormatChoice = function(fmt){
@@ -3690,7 +3693,7 @@ App.addPlayerFromInput = async function(){
     if(playersDB.some(p=>p.name.toLowerCase()===n.toLowerCase())){ skipped.push(n); return; }
     playersDB.push({
       id:uid(), name:n, email:'', categoria:'', createdAt:new Date().toISOString(),
-      stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}
+      stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, rachaCampeon:0, historial:[]}
     });
     added = true;
   });
@@ -3992,7 +3995,7 @@ App.addPairFromCheckin = async function(){
     function findOrCreatePlayerByName(name){
       let player = playersDB.find(p=>p.name.toLowerCase()===name.toLowerCase());
       if(!player){
-        player = {id:uid(), name, phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, historial:[]}};
+        player = {id:uid(), name, phone:'', email:'', categoria:'', createdAt:new Date().toISOString(), stats:{puntos:0, torneos:0, titulos:0, finalista:0, semifinal:0, rachaCampeon:0, historial:[]}};
         playersDB.push(player);
         mainDbDirty = true;
       }
@@ -4122,14 +4125,17 @@ function validateFormatForPresentCount(fmt, presentCount){
   if(fmt==='formato11' && presentCount!==11){
     return `Este formato está pensado específicamente para 11 parejas (zonas de 4, 4 y 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 11, o elegí otro formato.`;
   }
-  if(fmt==='formato13' && presentCount!==13){
-    return `Este formato está pensado específicamente para 13 parejas (una zona de 4 y tres zonas de 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 13, o elegí otro formato.`;
-  }
   if(fmt==='formato12g3' && presentCount!==12){
     return `Este formato está pensado específicamente para 12 parejas (4 zonas de 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 12, o elegí otro formato.`;
   }
   if(fmt==='formato12g4' && presentCount!==12){
     return `Este formato está pensado específicamente para 12 parejas (3 zonas de 4). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 12, o elegí otro formato.`;
+  }
+  if(fmt==='formato13' && presentCount!==13){
+    return `Este formato está pensado específicamente para 13 parejas (una zona de 4 y tres de 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 13, o elegí otro formato.`;
+  }
+  if(fmt==='formato14' && presentCount!==14){
+    return `Este formato está pensado específicamente para 14 parejas (dos zonas de 4 y dos de 3). Con ${presentCount} presentes no corresponde — esperá a que la cantidad sea exactamente 14, o elegí otro formato.`;
   }
   return null;
 }
@@ -4268,8 +4274,6 @@ App.desarmarZonas = async function(){
   state.segunda = null;
   state.smallMode = false;
   state.finalMatch = null;
-  state.formato13Phase2 = false;
-  state.formato13InitialZones = null;
   state.formatChosen = false;
   render();
   await doSaveTournament(state);
@@ -4690,6 +4694,38 @@ function pickBestSemifinalPairing(four, zones){
   return best;
 }
 
+function buildCuartosSemifinalYFinal(ocho, zones, seededSet){
+  // arma cuartos + semifinal + final a partir de 8 cuartofinalistas, reutilizando resultados ya jugados si coinciden
+  const existingRounds = state.segunda ? state.segunda.rounds : [];
+  const existingR0 = existingRounds[0] || [];
+  function findExistingIn(rondaExistente, aId, bId){
+    return rondaExistente.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
+  }
+  const paresCuartos = pickBestPairingWithSeeding(ocho, seededSet, zones);
+  const cuartos = paresCuartos.map(par=> findExistingIn(existingR0, par[0], par[1]) || {id:uid(), aId:par[0], bId:par[1], sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''});
+
+  if(!cuartos.every(m=>m.completed)){
+    state.segunda = { rounds:[cuartos], totalRounds:3, champion:null };
+    return;
+  }
+
+  const cuatroSemifinalistas = cuartos.map(m=>m.winnerId);
+  const existingR1 = existingRounds[1] || [];
+  const paresSemis = pickBestPairingWithSeeding(cuatroSemifinalistas, new Set(), zones); // en semis ya no hay sembrados, todos ganaron sus cuartos
+  const semi1 = findExistingIn(existingR1, paresSemis[0][0], paresSemis[0][1]) || {id:uid(), aId:paresSemis[0][0], bId:paresSemis[0][1], sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
+  const semi2 = findExistingIn(existingR1, paresSemis[1][0], paresSemis[1][1]) || {id:uid(), aId:paresSemis[1][0], bId:paresSemis[1][1], sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
+
+  if(!semi1.completed || !semi2.completed){
+    state.segunda = { rounds:[cuartos, [semi1,semi2]], totalRounds:3, champion:null };
+    return;
+  }
+
+  const existingR2 = existingRounds[2] || [];
+  const final = findExistingIn(existingR2, semi1.winnerId, semi2.winnerId) || {id:uid(), aId:semi1.winnerId, bId:semi2.winnerId, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
+
+  state.segunda = { rounds:[cuartos, [semi1,semi2], [final]], totalRounds:3, champion: final.completed ? final.winnerId : null };
+}
+
 function buildSemifinalYFinal(four, zones, seededIds){
   // arma semifinal + final a partir de 4 semifinalistas ya definidos, reutilizando resultados ya jugados si coinciden
   const existingRounds = state.segunda ? state.segunda.rounds : [];
@@ -4857,73 +4893,9 @@ function buildBracketFormato10(){
   buildRepechajesYCuartosDesde10(directos, sueltos, zones, primerosDeZona);
 }
 
-function buildBracketFormato13(){
-  // Etapa 1: 13 parejas en 4 zonas (4,3,3,3). La zona de 4 juega formato reducido: 2 partidos por pareja.
-  // Al terminar todas las zonas, las 2 últimas del ranking general juegan un decisor.
-  // La ganadora permanece y las 12 restantes pasan al formato de 12 grupos de 3.
-  if(state.formato13Phase2){
-    buildBracketFormato12Grupos3();
-    tryGenerateSegunda();
-    advanceSegunda();
-    return;
-  }
-
-  const zones = state.zones;
-  const sizes = zones.map(z=>z.pairIds.length).sort((a,b)=>b-a);
-  if(zones.length!==4 || sizes.join(',')!=='4,3,3,3') return;
-  if(!allZoneMatchesComplete()) return;
-
-  const ranking = computeGeneralRanking();
-  if(ranking.length!==13) return;
-  const dosPeores = ranking.slice(-2).map(s=>s.pairId);
-
-  const prev = state.decisorQuinta;
-  const samePairing = prev && ((prev.aId===dosPeores[0] && prev.bId===dosPeores[1]) || (prev.aId===dosPeores[1] && prev.bId===dosPeores[0]));
-  const decisor = samePairing ? prev : {
-    id:uid(), aId:dosPeores[0], bId:dosPeores[1], sets:emptySets(), completed:false,
-    winnerId:null, started:false, bye:false, pending:false, cancha:'', label:'Decisor (últimas dos del ranking)'
-  };
-  state.decisorQuinta = decisor;
-  state.primera = {matches:[], directRanked:ranking.slice(0,-2).map(s=>s.pairId), repechajeRanked:dosPeores};
-  state.repechajesCruce = null;
-  state.segunda = null;
-
-  if(!decisor.completed) return;
-
-  const winnerId = decisor.winnerId;
-  if(!winnerId) return;
-
-  // Guardamos la etapa inicial para conservar los resultados originales del torneo.
-  if(!state.formato13InitialZones){
-    state.formato13InitialZones = JSON.parse(JSON.stringify(state.zones));
-  }
-
-  const loserId = decisor.aId===winnerId ? decisor.bId : decisor.aId;
-  const loserPair = state.pairs.find(p=>p.id===loserId);
-  if(loserPair){ loserPair.present = false; loserPair.formato13Eliminada = true; }
-
-  // Reorganizar las 12 sobrevivientes en 4 zonas de 3. Se conserva el orden actual de las parejas
-  // (orden de llegada/asignación), simplemente quitando la eliminada.
-  const survivors = [];
-  state.zones.forEach(z=> z.pairIds.forEach(pid=> { if(pid!== (decisor.aId===winnerId?decisor.bId:decisor.aId)) survivors.push(pid); }));
-  if(survivors.length!==12) return;
-
-  state.zones = [];
-  for(let i=0;i<4;i++){
-    state.zones.push(makeZone(`Zona ${String.fromCharCode(65+i)}`, survivors.slice(i*3, i*3+3)));
-  }
-  state.formato13Phase2 = true;
-  state.primera = null;
-  state.repechajesCruce = null;
-  state.segunda = null;
-  // La próxima ejecución arma exactamente el cruce del formato 12: A-C y B-D.
-  buildBracketFormato12Grupos3();
-  tryGenerateSegunda();
-  advanceSegunda();
-}
-
 function buildBracketFormato12Grupos3(){
-  // 4 zonas de 3 parejas (A,B,C,D). Cruce: A contra C, B contra D (no A-B, C-D como el cruce genérico)
+  // 4 zonas de 3 parejas (A,B,C,D). Los 4 mejores (1° de cada zona) pasan directo a cuartos.
+  // Los otros 8 (2° y 3° de cada zona) juegan octavos cruzados; los 4 ganadores completan los cuartos.
   const zones = state.zones;
   if(zones.length!==4) return;
   const zoneA = zones.find(z=>z.name==='Zona A');
@@ -4932,27 +4904,134 @@ function buildBracketFormato12Grupos3(){
   const zoneD = zones.find(z=>z.name==='Zona D');
   if(!zoneA||!zoneB||!zoneC||!zoneD) return;
 
-  const matches = [];
+  const lockA = computeZoneLocking(zoneA).map(r=> r?r.pairId:null);
+  const lockB = computeZoneLocking(zoneB).map(r=> r?r.pairId:null);
+  const lockC = computeZoneLocking(zoneC).map(r=> r?r.pairId:null);
+  const lockD = computeZoneLocking(zoneD).map(r=> r?r.pairId:null);
+  if(!lockA[0]||!lockB[0]||!lockC[0]||!lockD[0]||!lockA[1]||!lockA[2]||!lockB[1]||!lockB[2]||!lockC[1]||!lockC[2]||!lockD[1]||!lockD[2]){
+    state.primera=null; state.segunda=null; return;
+  }
+
+  const directos = [lockA[0], lockB[0], lockC[0], lockD[0]]; // los 4 mejores: 1° de cada zona
+
   const existingMatches = state.primera ? state.primera.matches : [];
   const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
-  const pushMatch = (pidX, pidY, descX, descY)=>{
-    if(pidX && pidY){
-      matches.push(findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''});
-    } else {
-      matches.push({id:uid(), aId:pidX||null, bId:pidY||null, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:true, cancha:'', pendingDescA: pidX?null:descX, pendingDescB: pidY?null:descY});
-    }
-  };
-  function cruzarZonasDe3(zX, zY){
-    const lockX = computeZoneLocking(zX).map(r=> r?r.pairId:null);
-    const lockY = computeZoneLocking(zY).map(r=> r?r.pairId:null);
-    pushMatch(lockX[0], lockY[2], `1° de ${zX.name}`, `3° de ${zY.name}`);
-    pushMatch(lockY[0], lockX[2], `1° de ${zY.name}`, `3° de ${zX.name}`);
-    pushMatch(lockX[1], lockY[1], `2° de ${zX.name}`, `2° de ${zY.name}`);
+  function buildMatch(pidX, pidY){
+    return findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
   }
-  cruzarZonasDe3(zoneA, zoneC);
-  cruzarZonasDe3(zoneB, zoneD);
 
-  state.primera = { matches, directRanked: [], repechajeRanked: [] };
+  // octavos: 2°A vs 3°C, 2°B vs 3°D, 3°A vs 2°C, 3°B vs 2°D
+  const oct1 = buildMatch(lockA[1], lockC[2]);
+  const oct2 = buildMatch(lockB[1], lockD[2]);
+  const oct3 = buildMatch(lockA[2], lockC[1]);
+  const oct4 = buildMatch(lockB[2], lockD[1]);
+
+  state.primera = { matches:[oct1,oct2,oct3,oct4], directRanked: directos, repechajeRanked: [] };
+
+  if(!oct1.completed || !oct2.completed || !oct3.completed || !oct4.completed){ state.segunda = null; return; }
+
+  const ochoCuartofinalistas = [...directos, oct1.winnerId, oct2.winnerId, oct3.winnerId, oct4.winnerId];
+  buildCuartosSemifinalYFinal(ochoCuartofinalistas, zones, new Set(directos));
+}
+
+function buildBracketFormato14(){
+  // 2 zonas de 4 y 2 zonas de 3 = 14. El mejor de las 2 zonas de 4 pasa directo (la otra zona de 4 entera va a octavos).
+  // El mejor de las 2 zonas de 3 pasa directo (la otra zona de 3 entera va a octavos).
+  // El pozo de octavos (12 parejas) se cruza buscando siempre la combinación con menos repetidos de zona.
+  const zones = state.zones;
+  const zonasDe4 = zones.filter(z=>z.pairIds.length===4);
+  const zonasDe3 = zones.filter(z=>z.pairIds.length===3);
+  if(zonasDe4.length<2 || zonasDe3.length<2){ state.primera=null; state.segunda=null; return; }
+
+  const standings4a = computeZoneStandings(zonasDe4[0]);
+  const standings4b = computeZoneStandings(zonasDe4[1]);
+  const standings3a = computeZoneStandings(zonasDe3[0]);
+  const standings3b = computeZoneStandings(zonasDe3[1]);
+  if(!standings4a[0]||!standings4a[1]||!standings4a[2]||!standings4a[3]||!standings4b[0]||!standings4b[1]||!standings4b[2]||!standings4b[3]){ state.primera=null; state.segunda=null; return; }
+  if(!standings3a[0]||!standings3a[1]||!standings3a[2]||!standings3b[0]||!standings3b[1]||!standings3b[2]){ state.primera=null; state.segunda=null; return; }
+
+  const orden4 = [{zone:zonasDe4[0], standing:standings4a[0]}, {zone:zonasDe4[1], standing:standings4b[0]}]
+    .sort((a,b)=> b.standing.pts-a.standing.pts || b.standing.diffSets-a.standing.diffSets || b.standing.diffGames-a.standing.diffGames);
+  const zona4Ganadora = orden4[0].zone, zona4Perdedora = orden4[1].zone;
+
+  const orden3 = [{zone:zonasDe3[0], standing:standings3a[0]}, {zone:zonasDe3[1], standing:standings3b[0]}]
+    .sort((a,b)=> b.standing.pts-a.standing.pts || b.standing.diffSets-a.standing.diffSets || b.standing.diffGames-a.standing.diffGames);
+  const zona3Ganadora = orden3[0].zone, zona3Perdedora = orden3[1].zone;
+
+  const lockZona4Ganadora = computeZoneLocking(zona4Ganadora).map(r=> r?r.pairId:null);
+  const standZona3Ganadora = computeZoneStandings(zona3Ganadora);
+
+  const directos = [orden4[0].standing.pairId, orden3[0].standing.pairId];
+
+  const pozoOctavos = [
+    ...zona4Perdedora.pairIds,
+    lockZona4Ganadora[1], lockZona4Ganadora[2], lockZona4Ganadora[3],
+    standZona3Ganadora[1].pairId, standZona3Ganadora[2].pairId,
+    ...zona3Perdedora.pairIds
+  ];
+  if(pozoOctavos.length<12){ state.primera=null; state.segunda=null; return; }
+
+  const parOctavos = pickBestBracketPairing(pozoOctavos, zones);
+
+  const existingMatches = state.primera ? state.primera.matches : [];
+  const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
+  const octavos = parOctavos.map(par=> findExisting(par[0],par[1]) || {id:uid(), aId:par[0], bId:par[1], sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''});
+
+  state.primera = { matches: octavos, directRanked: directos, repechajeRanked: [] };
+
+  if(!octavos.every(m=>m.completed)){ state.segunda = null; return; }
+
+  const ochoCuartofinalistas = [...directos, ...octavos.map(m=>m.winnerId)];
+  buildCuartosSemifinalYFinal(ochoCuartofinalistas, zones, new Set(directos));
+}
+
+function buildBracketFormato13(){
+  // 1 zona de 4 (la que sea, según el orden de llegada) + 3 zonas de 3.
+  // El 1° de la zona de 4 pasa directo siempre. De los 3 ganadores de las zonas de 3, los 2 mejores
+  // (por tabla general) también pasan directo; la zona del que queda afuera se suma ENTERA a octavos.
+  const zones = state.zones;
+  const zoneGrande = zones.find(z=>z.pairIds.length===4);
+  const zonasChicas = zones.filter(z=>z.pairIds.length===3);
+  if(!zoneGrande || zonasChicas.length<3){ state.primera=null; state.segunda=null; return; }
+
+  const lockGrande = computeZoneLocking(zoneGrande).map(r=> r?r.pairId:null);
+  const standingsChicas = zonasChicas.map(z=> computeZoneStandings(z));
+  if(!lockGrande[0]||!lockGrande[1]||!lockGrande[2]||!lockGrande[3]) { state.primera=null; state.segunda=null; return; }
+  if(standingsChicas.some(st=> !st[0]||!st[1]||!st[2])){ state.primera=null; state.segunda=null; return; }
+
+  const ganadorasChicas = zonasChicas.map((z,i)=> ({zone:z, standing: standingsChicas[i][0]}));
+  const ordenadas = [...ganadorasChicas].sort((a,b)=> b.standing.pts-a.standing.pts || b.standing.diffSets-a.standing.diffSets || b.standing.diffGames-a.standing.diffGames);
+  const directasChicas = [ordenadas[0], ordenadas[1]]; // las 2 mejores zonas chicas: su 1° pasa directo
+  const zonaExcluida = ordenadas[2].zone; // la peor zona chica: se queda entera para octavos
+  const standingsExcluida = computeZoneStandings(zonaExcluida);
+
+  const directos = [lockGrande[0], directasChicas[0].standing.pairId, directasChicas[1].standing.pairId];
+
+  const standingsZonaX = computeZoneStandings(directasChicas[0].zone);
+  const standingsZonaY = computeZoneStandings(directasChicas[1].zone);
+
+  const existingMatches = state.primera ? state.primera.matches : [];
+  const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
+  function buildMatch(pidX, pidY){
+    return findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
+  }
+
+  // cruce 1: los 3 restantes de la zona de 4 (2°,3°,4°) contra los 3 de la zona chica excluida (1°,2°,3°)
+  const oct1 = buildMatch(lockGrande[1], standingsExcluida[2].pairId); // 2°grande vs 3°excluida
+  const oct2 = buildMatch(lockGrande[2], standingsExcluida[1].pairId); // 3°grande vs 2°excluida
+  const oct3 = buildMatch(lockGrande[3], standingsExcluida[0].pairId); // 4°grande vs 1°excluida
+
+  // cruce 2: las dos zonas chicas que sí pasaron directo, cruzan entre sí sus 2° y 3°
+  const oct4 = buildMatch(standingsZonaX[1].pairId, standingsZonaY[2].pairId);
+  const oct5 = buildMatch(standingsZonaY[1].pairId, standingsZonaX[2].pairId);
+
+  const octavos = [oct1,oct2,oct3,oct4,oct5];
+  state.primera = { matches: octavos, directRanked: directos, repechajeRanked: [] };
+
+  if(!octavos.every(m=>m.completed)){ state.segunda = null; return; }
+
+  const ochoCuartofinalistas = [...directos, ...octavos.map(m=>m.winnerId)];
+  buildCuartosSemifinalYFinal(ochoCuartofinalistas, zones, new Set(directos));
 }
 
 function buildBracketFormato12Grupos4(){
@@ -5208,19 +5287,20 @@ function refreshBracket(){
     buildBracketFormato11();
     return;
   }
-  if(state.format==='formato13'){
-    buildBracketFormato13();
-    return;
-  }
   if(state.format==='formato12g3'){
     buildBracketFormato12Grupos3();
-    // este formato usa el mismo mecanismo flexible de repechaje que "cruce" (arma la llave con byes según haga falta)
-    tryGenerateSegunda();
-    advanceSegunda();
     return;
   }
   if(state.format==='formato12g4'){
     buildBracketFormato12Grupos4();
+    return;
+  }
+  if(state.format==='formato13'){
+    buildBracketFormato13();
+    return;
+  }
+  if(state.format==='formato14'){
+    buildBracketFormato14();
     return;
   }
   if(state.format==='principiantes'){
@@ -5429,7 +5509,15 @@ App.closeTournament = async function(){
       if(!player) return;
       player.stats.puntos += res.points;
       player.stats.torneos += 1;
-      if(res.stageLabel==='Campeón') player.stats.titulos += 1;
+      if(res.stageLabel==='Campeón'){
+        player.stats.titulos += 1;
+        player.stats.rachaCampeon = (player.stats.rachaCampeon||0) + 1;
+        if(player.stats.rachaCampeon>=RACHA_PARA_ASCENDER){
+          const idx = CATEGORIA_STANDARD_ORDER.indexOf(player.categoria);
+          if(idx>=0 && idx<CATEGORIA_STANDARD_ORDER.length-1) player.categoria = CATEGORIA_STANDARD_ORDER[idx+1];
+          player.stats.rachaCampeon = 0;
+        }
+      }
       if(res.stageLabel==='Finalista' || res.stageLabel==='Subcampeón') player.stats.finalista += 1;
       if(res.stageLabel==='Semifinalista') player.stats.semifinal += 1;
       player.stats.historial.unshift({
