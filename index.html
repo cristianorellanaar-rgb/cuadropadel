@@ -3468,6 +3468,15 @@ function computeZoneStandings(zone){
   return arr;
 }
 
+function getZonePositionLabel(pairId){
+  const zone = state.zones.find(z=> z.pairIds.includes(pairId));
+  if(!zone) return '?';
+  const standings = computeZoneStandings(zone);
+  const idx = standings.findIndex(s=> s.pairId===pairId);
+  const letra = (zone.name||'').replace('Zona ','').trim() || '?';
+  return idx>=0 ? `${idx+1}${letra}` : `?${letra}`;
+}
+
 function computeGeneralRanking(){
   let all=[];
   state.zones.forEach(zone=>{
@@ -6408,6 +6417,68 @@ function renderGeneral(){
         <div class="actions-row" style="margin-top:20px;">
           <button class="btn btn-primary" onclick="App.generateBracket()">Actualizar llave ahora</button>
           <span class="hint">La llave y el repechaje se arman solos a medida que se cargan resultados — no hace falta esperar a que terminen todas las zonas. Este botón solo fuerza una actualización manual.</span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const NUEVOS_FORMATOS_CLASIFICACION_PROPIA = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4','formato13','formato14'];
+  if(NUEVOS_FORMATOS_CLASIFICACION_PROPIA.includes(state.format)){
+    const directIds = new Set(state.primera ? state.primera.directRanked : []);
+    const rowsHtml = ranking.map(s=>{
+      const isDirect = directIds.has(s.pairId);
+      return `
+        <tr class="${isDirect?'zone-direct':'zone-repechaje'}">
+          <td class="num">${s.rank}</td>
+          <td>${pairCellHtml(s.name)}</td>
+          <td>${escapeHtml(s.zoneName)}</td>
+          <td class="num">${s.pts===null? '—' : s.pts}</td>
+          <td class="num">${s.diffSets>0?'+':''}${s.diffSets}</td>
+          <td class="num">${s.diffGames>0?'+':''}${s.diffGames}</td>
+          <td><span class="tag ${isDirect?'direct':'rep'}">${isDirect? 'Pasa directo' : 'Juega cruce'}</span></td>
+        </tr>`;
+    }).join('');
+
+    const cruces = [];
+    if(state.repechajeTerceros) cruces.push(state.repechajeTerceros);
+    if(state.decisorQuinta) cruces.push(state.decisorQuinta);
+    if(state.repechajesCruce) cruces.push(...state.repechajesCruce);
+    if(state.primera && state.primera.matches) cruces.push(...state.primera.matches);
+    const crucesHtml = cruces.length>0 ? `
+      <div class="bracket-section" style="margin-top:20px;">
+        <h3 class="round-label" style="text-align:left;">Cruces armados</h3>
+        <table class="gen">
+          <thead><tr><th>Cruce</th><th>Partido</th><th>Resultado</th></tr></thead>
+          <tbody>
+            ${cruces.map(m=>{
+              const posA = m.aId ? getZonePositionLabel(m.aId) : (m.pendingDescA || '?');
+              const posB = m.bId ? getZonePositionLabel(m.bId) : (m.pendingDescB || '?');
+              const nombreA = m.aId ? pairDisplayName(findPairById(m.aId)) : (m.pendingDescA||'Por definir');
+              const nombreB = m.bId ? pairDisplayName(findPairById(m.bId)) : (m.pendingDescB||'Por definir');
+              const resultado = m.completed ? `Ganó ${escapeHtml(pairDisplayName(findPairById(m.winnerId)))}` : (m.started ? 'En curso' : 'Sin jugar');
+              return `<tr>
+                <td>${escapeHtml(posA)} vs ${escapeHtml(posB)}</td>
+                <td>${escapeHtml(nombreA)} vs ${escapeHtml(nombreB)}</td>
+                <td>${resultado}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>` : '';
+
+    c.innerHTML = `
+      <div class="general-table-wrap">
+        ${!zonesDone ? `<div class="hint" style="margin-bottom:14px;">⏳ Todavía hay resultados pendientes en la fase de zonas. Las parejas que ya tienen su posición asegurada avanzan igual, sin esperar al resto.</div>` : ''}
+        <table class="gen">
+          <thead><tr>
+            <th>#</th><th>Pareja</th><th>Zona</th>${thTip('Pts','2 puntos por cada partido ganado','num')}${thTip('Dif.S','Diferencia de sets: sets ganados menos perdidos','num')}${thTip('Dif.G','Diferencia de games: games ganados menos perdidos (desempate)','num')}<th>Clasificación</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        ${crucesHtml}
+        <div class="actions-row" style="margin-top:20px;">
+          <button class="btn btn-primary" onclick="App.generateBracket()">Actualizar llave ahora</button>
+          <span class="hint">La llave se arma sola a medida que se cargan resultados — no hace falta esperar a que terminen todas las zonas. Este botón solo fuerza una actualización manual.</span>
         </div>
       </div>`;
     return;
