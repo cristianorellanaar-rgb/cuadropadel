@@ -4861,14 +4861,16 @@ function countSeedClashes(matching, seededSet){
 function pickBestPairingWithSeeding(pairIds, seededSet, zones){
   // arma el emparejamiento evitando, en este orden de prioridad:
   // 1° que dos "sembrados" (los que salieron primeros de zona) se enfrenten entre sí,
-  // 2° que se repita un cruce entre parejas que ya jugaron en la misma zona.
+  // 2° que se repita un cruce entre parejas que ya jugaron en la misma zona,
+  // 3° (en caso de empate) preferir cruzar posiciones distintas de zona antes que la misma posición contra sí misma.
   const allMatchings = allPerfectMatchings(pairIds);
-  let best = allMatchings[0], bestSeedClashes = Infinity, bestZoneRepeats = Infinity;
+  let best = allMatchings[0], bestSeedClashes = Infinity, bestZoneRepeats = Infinity, bestSamePos = Infinity;
   allMatchings.forEach(m=>{
     const seedClashes = countSeedClashes(m, seededSet);
     const zoneRepeats = countZoneRepeats(m, zones);
-    if(seedClashes<bestSeedClashes || (seedClashes===bestSeedClashes && zoneRepeats<bestZoneRepeats)){
-      bestSeedClashes = seedClashes; bestZoneRepeats = zoneRepeats; best = m;
+    const samePos = countSamePositionPairs(m, zones);
+    if(seedClashes<bestSeedClashes || (seedClashes===bestSeedClashes && zoneRepeats<bestZoneRepeats) || (seedClashes===bestSeedClashes && zoneRepeats===bestZoneRepeats && samePos<bestSamePos)){
+      bestSeedClashes = seedClashes; bestZoneRepeats = zoneRepeats; bestSamePos = samePos; best = m;
     }
   });
   return best;
@@ -4893,17 +4895,37 @@ function countZoneRepeats(matching, zones){
   return matching.reduce((sum,pair)=> sum + (sameZone(pair[0],pair[1])?1:0), 0);
 }
 
+function getZonePosition(pairId, zones){
+  const zone = zones.find(z=> z.pairIds.includes(pairId));
+  if(!zone) return null;
+  const standings = computeZoneStandings(zone);
+  const idx = standings.findIndex(s=>s.pairId===pairId);
+  return idx>=0 ? idx+1 : null;
+}
+
+function countSamePositionPairs(matching, zones){
+  return matching.reduce((sum,pair)=>{
+    const posA = getZonePosition(pair[0], zones);
+    const posB = getZonePosition(pair[1], zones);
+    return sum + (posA!==null && posA===posB ? 1 : 0);
+  }, 0);
+}
+
 let _pairingCache = {};
 function pickBestBracketPairing(pairIds, zones){
-  // prueba TODAS las formas posibles de emparejar la lista de a dos, y elige la que tenga menos repetidos de zona
+  // prueba TODAS las formas posibles de emparejar la lista de a dos. Prioridad: 1° menos repetidos de zona,
+  // 2° (en caso de empate) preferir cruzar posiciones distintas de zona antes que la misma posición contra sí misma
   // (se guarda en caché por firma, porque con pozos grandes esta búsqueda puede ser lenta y no hace falta repetirla si nada cambió)
   const signature = [...pairIds].sort().join(',');
   if(_pairingCache[signature]) return _pairingCache[signature];
   const allMatchings = allPerfectMatchings(pairIds);
-  let best = allMatchings[0], bestRepeats = Infinity;
+  let best = allMatchings[0], bestRepeats = Infinity, bestSamePos = Infinity;
   allMatchings.forEach(m=>{
     const r = countZoneRepeats(m, zones);
-    if(r<bestRepeats){ bestRepeats = r; best = m; }
+    const sp = countSamePositionPairs(m, zones);
+    if(r<bestRepeats || (r===bestRepeats && sp<bestSamePos)){
+      bestRepeats = r; bestSamePos = sp; best = m;
+    }
   });
   _pairingCache[signature] = best;
   return best;
