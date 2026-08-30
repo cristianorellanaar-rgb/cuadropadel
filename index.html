@@ -2449,7 +2449,7 @@ function renderJugadorViewBody(pair, showSwitcher, ids){
       </div>` : '';
     let html = repechajeHtml + decisorHtml + repechajesCruceHtml + `
       <div class="bracket-section">
-        <h3 class="round-label" style="text-align:left;">Primera instancia (repechaje)</h3>
+        <h3 class="round-label" style="text-align:left;">${primeraStageLabel(state.format)}</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px;">
           ${state.primera.matches.map(m=> matchCardReadOnly(m, pair? pair.id: null)).join('')}
         </div>
@@ -3514,6 +3514,18 @@ function roundLabel(totalRounds, idx, matchCount){
   if(remaining===5) return 'Dieciseisavos de final';
   if(remaining===6) return 'Treintaidosavos de final';
   return `Ronda de ${matchCount*2}`;
+}
+
+// para los formatos de cantidad fija, la etapa que arma "state.primera" es en realidad una ronda concreta
+// de la llave (cuartos, octavos, etc.) según cuántas rondas queden después en "state.segunda" — no un repechaje genérico.
+const FORMAT_SEGUNDA_TOTAL_ROUNDS = {
+  formato6:2, formato7:2, formato8a:2, formato9:2, formato10:2, formato11:2, formato12g4:2, formato16b:2,
+  formato12g3:3, formato13:3, formato14:3, formato15:3, formato16a:3
+};
+function primeraStageLabel(fmt){
+  const segundaTotalRounds = FORMAT_SEGUNDA_TOTAL_ROUNDS[fmt];
+  if(!segundaTotalRounds) return 'Primera instancia (repechaje)'; // avanzado / principiantes / cruce: sin cambios
+  return roundLabel(segundaTotalRounds+1, 0, 1);
 }
 
 function getChampionPairId(){
@@ -6697,8 +6709,7 @@ function renderGeneral(){
     return;
   }
 
-  const NUEVOS_FORMATOS_CLASIFICACION_PROPIA = ['formato6','formato7','formato9','formato10','formato11','formato12g3','formato12g4','formato13','formato14'];
-  if(NUEVOS_FORMATOS_CLASIFICACION_PROPIA.includes(state.format)){
+  if(EXACT_COUNT_FORMATS.includes(state.format)){
     const directIds = new Set(state.primera ? state.primera.directRanked : []);
     const rowsHtml = ranking.map(s=>{
       const isDirect = directIds.has(s.pairId);
@@ -6882,7 +6893,7 @@ function renderLlave(){
 
   const primeraHtml = repechajeTercerosHtml + decisorQuintaHtml + repechajesCruceHtml + `
     <div class="bracket-section">
-      <h3 class="round-label" style="text-align:left;">Primera instancia (repechaje)</h3>
+      <h3 class="round-label" style="text-align:left;">${primeraStageLabel(state.format)}</h3>
       <div class="divider-note">Se enfrentan las parejas del ranking general con menos puntos. Los ganadores completan el cuadro de la Segunda Instancia.</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; max-width:960px;">
         ${state.primera.matches.map(m=> matchCardHtml(m)).join('')}
