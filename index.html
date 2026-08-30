@@ -4862,15 +4862,17 @@ function pickBestPairingWithSeeding(pairIds, seededSet, zones){
   // arma el emparejamiento evitando, en este orden de prioridad:
   // 1° que dos "sembrados" (los que salieron primeros de zona) se enfrenten entre sí,
   // 2° que se repita un cruce entre parejas que ya jugaron en la misma zona,
-  // 3° (en caso de empate) preferir cruzar posiciones distintas de zona antes que la misma posición contra sí misma.
+  // 3° (en caso de empate) que se cruce siempre la mejor pareja contra la peor, mientras se pueda.
+  const rank = rankPozoMembers(pairIds, zones);
+  const n = pairIds.length;
   const allMatchings = allPerfectMatchings(pairIds);
-  let best = allMatchings[0], bestSeedClashes = Infinity, bestZoneRepeats = Infinity, bestSamePos = Infinity;
+  let best = allMatchings[0], bestSeedClashes = Infinity, bestZoneRepeats = Infinity, bestMirrorDev = Infinity;
   allMatchings.forEach(m=>{
     const seedClashes = countSeedClashes(m, seededSet);
     const zoneRepeats = countZoneRepeats(m, zones);
-    const samePos = countSamePositionPairs(m, zones);
-    if(seedClashes<bestSeedClashes || (seedClashes===bestSeedClashes && zoneRepeats<bestZoneRepeats) || (seedClashes===bestSeedClashes && zoneRepeats===bestZoneRepeats && samePos<bestSamePos)){
-      bestSeedClashes = seedClashes; bestZoneRepeats = zoneRepeats; bestSamePos = samePos; best = m;
+    const dev = mirrorDeviationScore(m, rank, n);
+    if(seedClashes<bestSeedClashes || (seedClashes===bestSeedClashes && zoneRepeats<bestZoneRepeats) || (seedClashes===bestSeedClashes && zoneRepeats===bestZoneRepeats && dev<bestMirrorDev)){
+      bestSeedClashes = seedClashes; bestZoneRepeats = zoneRepeats; bestMirrorDev = dev; best = m;
     }
   });
   return best;
@@ -4903,28 +4905,54 @@ function getZonePosition(pairId, zones){
   return idx>=0 ? idx+1 : null;
 }
 
-function countSamePositionPairs(matching, zones){
+function rankPozoMembers(pairIds, zones){
+  // arma un ranking real (1=mejor) entre los del pozo, comparando su rendimiento (puntos, dif. sets, dif. games)
+  // dentro de la zona de la que viene cada uno — así se puede cruzar mejor-contra-peor, no solo por posición
+  const conStats = pairIds.map(pid=>{
+    const zona = zones.find(z=>z.pairIds.includes(pid));
+    const st = zona ? computeZoneStandings(zona).find(s=>s.pairId===pid) : null;
+    return {pairId:pid, pts: st?st.pts:0, diffSets: st?st.diffSets:0, diffGames: st?st.diffGames:0};
+  });
+  const ordenado = [...conStats].sort((a,b)=> b.pts-a.pts || b.diffSets-a.diffSets || b.diffGames-a.diffGames);
+  const rank = {};
+  ordenado.forEach((s,i)=> rank[s.pairId] = i+1);
+  return rank;
+}
+
+function mirrorDeviationScore(matching, rank, n){
+  // mide qué tan lejos está cada cruce del "ideal" mejor-contra-peor (rank_i + rank_j = n+1) — cuanto más bajo, mejor
   return matching.reduce((sum,pair)=>{
-    const posA = getZonePosition(pair[0], zones);
-    const posB = getZonePosition(pair[1], zones);
-    return sum + (posA!==null && posA===posB ? 1 : 0);
+    const r1 = rank[pair[0]] || 0, r2 = rank[pair[1]] || 0;
+    return sum + Math.abs((r1+r2) - (n+1));
   }, 0);
+}
+
+function mirrorCross(grupoX, grupoY){
+  // empareja el mejor de un grupo contra el peor del otro, y así sucesivamente (cruce "espejado").
+  // Se usa cuando el pozo se separa limpio en 2 grupos de origen distinto (misma cantidad cada uno):
+  // ya es imposible que se repita zona, así que acá el criterio que manda es siempre fuerte-contra-débil.
+  const n = grupoX.length;
+  const pares = [];
+  for(let i=0;i<n;i++){ pares.push([grupoX[i], grupoY[n-1-i]]); }
+  return pares;
 }
 
 let _pairingCache = {};
 function pickBestBracketPairing(pairIds, zones){
   // prueba TODAS las formas posibles de emparejar la lista de a dos. Prioridad: 1° menos repetidos de zona,
-  // 2° (en caso de empate) preferir cruzar posiciones distintas de zona antes que la misma posición contra sí misma
+  // 2° (en caso de empate) que se cruce siempre la mejor pareja del pozo contra la peor, mientras se pueda
   // (se guarda en caché por firma, porque con pozos grandes esta búsqueda puede ser lenta y no hace falta repetirla si nada cambió)
   const signature = [...pairIds].sort().join(',');
   if(_pairingCache[signature]) return _pairingCache[signature];
+  const rank = rankPozoMembers(pairIds, zones);
+  const n = pairIds.length;
   const allMatchings = allPerfectMatchings(pairIds);
-  let best = allMatchings[0], bestRepeats = Infinity, bestSamePos = Infinity;
+  let best = allMatchings[0], bestRepeats = Infinity, bestMirrorDev = Infinity;
   allMatchings.forEach(m=>{
     const r = countZoneRepeats(m, zones);
-    const sp = countSamePositionPairs(m, zones);
-    if(r<bestRepeats || (r===bestRepeats && sp<bestSamePos)){
-      bestRepeats = r; bestSamePos = sp; best = m;
+    const dev = mirrorDeviationScore(m, rank, n);
+    if(r<bestRepeats || (r===bestRepeats && dev<bestMirrorDev)){
+      bestRepeats = r; bestMirrorDev = dev; best = m;
     }
   });
   _pairingCache[signature] = best;
@@ -5466,9 +5494,10 @@ function buildBracketFormato6(){
   }
 
   const directoA = lockingA[0], directoB = lockingB[0]; // el mejor de cada zona pasa directo siempre (así el cruce queda 2 contra 2, parejo)
-  const cuatro = [lockingA[1], lockingA[2], lockingB[1], lockingB[2]];
+  const remanenteA = [lockingA[1], lockingA[2]]; // 2°, 3° de zona A (mejor a peor)
+  const remanenteB = [lockingB[1], lockingB[2]]; // 2°, 3° de zona B (mejor a peor)
 
-  const parCuartos = pickBestBracketPairing(cuatro, [zoneA, zoneB]);
+  const parCuartos = mirrorCross(remanenteA, remanenteB); // 2A vs 3B, 3A vs 2B — siempre fuerte contra débil, y ya cruza zonas distintas
 
   const existingMatches = state.primera ? state.primera.matches : [];
   const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
@@ -5492,9 +5521,10 @@ function buildBracketFormato7(){
   }
 
   const directo = lockingA[0]; // el mejor de la zona de 4 pasa directo siempre (así el cruce queda 3 contra 3, nunca 4 contra 2)
-  const seis = [lockingA[1], lockingA[2], lockingA[3], standingsB[0].pairId, standingsB[1].pairId, standingsB[2].pairId];
+  const remanenteA = [lockingA[1], lockingA[2], lockingA[3]]; // 2°,3°,4° de la zona de 4 (mejor a peor)
+  const todaZonaB = [standingsB[0].pairId, standingsB[1].pairId, standingsB[2].pairId]; // toda la zona de 3 (mejor a peor)
 
-  const parCruces = pickBestBracketPairing(seis, state.zones);
+  const parCruces = mirrorCross(remanenteA, todaZonaB); // 2°A vs 3°B, 3°A vs 2°B, 4°A vs 1°B — siempre fuerte contra débil
 
   const existingMatches = state.primera ? state.primera.matches : [];
   const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
