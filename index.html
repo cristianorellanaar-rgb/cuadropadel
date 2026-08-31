@@ -3554,9 +3554,15 @@ function computeZoneStandings(zone){
 function getZonePositionLabel(pairId){
   const zone = state.zones.find(z=> z.pairIds.includes(pairId));
   if(!zone) return '?';
+  const letra = (zone.name||'').replace('Zona ','').trim() || '?';
+  if(zone.format==='playoff4'){
+    // en el formato reducido, la posición real la define la ronda de Definición, no el puntaje acumulado
+    const locking = computeZoneLocking(zone).map(r=> r?r.pairId:null);
+    const idx = locking.indexOf(pairId);
+    return idx>=0 ? `${idx+1}${letra}` : `?${letra}`;
+  }
   const standings = computeZoneStandings(zone);
   const idx = standings.findIndex(s=> s.pairId===pairId);
-  const letra = (zone.name||'').replace('Zona ','').trim() || '?';
   return idx>=0 ? `${idx+1}${letra}` : `?${letra}`;
 }
 
@@ -4972,6 +4978,11 @@ function countZoneRepeats(matching, zones){
 function getZonePosition(pairId, zones){
   const zone = zones.find(z=> z.pairIds.includes(pairId));
   if(!zone) return null;
+  if(zone.format==='playoff4'){
+    const locking = computeZoneLocking(zone).map(r=> r?r.pairId:null);
+    const idx = locking.indexOf(pairId);
+    return idx>=0 ? idx+1 : null;
+  }
   const standings = computeZoneStandings(zone);
   const idx = standings.findIndex(s=>s.pairId===pairId);
   return idx>=0 ? idx+1 : null;
@@ -4979,10 +4990,19 @@ function getZonePosition(pairId, zones){
 
 function rankPozoMembers(pairIds, zones){
   // arma un ranking real (1=mejor) entre los del pozo, comparando su rendimiento (puntos, dif. sets, dif. games)
-  // dentro de la zona de la que viene cada uno — así se puede cruzar mejor-contra-peor, no solo por posición
+  // dentro de la zona de la que viene cada uno — así se puede cruzar mejor-contra-peor, no solo por posición.
+  // En zonas de formato reducido (playoff4), el puntaje acumulado de TODOS los partidos no refleja bien el
+  // resultado real (la posición la define la ronda de Definición) — ahí se usa directamente esa posición final.
   const conStats = pairIds.map(pid=>{
     const zona = zones.find(z=>z.pairIds.includes(pid));
-    const st = zona ? computeZoneStandings(zona).find(s=>s.pairId===pid) : null;
+    if(!zona) return {pairId:pid, pts:0, diffSets:0, diffGames:0};
+    if(zona.format==='playoff4'){
+      const locking = computeZoneLocking(zona).map(r=> r?r.pairId:null);
+      const idx = locking.indexOf(pid);
+      const posicion = idx>=0 ? idx+1 : 4;
+      return {pairId:pid, pts:(4-posicion)*2, diffSets:0, diffGames:0};
+    }
+    const st = computeZoneStandings(zona).find(s=>s.pairId===pid);
     return {pairId:pid, pts: st?st.pts:0, diffSets: st?st.diffSets:0, diffGames: st?st.diffGames:0};
   });
   const ordenado = [...conStats].sort((a,b)=> b.pts-a.pts || b.diffSets-a.diffSets || b.diffGames-a.diffGames);
