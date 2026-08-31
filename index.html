@@ -1445,7 +1445,7 @@ async function doSaveMain(){
       const previousKnown = lastKnownMainUpdatedAt;
       lastKnownMainUpdatedAt = now; // protege desde YA (no recién al terminar) contra ecos viejos que lleguen mientras se guarda
       try{
-        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
+        await firestoreDocRef.set({ playersDB, archive: archive.map(toFirestoreSafeTournament), clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: now });
         reportSaveSuccess();
       }catch(e){
         console.error('Error guardando en Firebase', e); reportSaveError(e);
@@ -1482,19 +1482,35 @@ function scheduleSaveMain(){
 }
 
 let saveTournamentTimers = {};
+function wrapRoundsForFirestore(segunda){
+  if(!segunda || !Array.isArray(segunda.rounds)) return segunda;
+  return { ...segunda, rounds: segunda.rounds.map(round=> ({matches: round})) };
+}
+
+function unwrapRoundsFromFirestore(segunda){
+  if(!segunda || !Array.isArray(segunda.rounds)) return segunda;
+  segunda.rounds = segunda.rounds.map(r=> Array.isArray(r) ? r : (r && Array.isArray(r.matches) ? r.matches : []));
+  return segunda;
+}
+
 function toFirestoreSafeTournament(t){
   // Firestore no admite un array que tenga otro array directamente adentro ("nested arrays").
   // state.segunda.rounds es justamente eso: un array de rondas, y cada ronda es un array de partidos.
   // Se envuelve cada ronda en un objeto {matches:[...]} SOLO para el documento que se manda a guardar;
   // el objeto real en memoria (el que usa el resto de la app) no se toca.
-  if(!t.segunda || !Array.isArray(t.segunda.rounds)) return t;
-  return { ...t, segunda: { ...t.segunda, rounds: t.segunda.rounds.map(round=> ({matches: round})) } };
+  // Los torneos archivados no tienen "segunda" directo: lo tienen adentro de "snapshot" (una copia completa del torneo).
+  if(!t) return t;
+  let result = t;
+  if(t.segunda) result = { ...result, segunda: wrapRoundsForFirestore(result.segunda) };
+  if(t.snapshot && t.snapshot.segunda) result = { ...result, snapshot: { ...result.snapshot, segunda: wrapRoundsForFirestore(result.snapshot.segunda) } };
+  return result;
 }
 
 function fromFirestoreSafeTournament(t){
   // el inverso: al leer de Firestore, desenvolver {matches:[...]} de vuelta a un array plano de partidos
-  if(!t || !t.segunda || !Array.isArray(t.segunda.rounds)) return t;
-  t.segunda.rounds = t.segunda.rounds.map(r=> Array.isArray(r) ? r : (r && Array.isArray(r.matches) ? r.matches : []));
+  if(!t) return t;
+  if(t.segunda) unwrapRoundsFromFirestore(t.segunda);
+  if(t.snapshot && t.snapshot.segunda) unwrapRoundsFromFirestore(t.snapshot.segunda);
   return t;
 }
 
@@ -1568,7 +1584,7 @@ function applyRemoteMain(data){
   lastKnownMainUpdatedAt = data.updatedAt||lastKnownMainUpdatedAt;
   applyingRemote = true;
   playersDB = data.playersDB || [];
-  archive = data.archive || [];
+  archive = (data.archive || []).map(fromFirestoreSafeTournament);
   clubsDB = data.clubsDB || [];
   upcomingTournaments = data.upcomingTournaments || [];
   coordinadoresDB = data.coordinadoresDB || [];
@@ -1660,7 +1676,7 @@ async function initApp(){
       const mainSnap = await firestoreDocRef.get();
       const mainData = mainSnap.exists ? mainSnap.data() : {};
       playersDB = mainData.playersDB || [];
-      archive = mainData.archive || [];
+      archive = (mainData.archive || []).map(fromFirestoreSafeTournament);
       clubsDB = mainData.clubsDB || [];
       upcomingTournaments = mainData.upcomingTournaments || [];
       coordinadoresDB = mainData.coordinadoresDB || [];
@@ -1676,11 +1692,11 @@ async function initApp(){
         const migrated = sanitizeTournament(mainData.state);
         migrated.ownerCoordinador = null;
         tournaments.push(migrated);
-        await tournamentsColRef.doc(migrated.tournamentId).set(migrated);
+        await tournamentsColRef.doc(migrated.tournamentId).set(toFirestoreSafeTournament(migrated));
       }
 
       if(!mainSnap.exists){
-        await firestoreDocRef.set({ playersDB, archive, clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() });
+        await firestoreDocRef.set({ playersDB, archive: archive.map(toFirestoreSafeTournament), clubsDB, upcomingTournaments, coordinadoresDB, adminEmails, sessions, updatedAt: Date.now() });
       }
 
       liveSyncActive = true;
@@ -6012,7 +6028,7 @@ document.getElementById('fileImport').addEventListener('change', (e)=>{
       const parsed = JSON.parse(reader.result);
       if(!parsed.tournaments && !parsed.state) throw new Error('formato inválido');
       playersDB = parsed.playersDB || [];
-      archive = parsed.archive || [];
+      archive = (parsed.archive || []).map(fromFirestoreSafeTournament);
       clubsDB = parsed.clubsDB || [];
       coordinadoresDB = parsed.coordinadoresDB || [];
       adminEmails = parsed.adminEmails || [];
