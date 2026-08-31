@@ -2727,7 +2727,10 @@ function computeZoneLocking(zone){
   const n = zone.pairIds.length;
   if(zone.matches.length>0 && zone.matches.every(m=>m.completed)){
     // zona 100% completa: el resultado final ya vale tal cual (con desempate por sets/games real)
-    return computeZoneResults(zone);
+    const resultados = computeZoneResults(zone);
+    if(resultados) return resultados;
+    // caso borde: en formato reducido puede pasar que la ronda 1 ya esté completa pero la de Definición
+    // todavía no se haya creado (computeZoneResults devuelve null en ese caso) — seguir con la lógica de abajo
   }
   if(zone.format==='playoff4'){
     const out = new Array(4).fill(null);
@@ -5130,16 +5133,18 @@ function buildBracketFormato10(){
   const zones = state.zones;
   const zoneA = zones.find(z=>z.pairIds.length===4);
   const zonasDe3 = zones.filter(z=>z.pairIds.length===3);
-  if(!zoneA || zonasDe3.length<2){ state.primera=null; state.segunda=null; state.repechajesCruce=null; return; }
+  if(!zoneA || zonasDe3.length<2){ state.primera=null; state.segunda=null; state.repechajesCruce=null; state.repechajeTerceros=null; state.decisorQuinta=null; return; }
   const zoneB = zonasDe3[0], zoneC = zonasDe3[1];
 
   const lockA = computeZoneLocking(zoneA).map(r=> r?r.pairId:null);
   const standB = computeZoneStandings(zoneB);
   const standC = computeZoneStandings(zoneC);
   if(!lockA[0]||!lockA[1]||!lockA[2]||!lockA[3]||!standB[0]||!standB[1]||!standB[2]||!standC[0]||!standC[1]||!standC[2]){
-    state.primera=null; state.segunda=null; state.repechajesCruce=null; return;
+    state.primera=null; state.segunda=null; state.repechajesCruce=null; state.repechajeTerceros=null; state.decisorQuinta=null; return;
   }
   state.repechajesCruce = null;
+  state.repechajeTerceros = null;
+  state.decisorQuinta = null;
 
   const directos = [lockA[0], lockA[1], standB[0].pairId, standB[1].pairId, standC[0].pairId, standC[1].pairId];
   const pozo = [lockA[2], lockA[3], standB[2].pairId, standC[2].pairId];
@@ -5721,6 +5726,13 @@ function refreshBracketInner(){
     return;
   }
   if(state.zones.length===0) return;
+
+  // limpieza defensiva: estos 3 campos los usan solo algunos formatos puntuales. Si el torneo cambió de formato
+  // en algún momento (o quedó de una prueba anterior), no hay que dejar datos viejos mostrándose junto a lo nuevo.
+  if(state.format!=='formato9') state.repechajeTerceros = null;
+  if(state.format!=='formato11') state.decisorQuinta = null;
+  if(state.format!=='formato11' && state.format!=='formato12g4') state.repechajesCruce = null;
+
   if(state.format==='formato6'){
     buildBracketFormato6();
     return;
