@@ -1389,6 +1389,16 @@ function getVisibleTournaments(){
 let saveMainTimer=null;
 let lastKnownMainUpdatedAt = 0; // evita que un snapshot en vivo "atrasado" pise un guardado propio más reciente
 let pendingSaveCount = 0; // cuántos guardados hay en curso o pendientes ahora mismo (main + torneos)
+
+window.addEventListener('beforeunload', (e)=>{
+  // si hay un guardado todavía en curso (la escritura a la base es asíncrona y tarda un poco),
+  // avisar antes de cerrar para no perder ese último cambio si se cierra demasiado rápido
+  if(pendingSaveCount>0 || saveTournamentTimers && Object.keys(saveTournamentTimers).length>0 || saveMainTimer){
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+});
 let lastSaveError = null;
 
 let saveFailureNotified = false;
@@ -1442,7 +1452,7 @@ async function doSaveMain(){
 function scheduleSaveMain(){
   if(applyingRemote) return;
   clearTimeout(saveMainTimer);
-  saveMainTimer = setTimeout(doSaveMain, 350);
+  saveMainTimer = setTimeout(()=>{ saveMainTimer = null; doSaveMain(); }, 350);
 }
 
 let saveTournamentTimers = {};
@@ -1470,7 +1480,7 @@ async function doSaveTournament(t){
 function scheduleSaveTournament(t){
   if(applyingRemote || !t) return;
   clearTimeout(saveTournamentTimers[t.tournamentId]);
-  saveTournamentTimers[t.tournamentId] = setTimeout(()=>doSaveTournament(t), 350);
+  saveTournamentTimers[t.tournamentId] = setTimeout(()=>{ delete saveTournamentTimers[t.tournamentId]; doSaveTournament(t); }, 350);
 }
 
 function flushPendingSaves(){
@@ -5590,6 +5600,14 @@ function buildGrupoFinalMatch(){
 
 function refreshBracket(){
   if(!state) return;
+  try{
+    refreshBracketInner();
+  }catch(e){
+    console.error('Error al armar la llave (se guarda igual el resto de los cambios):', e);
+  }
+}
+
+function refreshBracketInner(){
   if(state.smallMode){
     if(state.format==='grupofinal') buildGrupoFinalMatch();
     return;
