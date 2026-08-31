@@ -845,6 +845,7 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 <div id="appToast" class="app-toast"></div>
 <div id="saveErrorBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#c0392b; color:#fff; padding:10px 16px; text-align:center; font-size:14px; font-weight:600;">
   ⚠️ No se pudieron guardar los últimos cambios. Revisá tu conexión a internet — la app va a seguir intentando sola.
+  <div id="saveErrorDetail" style="font-size:12px; font-weight:400; opacity:0.9; margin-top:4px;"></div>
 </div>
 <div class="modal-overlay" id="newPlayerModalOverlay" style="display:none;">
   <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
@@ -1423,6 +1424,15 @@ function updateSaveErrorBanner(){
   const banner = document.getElementById('saveErrorBanner');
   if(!banner) return;
   banner.style.display = saveFailureNotified ? 'block' : 'none';
+  const detailEl = document.getElementById('saveErrorDetail');
+  if(detailEl){
+    if(saveFailureNotified && lastSaveError){
+      const codigo = lastSaveError.code ? `[${lastSaveError.code}] ` : '';
+      detailEl.textContent = `Detalle técnico: ${codigo}${lastSaveError.message || lastSaveError}`;
+    } else {
+      detailEl.textContent = '';
+    }
+  }
 }
 
 async function doSaveMain(){
