@@ -3336,6 +3336,15 @@ function getPairName(pairId){
   return p ? pairDisplayName(p) : '???';
 }
 
+function getPairNameWithZonePos(pairId){
+  // para usar en la Llave: nombre + posición de zona entre paréntesis (ej. "Uno / Dos (1A)"),
+  // así se detecta fácil si dos parejas que se cruzan ya jugaron entre sí en la misma zona
+  const nombre = getPairName(pairId);
+  if(!pairId) return nombre;
+  const posLabel = getZonePositionLabel(pairId);
+  return (posLabel && posLabel!=='?') ? `${nombre} (${posLabel})` : nombre;
+}
+
 function getReadyPairs(){
   return state.pairs.filter(p=> p.p1Id && p.p2Id);
 }
@@ -6679,10 +6688,11 @@ function renderZonas(){
   }
 }
 
-function matchCardHtml(m){
+function matchCardHtml(m, showZonaPos){
+  const nombreDe = showZonaPos ? getPairNameWithZonePos : getPairName;
   if(m.pending){
-    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || 'Pendiente de definir');
-    const nameB = m.bye ? null : (m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir'));
+    const nameA = m.aId ? nombreDe(m.aId) : (m.pendingDescA || 'Pendiente de definir');
+    const nameB = m.bye ? null : (m.bId ? nombreDe(m.bId) : (m.pendingDescB || 'Pendiente de definir'));
     const labelHtml = m.label ? `<div class="hint" style="margin:0 0 6px; color:var(--accent-2);">${escapeHtml(m.label)}</div>` : '';
     if(m.bye){
       return `
@@ -6703,8 +6713,8 @@ function matchCardHtml(m){
       <div class="hint">⏳ A la espera de que se defina esta pareja en su zona.</div>
     </div>`;
   }
-  const nameA = getPairName(m.aId);
-  const nameB = getPairName(m.bId);
+  const nameA = nombreDe(m.aId);
+  const nameB = nombreDe(m.bId);
   if(m.bye){
     return `
     <div class="match-card">
@@ -7010,7 +7020,7 @@ function renderLlave(){
     if(state.format==='grupofinal'){
       const finalHtml = !state.finalMatch
         ? `<div class="empty-state">La final (1° vs 2° del grupo) se arma sola apenas termine el todos-contra-todos.</div>`
-        : `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; max-width:400px;">${matchCardHtml(state.finalMatch)}</div>`;
+        : `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; max-width:400px;">${matchCardHtml(state.finalMatch, true)}</div>`;
       c.innerHTML = `
         <div class="bracket-section">
           <h3 class="round-label" style="text-align:left;">Final (1° vs 2° del grupo)</h3>
@@ -7059,7 +7069,7 @@ function renderLlave(){
       <h3 class="round-label" style="text-align:left;">Repechaje de terceros</h3>
       <div class="divider-note">Los dos terceros de zona con menos puntaje se enfrentan; el ganador completa el último lugar de cuartos de final. Mientras tanto, los otros cruces ya se pueden jugar.</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; max-width:400px;">
-        ${matchCardHtml(state.repechajeTerceros)}
+        ${matchCardHtml(state.repechajeTerceros, true)}
       </div>
     </div>` : '';
 
@@ -7068,7 +7078,7 @@ function renderLlave(){
       <h3 class="round-label" style="text-align:left;">Partido decisor</h3>
       <div class="divider-note">Las dos parejas sueltas con menos puntaje se enfrentan; la que gana sigue en carrera junto a las otras 3, la que pierde queda eliminada del torneo.</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; max-width:400px;">
-        ${matchCardHtml(state.decisorQuinta)}
+        ${matchCardHtml(state.decisorQuinta, true)}
       </div>
     </div>` : '';
 
@@ -7077,7 +7087,7 @@ function renderLlave(){
       <h3 class="round-label" style="text-align:left;">Repechajes</h3>
       <div class="divider-note">Las parejas sueltas juegan estos repechajes cruzados; cada ganador completa uno de los últimos lugares de cuartos de final. Mientras tanto, los otros cruces ya se pueden jugar.</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; max-width:600px;">
-        ${state.repechajesCruce.map(m=> matchCardHtml(m)).join('')}
+        ${state.repechajesCruce.map(m=> matchCardHtml(m, true)).join('')}
       </div>
     </div>` : '';
 
@@ -7086,7 +7096,7 @@ function renderLlave(){
       <h3 class="round-label" style="text-align:left;">${primeraStageLabel(state.format)}</h3>
       <div class="divider-note">Se enfrentan las parejas del ranking general con menos puntos. Los ganadores completan el cuadro de la Segunda Instancia.</div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; max-width:960px;">
-        ${state.primera.matches.map(m=> matchCardHtml(m)).join('')}
+        ${state.primera.matches.map(m=> matchCardHtml(m, true)).join('')}
       </div>
     </div>`;
 
@@ -7229,8 +7239,8 @@ function bracketMatchHtml(m){
           <div class="side loser">BYE</div>
         </div>`;
     }
-    const nameA = m.aId ? getPairName(m.aId) : (m.pendingDescA || 'Pendiente de definir');
-    const nameB = m.bId ? getPairName(m.bId) : (m.pendingDescB || 'Pendiente de definir');
+    const nameA = m.aId ? getPairNameWithZonePos(m.aId) : (m.pendingDescA || 'Pendiente de definir');
+    const nameB = m.bId ? getPairNameWithZonePos(m.bId) : (m.pendingDescB || 'Pendiente de definir');
     return `
       <div class="bmatch pending-match">
         <div class="side" style="${m.aId?'':'color:var(--text-faint); font-style:italic;'}">${escapeHtml(nameA)}</div>
@@ -7242,12 +7252,12 @@ function bracketMatchHtml(m){
   if(m.bye){
     return `
       <div class="bmatch">
-        <div class="side winner">${escapeHtml(getPairName(m.aId || m.bId))}</div>
+        <div class="side winner">${escapeHtml(getPairNameWithZonePos(m.aId || m.bId))}</div>
         <div class="mid-line"></div>
         <div class="side loser">BYE</div>
       </div>`;
   }
-  const nameA = getPairName(m.aId), nameB = getPairName(m.bId);
+  const nameA = getPairNameWithZonePos(m.aId), nameB = getPairNameWithZonePos(m.bId);
   const canchaHtml = `<div class="cancha-row"><span>🎾 Cancha</span>${canchaSelectHtml(m)}</div>`;
   if(m.completed){
     const scoreStr = m.sets.map(s=>`${s.a}-${s.b}`).join(', ');
