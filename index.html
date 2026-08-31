@@ -3772,7 +3772,7 @@ const FORMAT_DESCRIPTIONS = {
   formato7: 'Solo para exactamente 7 parejas. Una zona de 4 (juega el formato reducido) y otra de 3. El mejor de la zona de 4 pasa directo siempre a semifinales — así el cruce queda parejo (3 contra 3). Las otras 6 (3 de la zona de 4 y las 3 de la zona de 3) se cruzan buscando siempre la combinación con menos repetidos de zona, y los 3 ganadores completan las semifinales.',
   formato8a: 'Solo para exactamente 8 parejas. 2 zonas de 4, juegan el formato reducido (2 partidos). Cruce único entre las dos zonas (1° contra 4°, 2° contra 3° — 4 partidos). Los 4 ganadores completan las semifinales.',
   formato8b: 'Solo para exactamente 8 parejas. 2 zonas de 4, todos contra todos (3 partidos). Solo clasifican el 1° y 2° de cada zona — el 3° y 4° quedan eliminados. El cruce entre zonas (1° contra 2° — 2 partidos) es directamente la semifinal: los 2 ganadores van a la final.',
-  formato9: 'Solo para exactamente 9 parejas. Los 2 mejores de cada zona pasan directo a cuartos de final. De los 3 terceros, el de mejor puntaje también pasa directo; los otros 2 juegan un repechaje entre sí, y el ganador completa el último lugar de cuartos (mientras tanto, ya se pueden jugar los otros 3 cruces de cuartos).',
+  formato9: 'Solo para exactamente 9 parejas. El 1° y 2° de cada zona pasan directo (6). De los tres 3°, el de mejor rendimiento pasa directo sin jugar más (zona X); los otros dos juegan un repechaje entre sí — el ganador (zona Y) también clasifica, el perdedor (zona Z) queda eliminado. Los cuartos se arman con una fórmula fija: 1°X vs 3°Y, 2°X vs 2°Y, 3°X vs 1°Z, 1°Y vs 2°Z (ningún cuarto se puede armar hasta que el repechaje termine, porque depende de saber quién ganó).',
   formato10: 'Solo para exactamente 10 parejas. Una zona de 4 y dos de 3. Pasan directo los 2 mejores de cada zona (6 en total). Las 4 restantes (3°/4° de la zona de 4, y el 3° de cada zona de 3) juegan 2 octavos buscando la combinación con menos repetidos, y los 2 ganadores completan los cuartos junto a los 6 directos.',
   formato11: 'Solo para exactamente 11 parejas. Dos zonas de 4 y una de 3. Pasan directo el 1° y 2° de cada zona de 4, y el 1° de la zona de 3 (5 en total). Las 6 restantes (siempre 2 de cada zona) se cruzan buscando la combinación con menos repetidos, y los 3 ganadores completan los cuartos junto a los 5 directos.',
   formato12g3: 'Solo para exactamente 12 parejas. 4 zonas de 3, todos contra todos. Se arma una tabla general con las 12, sin privilegio por zona: los 4 mejores pasan directo a cuartos. Las otras 8 juegan octavos buscando siempre la combinación con menos repetidos de zona, y los 4 ganadores completan los cuartos.',
@@ -5540,40 +5540,66 @@ function buildBracketFormato11(){
 }
 
 function buildBracketFormato9(){
-  const zones = state.zones; // exactamente 3 zonas de 3
-  // ranking general de las 9, sin privilegio automático por posición de zona (misma idea que 12/13/14)
-  const ranking = computeGeneralRanking();
-  if(ranking.length<9){ state.primera=null; state.segunda=null; state.repechajeTerceros=null; return; }
+  // 3 zonas de 3. El 1° y 2° de cada zona pasan directo siempre (6). De los tres 3°, se comparan entre sí:
+  // el mejor (zona X) auto-clasifica sin jugar más; los otros dos (zonas Y y Z candidatas) juegan un repechaje.
+  // El ganador de ese repechaje pasa a ser la "zona Y" (su 3° clasifica), el perdedor "zona Z" (queda eliminado).
+  // Cuartos con fórmula fija: 1X vs 3Y, 2X vs 2Y, 3X vs 1Z, 1Y vs 2Z (siempre cruza zonas distintas).
+  const zones = state.zones;
+  if(zones.length!==3) return;
 
-  const directos = ranking.slice(0,7).map(r=>r.pairId); // los 7 mejores de la tabla general
-  const rivalesRepechaje = ranking.slice(7,9).map(r=>r.pairId); // los 2 peores juegan el repechaje
+  const standings = zones.map(z=> computeZoneStandings(z));
+  if(standings.some(st=> !st[0]||!st[1]||!st[2])){ state.primera=null; state.segunda=null; state.repechajeTerceros=null; return; }
+
+  const terceros = zones.map((z,i)=> ({zone:z, standing: standings[i][2]}));
+  const ordenados = [...terceros].sort((a,b)=> b.standing.pts-a.standing.pts || b.standing.diffSets-a.standing.diffSets || b.standing.diffGames-a.standing.diffGames);
+  const zonaX = ordenados[0].zone;
+  const zonaCandY = ordenados[1].zone;
+  const zonaCandZ = ordenados[2].zone;
+
+  const standX = standings[zones.indexOf(zonaX)];
+  const standCandY = standings[zones.indexOf(zonaCandY)];
+  const standCandZ = standings[zones.indexOf(zonaCandZ)];
+
+  const pidCandY = standCandY[2].pairId;
+  const pidCandZ = standCandZ[2].pairId;
 
   const prevRep = state.repechajeTerceros;
-  const repechaje = (prevRep && ((prevRep.aId===rivalesRepechaje[0]&&prevRep.bId===rivalesRepechaje[1])||(prevRep.aId===rivalesRepechaje[1]&&prevRep.bId===rivalesRepechaje[0]))) ? prevRep
-    : {id:uid(), aId:rivalesRepechaje[0], bId:rivalesRepechaje[1], sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:'', label:'Repechaje'};
+  const repechaje = (prevRep && ((prevRep.aId===pidCandY&&prevRep.bId===pidCandZ)||(prevRep.aId===pidCandZ&&prevRep.bId===pidCandY))) ? prevRep
+    : {id:uid(), aId:pidCandY, bId:pidCandZ, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:'', label:'Repechaje de terceros'};
   state.repechajeTerceros = repechaje;
 
-  const {leftover, pairing} = chooseLeftoverAndPairing(directos, new Set(), zones);
+  const directos = [
+    standX[0].pairId, standX[1].pairId, standX[2].pairId,
+    standCandY[0].pairId, standCandY[1].pairId,
+    standCandZ[0].pairId, standCandZ[1].pairId
+  ];
 
   const existingMatches = state.primera ? state.primera.matches : [];
+
+  state.primera = { matches: [], directRanked: directos, repechajeRanked: [pidCandY, pidCandZ] };
+
+  if(!repechaje.completed){ state.segunda = null; return; }
+
+  const zonaY = repechaje.winnerId===pidCandY ? zonaCandY : zonaCandZ;
+  const zonaZ = repechaje.winnerId===pidCandY ? zonaCandZ : zonaCandY;
+  const standY = standings[zones.indexOf(zonaY)];
+  const standZ = standings[zones.indexOf(zonaZ)];
+
   const findExisting = (aId,bId)=> (!aId||!bId) ? null : existingMatches.find(m=> !m.pending && ((m.aId===aId&&m.bId===bId)||(m.aId===bId&&m.bId===aId)));
   function buildMatch(pidX, pidY){
     return findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
   }
 
-  const cuartosInmediatos = pairing.map(par=> buildMatch(par[0], par[1])); // 3 cuartos que se pueden jugar YA
+  const cuarto1 = buildMatch(standX[0].pairId, standY[2].pairId); // 1X vs 3Y
+  const cuarto2 = buildMatch(standX[1].pairId, standY[1].pairId); // 2X vs 2Y
+  const cuarto3 = buildMatch(standX[2].pairId, standZ[0].pairId); // 3X vs 1Z
+  const cuarto4 = buildMatch(standY[0].pairId, standZ[1].pairId); // 1Y vs 2Z
 
-  let cuarto4;
-  if(repechaje.completed){
-    cuarto4 = findExisting(leftover, repechaje.winnerId) || {id:uid(), aId:leftover, bId:repechaje.winnerId, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:false, cancha:''};
-  } else {
-    cuarto4 = {id:uid(), aId:leftover, bId:null, sets:emptySets(), completed:false, winnerId:null, started:false, bye:false, pending:true, cancha:'', pendingDescA:null, pendingDescB:'Ganador del repechaje'};
-  }
+  const cuartos = [cuarto1, cuarto2, cuarto3, cuarto4];
+  state.primera = { matches: cuartos, directRanked: directos, repechajeRanked: [pidCandY, pidCandZ] };
 
-  state.primera = { matches:[...cuartosInmediatos, cuarto4], directRanked: directos, repechajeRanked: rivalesRepechaje };
-
-  if(!cuartosInmediatos.every(m=>m.completed) || !cuarto4.completed){ state.segunda = null; return; }
-  buildSemifinalYFinal([cuartosInmediatos[0].winnerId, cuartosInmediatos[1].winnerId, cuartosInmediatos[2].winnerId, cuarto4.winnerId], zones);
+  if(!cuartos.every(m=>m.completed)){ state.segunda = null; return; }
+  buildSemifinalYFinal(cuartos.map(m=>m.winnerId), zones, []);
 }
 
 function buildBracketFormato6(){
