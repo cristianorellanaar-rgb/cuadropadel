@@ -1365,6 +1365,7 @@ const TORNEO_SUBTABS = ['lista','parejas','cancha','zonas','general','llave'];
 
 function sanitizeTournament(t){
   if(!t) return null;
+  fromFirestoreSafeTournament(t); // desenvuelve state.segunda.rounds de vuelta a un array plano, si vino envuelto de Firestore
   if(!t.format) t.format = 'avanzado';
   if(t.clubId===undefined) t.clubId = null;
   if(t.categoria===undefined) t.categoria = '';
@@ -1481,6 +1482,22 @@ function scheduleSaveMain(){
 }
 
 let saveTournamentTimers = {};
+function toFirestoreSafeTournament(t){
+  // Firestore no admite un array que tenga otro array directamente adentro ("nested arrays").
+  // state.segunda.rounds es justamente eso: un array de rondas, y cada ronda es un array de partidos.
+  // Se envuelve cada ronda en un objeto {matches:[...]} SOLO para el documento que se manda a guardar;
+  // el objeto real en memoria (el que usa el resto de la app) no se toca.
+  if(!t.segunda || !Array.isArray(t.segunda.rounds)) return t;
+  return { ...t, segunda: { ...t.segunda, rounds: t.segunda.rounds.map(round=> ({matches: round})) } };
+}
+
+function fromFirestoreSafeTournament(t){
+  // el inverso: al leer de Firestore, desenvolver {matches:[...]} de vuelta a un array plano de partidos
+  if(!t || !t.segunda || !Array.isArray(t.segunda.rounds)) return t;
+  t.segunda.rounds = t.segunda.rounds.map(r=> Array.isArray(r) ? r : (r && Array.isArray(r.matches) ? r.matches : []));
+  return t;
+}
+
 async function doSaveTournament(t){
   if(!t) return true;
   t.updatedAt = Date.now(); // se guarda YA en el objeto local: sirve para comparar contra ecos viejos del oyente en vivo
@@ -1489,7 +1506,7 @@ async function doSaveTournament(t){
   let ok = true;
   try{
     if(liveSyncActive && tournamentsColRef){
-      try{ await tournamentsColRef.doc(t.tournamentId).set(t); reportSaveSuccess(); }
+      try{ await tournamentsColRef.doc(t.tournamentId).set(toFirestoreSafeTournament(t)); reportSaveSuccess(); }
       catch(e){ console.error('Error guardando el torneo', e); reportSaveError(e); ok = false; }
       return ok;
     }
