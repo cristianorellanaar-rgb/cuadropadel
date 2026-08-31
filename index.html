@@ -2608,13 +2608,13 @@ function nextPow2(n){ let p=1; while(p<n) p*=2; return p; }
 /* ---- construcción de zonas con formato reducido ---- */
 function makeZone(name, pairIds){
   if(pairIds.length===4 && (state.format==='avanzado' || state.format==='formato7' || state.format==='formato8a' || state.format==='formato10' || state.format==='formato11' || state.format==='formato12g4' || state.format==='formato13' || state.format==='formato14' || state.format==='formato15' || state.format==='formato16a')){
-    const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
-    const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''};
+    const m1 = {id:uid(), aId:pairIds[0], bId:pairIds[1], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:'', started:false, startedAt:null};
+    const m2 = {id:uid(), aId:pairIds[2], bId:pairIds[3], sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:'', started:false, startedAt:null};
     return { id:uid(), name, pairIds, format:'playoff4', matches:[m1,m2] };
   }
   // 3, o 4 en modo Principiantes, o modo reducido de cualquier tamaño: todos contra todos
   const matches = combinations(pairIds).map(([a,b])=>({
-    id:uid(), aId:a, bId:b, sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:''
+    id:uid(), aId:a, bId:b, sets:emptySets(), completed:false, winnerId:null, round:1, matchType:'grupo', label:null, cancha:'', started:false, startedAt:null
   }));
   return { id:uid(), name, pairIds, format:'roundrobin', matches };
 }
@@ -2628,11 +2628,11 @@ function advanceZonePlayoff(zone){
   const losers = round1.map(m=> m.aId===m.winnerId ? m.bId : m.aId);
   zone.matches.push({
     id:uid(), aId:winners[0], bId:winners[1], sets:emptySets(), completed:false, winnerId:null,
-    round:2, matchType:'llave', label:'Definición 1°-2° de la zona', cancha:''
+    round:2, matchType:'llave', label:'Definición 1°-2° de la zona', cancha:'', started:false, startedAt:null
   });
   zone.matches.push({
     id:uid(), aId:losers[0], bId:losers[1], sets:emptySets(), completed:false, winnerId:null,
-    round:2, matchType:'llave', label:'Definición 3°-4° de la zona', cancha:''
+    round:2, matchType:'llave', label:'Definición 3°-4° de la zona', cancha:'', started:false, startedAt:null
   });
 }
 
@@ -4702,22 +4702,22 @@ function buildRepechajeMatches(repechajeRanked, existingMatches){
   const matches=[];
   if(byeEntry){
     if(byeEntry.pending){
-      matches.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: byeEntry.pendingDesc||'Mejor semilla del repechaje (a definir)', cancha:''});
+      matches.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: byeEntry.pendingDesc||'Mejor semilla del repechaje (a definir)', cancha:'', started:false, startedAt:null});
     } else {
-      matches.push(findExistingBye(byeEntry.pairId) || {id:uid(), aId:byeEntry.pairId, bId:null, sets:[], completed:true, winnerId:byeEntry.pairId, bye:true, pending:false, cancha:''});
+      matches.push(findExistingBye(byeEntry.pairId) || {id:uid(), aId:byeEntry.pairId, bId:null, sets:[], completed:true, winnerId:byeEntry.pairId, bye:true, pending:false, cancha:'', started:false, startedAt:null});
     }
   }
   for(let i=0;i<list.length/2;i++){
     const a = list[i], b = list[list.length-1-i];
     if(!a.pending && !b.pending){
-      matches.push(findExisting(a.pairId, b.pairId) || {id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''});
+      matches.push(findExisting(a.pairId, b.pairId) || {id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:'', started:false, startedAt:null});
     } else {
       matches.push({
         id:uid(), aId: a.pending?null:a.pairId, bId: b.pending?null:b.pairId,
         sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true,
         pendingDescA: a.pending ? a.pendingDesc : null,
         pendingDescB: b.pending ? b.pendingDesc : null,
-        cancha:''
+        cancha:'', started:false, startedAt:null
       });
     }
   }
@@ -5583,10 +5583,10 @@ function buildBracketCruce(){
 
   const pushMatch = (pidX, pidY, descX, descY)=>{
     if(pidX && pidY){
-      matches.push(findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''});
+      matches.push(findExisting(pidX,pidY) || {id:uid(), aId:pidX, bId:pidY, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:'', started:false, startedAt:null});
     } else {
       matches.push({
-        id:uid(), aId:pidX||null, bId:pidY||null, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true, cancha:'',
+        id:uid(), aId:pidX||null, bId:pidY||null, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true, cancha:'', started:false, startedAt:null,
         pendingDescA: pidX?null:descX, pendingDescB: pidY?null:descY
       });
     }
@@ -5804,11 +5804,11 @@ function tryGenerateSegunda(){
     if(!a || !b){
       // bye estructural del cuadro (no alcanza la cantidad total de parejas)
       const only = a||b;
-      if(!only){ round1.push({id:uid(), aId:null,bId:null, sets:[], completed:false, winnerId:null, bye:false, pending:true, cancha:''}); continue; }
+      if(!only){ round1.push({id:uid(), aId:null,bId:null, sets:[], completed:false, winnerId:null, bye:false, pending:true, cancha:'', started:false, startedAt:null}); continue; }
       if(only.pending){
-        round1.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: only.pendingDesc, cancha:''});
+        round1.push({id:uid(), aId:null, bId:null, sets:[], completed:false, winnerId:null, bye:true, pending:true, pendingDesc: only.pendingDesc, cancha:'', started:false, startedAt:null});
       } else {
-        round1.push({id:uid(), aId:only.pairId, bId:null, sets:[], completed:true, winnerId:only.pairId, bye:true, pending:false, cancha:''});
+        round1.push({id:uid(), aId:only.pairId, bId:null, sets:[], completed:true, winnerId:only.pairId, bye:true, pending:false, cancha:'', started:false, startedAt:null});
       }
       continue;
     }
@@ -5818,12 +5818,12 @@ function tryGenerateSegunda(){
         sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true,
         pendingDescA: a.pending ? a.pendingDesc : null,
         pendingDescB: b.pending ? b.pendingDesc : null,
-        cancha:''
+        cancha:'', started:false, startedAt:null
       });
       continue;
     }
     round1.push(findExisting(a.pairId, b.pairId) || {
-      id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''
+      id:uid(), aId:a.pairId, bId:b.pairId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:'', started:false, startedAt:null
     });
   }
 
@@ -5846,7 +5846,7 @@ function buildNextRoundProgressive(prevRound, existingNext){
     const bDone = !!b.winnerId && !b.pending;
     if(aDone && bDone){
       nextRound.push(findExisting(a.winnerId, b.winnerId) || {
-        id:uid(), aId:a.winnerId, bId:b.winnerId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:''
+        id:uid(), aId:a.winnerId, bId:b.winnerId, sets:emptySets(), completed:false, winnerId:null, bye:false, pending:false, cancha:'', started:false, startedAt:null
       });
     } else {
       nextRound.push({
@@ -5856,7 +5856,7 @@ function buildNextRoundProgressive(prevRound, existingNext){
         sets:emptySets(), completed:false, winnerId:null, bye:false, pending:true,
         pendingDescA: aDone ? null : `Ganador: ${descFor(a)}`,
         pendingDescB: bDone ? null : `Ganador: ${descFor(b)}`,
-        cancha:''
+        cancha:'', started:false, startedAt:null
       });
     }
   }
