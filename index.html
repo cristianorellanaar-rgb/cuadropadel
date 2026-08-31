@@ -843,6 +843,9 @@ tr.zone-repechaje{background:rgba(18,122,148,0.06);}
 </div>
 
 <div id="appToast" class="app-toast"></div>
+<div id="saveErrorBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:9999; background:#c0392b; color:#fff; padding:10px 16px; text-align:center; font-size:14px; font-weight:600;">
+  ⚠️ No se pudieron guardar los últimos cambios. Revisá tu conexión a internet — la app va a seguir intentando sola.
+</div>
 <div class="modal-overlay" id="newPlayerModalOverlay" style="display:none;">
   <div class="modal-box" style="text-align:left; min-width:320px; max-width:400px;">
     <div class="modal-title" style="text-align:center;">Completá tu registro</div>
@@ -1407,11 +1410,19 @@ function reportSaveError(e){
   lastSaveError = e;
   saveFailureNotified = true;
   console.error('Error al guardar', e);
+  updateSaveErrorBanner();
 }
 
 function reportSaveSuccess(){
   lastSaveError = null;
   saveFailureNotified = false;
+  updateSaveErrorBanner();
+}
+
+function updateSaveErrorBanner(){
+  const banner = document.getElementById('saveErrorBanner');
+  if(!banner) return;
+  banner.style.display = saveFailureNotified ? 'block' : 'none';
 }
 
 async function doSaveMain(){
@@ -1443,8 +1454,12 @@ async function doSaveMain(){
         await window.storage.set('sessions-db', JSON.stringify(sessions), false);
         reportSaveSuccess();
       }catch(e){ console.error('Error guardando', e); reportSaveError(e); ok = false; }
+      return ok;
     }
-    return ok;
+    // ni Firebase ni el almacenamiento local están disponibles: no se guardó en ningún lado, hay que avisar
+    console.error('No hay ningún destino de guardado disponible (ni Firebase ni almacenamiento local)');
+    reportSaveError(new Error('Sin destino de guardado disponible'));
+    return false;
   } finally {
     pendingSaveCount = Math.max(0, pendingSaveCount-1);
   }
@@ -1471,8 +1486,12 @@ async function doSaveTournament(t){
     if(storageAvailable){
       try{ await window.storage.set('active-tournaments', JSON.stringify(tournaments), false); reportSaveSuccess(); }
       catch(e){ console.error('Error guardando torneos', e); reportSaveError(e); ok = false; }
+      return ok;
     }
-    return ok;
+    // ni Firebase ni el almacenamiento local están disponibles: no se guardó en ningún lado, hay que avisar
+    console.error('No hay ningún destino de guardado disponible (ni Firebase ni almacenamiento local)');
+    reportSaveError(new Error('Sin destino de guardado disponible'));
+    return false;
   } finally {
     pendingSaveCount = Math.max(0, pendingSaveCount-1);
   }
